@@ -11,14 +11,20 @@ import {
   favoriteCount,
   getSetting,
   historyDays,
+  setSetting,
 } from '@/lib/db';
-import type { ThemeMode } from '@/lib/types';
+import type { PushPref, ThemeMode } from '@/lib/types';
 import { useTheme } from '@/theme';
 
 const MODES: { key: ThemeMode; label: string }[] = [
   { key: 'auto', label: '跟随系统' },
   { key: 'light', label: '浅色' },
   { key: 'dark', label: '深色' },
+];
+
+const PUSH_OPTS: { key: PushPref; label: string; hint: string }[] = [
+  { key: 'classic', label: '经典轮换', hint: '在 1396 首经典池中按日期轮换' },
+  { key: 'occasion', label: '应景优先', hint: '恰逢节日 / 节气当天，先推应景之作' },
 ];
 
 export default function SettingsScreen() {
@@ -29,6 +35,7 @@ export default function SettingsScreen() {
 
   const [favCount, setFavCount] = useState(0);
   const [days, setDays] = useState(0);
+  const [push, setPush] = useState<PushPref>('classic');
   const [meta, setMeta] = useState<{ dataset: string; poems: string; built: string }>({
     dataset: '',
     poems: '',
@@ -44,11 +51,13 @@ export default function SettingsScreen() {
         getSetting(db, 'dataset'),
         getSetting(db, 'poem_count'),
         getSetting(db, 'built_at'),
+        getSetting(db, 'settings_push'),
       ])
-        .then(([f, d, ds, pc, ba]) => {
+        .then(([f, d, ds, pc, ba, sp]) => {
           if (!alive) return;
           setFavCount(f);
           setDays(d);
+          setPush(sp === 'occasion' ? 'occasion' : 'classic');
           setMeta({
             dataset: ds ?? '',
             poems: pc ?? '',
@@ -82,6 +91,40 @@ export default function SettingsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+        <Section label="每日推送">
+          <View style={styles.segment}>
+            {PUSH_OPTS.map((o) => {
+              const sel = push === o.key;
+              return (
+                <Pressable
+                  key={o.key}
+                  onPress={() => {
+                    setPush(o.key);
+                    setSetting(db, 'settings_push', o.key).catch(() => {});
+                  }}
+                  style={[
+                    styles.segBtn,
+                    sel
+                      ? { backgroundColor: colors.accent }
+                      : { borderColor: colors.line, borderWidth: 1 },
+                  ]}>
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontWeight: '600',
+                      color: sel ? colors.onAccent : colors.sub,
+                    }}>
+                    {o.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Text style={[styles.hint, { color: colors.faint }]}>
+            {PUSH_OPTS.find((o) => o.key === push)?.hint}
+          </Text>
+        </Section>
+
         <Section label="外观">
           <View style={styles.segment}>
             {MODES.map((m) => {
@@ -195,6 +238,7 @@ const styles = StyleSheet.create({
   rowLabel: { fontSize: 15, fontWeight: '500', flexShrink: 0 },
   rowValue: { flex: 1, fontSize: 13, textAlign: 'right' },
   segment: { flexDirection: 'row', gap: 8, padding: 10 },
+  hint: { fontSize: 12, paddingHorizontal: 14, paddingTop: 0, paddingBottom: 12, lineHeight: 18 },
   segBtn: {
     flex: 1,
     height: 38,

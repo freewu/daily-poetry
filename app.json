@@ -2,12 +2,18 @@
   "expo": {
     "name": "每日诗词",
     "slug": "daily-poetry",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "dailypoetry",
     "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "com.bluefrog.dailypoetry",
+      "supportsTablet": false
+    },
     "android": {
+      "package": "com.bluefrog.dailypoetry",
+      "versionCode": 2,
       "adaptiveIcon": {
         "backgroundColor": "#F4EDDA",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

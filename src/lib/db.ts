@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-import type { CollectionMeta, Poem } from './types';
+import type { CollectionMeta, Occasion, Poem } from './types';
 
 export const DB_NAME = 'poetry.db';
 
@@ -98,6 +98,67 @@ export async function poemForDay(db: SQLiteDatabase, dateStr: string): Promise<P
       offset,
     )) ?? null
   );
+}
+
+// ---------------------------------------------------------------- 应景（节日 / 节气）
+/**
+ * 两段式检索：先在题目中找明确“主题作”（如《中秋月》《九月九日忆山东兄弟》）；
+ * 题目无命中时再退到正文。命中按“年”轮换：同年同一节令/节日稳定，次年换一首。
+ */
+async function occasionTier(
+  db: SQLiteDatabase,
+  dateStr: string,
+  occ: Occasion,
+  col: 'title' | 'content',
+): Promise<Poem | null> {
+  // 检索词均为汉字（无 % / _ 通配符冲突），无需转义
+  const conds = occ.keywords.map(() => `${col} LIKE ?`).join(' OR ');
+  const params = occ.keywords.map((t) => `%${t}%`);
+  const c = await db.getFirstAsync<{ n: number }>(
+    `SELECT COUNT(*) n FROM poems WHERE daily = 1 AND (${conds})`,
+    ...params,
+  );
+  const n = c?.n ?? 0;
+  if (!n) return null;
+  // 以“年”为单位的偏移：同一节令/节日，次年轮换到下一首
+  const years = Math.floor(dayNumber(dateStr) / 365.2425);
+  const offset = years % n;
+  return (
+    (await db.getFirstAsync<Poem>(
+      `SELECT * FROM poems WHERE daily = 1 AND (${conds}) ORDER BY id LIMIT 1 OFFSET ?`,
+      ...params,
+      offset,
+    )) ?? null
+  );
+}
+
+export async function poemForOccasion(
+  db: SQLiteDatabase,
+  dateStr: string,
+  occ: Occasion,
+): Promise<Poem | null> {
+  const byTitle = await occasionTier(db, dateStr, occ, 'title');
+  if (byTitle) return byTitle;
+  return occasionTier(db, dateStr, occ, 'content');
+}
+
+export interface DayPick {
+  poem: Poem | null;
+  /** 是否为应景命中（否则为经典池轮换） */
+  occasion: boolean;
+}
+
+/** 依推送偏好取当日诗：应景日优先应景，其余回退经典轮换 */
+export async function pickPoemForDate(
+  db: SQLiteDatabase,
+  dateStr: string,
+  occ: Occasion | null,
+): Promise<DayPick> {
+  if (occ) {
+    const themed = await poemForOccasion(db, dateStr, occ);
+    if (themed) return { poem: themed, occasion: true };
+  }
+  return { poem: await poemForDay(db, dateStr), occasion: false };
 }
 
 export async function rememberDay(db: SQLiteDatabase, dateStr: string, poemId: number): Promise<void> {

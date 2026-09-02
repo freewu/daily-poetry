@@ -9,6 +9,10 @@
 
 - **每日一诗**：从精选池（唐诗三百首、千家诗、诗经、楚辞、花间集、南唐词，共 1396 首）
   按日期确定性轮换；可前后翻看任意一天的诗篇。
+- **农历 / 干支 / 节气**：首页同步显示当日农历与干支年；恰逢传统节日或二十四节气时，
+  以「应景优先」推送模式自动换上一首节日诗（《元日》《清明》《中秋月》《九月九日忆山东兄弟》…），
+  同年稳定、次年轮换；也可保持「经典轮换」。
+- **朗读**：系统 TTS 以中文朗读整首诗（题目、作者、正文），可随时停止。
 - **诗词库**：六大经典选集 + 全宋词/元曲等完整语料（可选构建），支持按题目、作者、诗句全文搜索。
 - **收藏 / 复制**：喜欢就点亮红心，一键复制全文（含出处落款）。
 - **离线优先**：全部语料打进一个 SQLite 数据库随应用发布（`.db` asset），无需联网。
@@ -21,6 +25,8 @@
 | --- | --- |
 | 框架 | React Native 0.86 · Expo SDK 57 · expo-router（Stack + NativeTabs） |
 | 存储 | `expo-sqlite`（SQLiteProvider + assetSource 内置库） |
+| 农历 | `lunar-javascript`（节气 / 节日 / 干支换算） |
+| 朗读 | `expo-speech`（系统 TTS） |
 | 构建 | Node ≥22 `node:sqlite`（`DatabaseSync`）、OpenCC-js、Python/Pillow（图标） |
 | 工作流 | `just` |
 
@@ -82,8 +88,16 @@ just db-full  # 改用完整语料：另含 全宋词 21053 / 元曲 10914 / 古
 | `just build` | 提示使用 EAS Build 出真机安装包 |
 | `just envcheck` | 环境自检 |
 
-> 真机安装包建议 [EAS Build](https://docs.expo.dev/eas/)：`npx eas-cli build --platform android`。
+> 真机安装包使用 [EAS Build](https://docs.expo.dev/eas/)（配置见 `eas.json`）：
+>
+> ```bash
+> npx eas-cli login
+> npx eas-cli build --platform android --profile preview   # 内部测试 APK
+> npx eas-cli build --platform android --profile production # 上架 AAB，版本号自增
+> ```
+>
 > 构建会自动带上 `assets/poetry.db`（已在 `metro.config.js` 注册 `db` 为资源类型）。
+> iOS 云构建需在 EAS 项目设置中配置 Apple 凭证。
 
 ## 数据说明
 
@@ -92,14 +106,18 @@ just db-full  # 改用完整语料：另含 全宋词 21053 / 元曲 10914 / 古
 - 简繁：构建时统一 `t → cn`（OpenCC 简体转换，对已是简体的文本为恒等变换）。
 - 每日算法：`dayNumber(date) = UTC 天数`，`offset = dayNumber % 精选池大小`，
   取 `daily=1` 且 `ORDER BY id` 的第 offset 首 —— 幂等、稳定。
+- 应景算法：先按题目命中（明确主题作），题目无命中退到正文；命中池按“年”轮换
+  （`year = floor(dayNumber / 365.2425)`），同一节日每年固定一首、次年换一首；
+  无应景命中时回退经典轮换。应景日数据均来自 lunar-javascript（MIT）。
 - “每日一诗”精选池固定为六部经典；完整语料全部可在「诗词库」中检索与收藏。
 
 ## 路线图
 
-- [ ] 农历 / 节气对照，按节气应景换诗
-- [ ] 朗读（TTS）
-- [ ] 生僻字注音、白话译注
-- [ ] EAS 云构建产物发布
+- [x] 农历 / 干支 / 节气显示与节日应景推送
+- [x] 朗读（系统 TTS）
+- [ ] 注音译注 —— chinese-poetry 语料不含译注；需要额外引入注音（如 pinyin-pro）与
+      白话译注数据源后再做
+- [x] EAS 云构建配置（`eas.json` + 应用标识就绪，登录 EAS 账号即可出包）
 
 ## License
 

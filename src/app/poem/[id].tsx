@@ -10,12 +10,14 @@ import { PoemCard } from '@/components/poem-card';
 import { ScreenBar } from '@/components/screen-bar';
 import {
   getPoem,
-  poemForDay,
+  getSetting,
+  pickPoemForDate,
   rememberDay,
   shiftDayStr,
   todayStr,
 } from '@/lib/db';
-import type { Poem } from '@/lib/types';
+import { dayInfo, occasionFor } from '@/lib/lunar';
+import type { Poem, PushPref } from '@/lib/types';
 import { useTheme } from '@/theme';
 
 /**
@@ -38,15 +40,17 @@ export default function PoemScreen() {
   useEffect(() => {
     let alive = true;
     if (dailyMode) {
-      poemForDay(db, date)
-        .then((p) => {
-          if (!alive) return;
-          if (p) {
-            setPoem(p);
-            rememberDay(db, date, p.id).catch(() => {});
-          } else setPoem(null);
-        })
-        .catch(() => {});
+      (async () => {
+        const sp = (await getSetting(db, 'settings_push')) ?? 'classic';
+        const push: PushPref = sp === 'occasion' ? 'occasion' : 'classic';
+        const occ = push === 'occasion' ? occasionFor(dayInfo(date)) : null;
+        const pick = await pickPoemForDate(db, date, occ);
+        if (!alive) return;
+        if (pick.poem) {
+          setPoem(pick.poem);
+          rememberDay(db, date, pick.poem.id).catch(() => {});
+        } else setPoem(null);
+      })().catch(() => {});
     } else {
       const pid = Number(params.id);
       const load =

@@ -26,3 +26,16 @@ export interface FavoriteRow {
 }
 
 export type ThemeMode = 'auto' | 'light' | 'dark';
+
+/** 每日推送偏好 */
+export type PushPref = 'classic' | 'occasion';
+
+/** 应景日（传统节日 / 二十四节气）及其检索词 */
+export interface Occasion {
+  id: string;
+  kind: 'festival' | 'term';
+  label: string;
+  /** 对应农历库返回的节日名（kind=festival 时） */
+  festival?: string;
+  keywords: string[];
+}
