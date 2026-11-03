@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { ScrollView, Text, View, type StyleProp, type TextStyle } from 'react-native';
 
 import { isVerse } from '@/lib/format';
+import { hidePunct } from '@/lib/punct';
 import type { Poem } from '@/lib/types';
 import { columnsOf, toColumnText } from '@/lib/typography';
 import { useTypography } from '@/typography';
@@ -14,6 +15,8 @@ interface Props {
   style?: StyleProp<TextStyle>;
   /** 挂在正文节点上（横排是 Text，竖排是外层 View），方便测试断言 */
   testID?: string;
+  /** 覆盖设置里的排版（导出卡片固定横排，竖排长诗塞不进方寸） */
+  vertical?: boolean;
 }
 
 /**
@@ -70,15 +73,22 @@ function VerticalLines({ poem, color, size, family }: { poem: Poem; color: strin
 }
 
 /** 正文渲染：诗句居中、长文左对齐，保留原始换行；字体 / 字号 / 排版跟随设置 */
-export function PoemLines({ poem, color, fontSize, style, testID }: Props) {
-  const { family, bodySize, vertical } = useTypography();
-  const centered = useMemo(() => isVerse(poem), [poem]);
+export function PoemLines({ poem, color, fontSize, style, testID, vertical: forceVertical }: Props) {
+  const { family, bodySize, vertical: prefVertical, punct } = useTypography();
+  const vertical = forceVertical ?? prefVertical;
+  // 「空白断句」：标点换成空格。竖排时 toColumnText 会压掉空格，
+  // 于是竖列变成不带标点的连续字串——正是古籍的样子。
+  const shown = useMemo(
+    () => (punct === 'space' ? { ...poem, content: hidePunct(poem.content) } : poem),
+    [poem, punct],
+  );
+  const centered = useMemo(() => isVerse(shown), [shown]);
   const size = fontSize ?? bodySize;
 
   if (vertical) {
     return (
       <View testID={testID} style={style}>
-        <VerticalLines poem={poem} color={color} size={size} family={family} />
+        <VerticalLines poem={shown} color={color} size={size} family={family} />
       </View>
     );
   }
@@ -98,7 +108,7 @@ export function PoemLines({ poem, color, fontSize, style, testID }: Props) {
         },
         style,
       ]}>
-      {poem.content}
+      {shown.content}
     </Text>
   );
 }

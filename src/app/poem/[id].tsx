@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -33,6 +33,7 @@ export default function PoemScreen() {
   const { colors } = useTheme();
   const { script } = useScript();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
 
   const dailyMode = useMemo(() => Boolean(params.date), [params.date]);
   const initialDate = params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date) ? params.date : todayStr();
@@ -114,7 +115,15 @@ export default function PoemScreen() {
 
       {poem ? (
         <View style={{ paddingBottom: Math.max(insets.bottom, 8) }}>
-          <PoemActions poem={poem} />
+          <PoemActions
+            poem={poem}
+            onCard={() =>
+              router.push({
+                pathname: '/card/[id]',
+                params: { id: String(poem.id), ...(dailyMode ? { date } : {}) },
+              })
+            }
+          />
         </View>
       ) : null}
     </View>

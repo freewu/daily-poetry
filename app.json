@@ -39,7 +39,15 @@
         }
       ],
       "expo-sqlite",
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "允许「每日诗词」访问相册，用于保存诗词卡片",
+          "savePhotosPermission": "允许「每日诗词」把诗词卡片保存到相册",
+          "granularPermissions": []
+        }
+      ]
     ],
     "experiments": {
       "reactCompiler": true

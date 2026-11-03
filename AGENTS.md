@@ -30,13 +30,14 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
   版本不一致时 `src/lib/db-bootstrap.ts` 会在启动时覆盖随包库，并按「题目 + 作者 + 首句」把收藏 / 足迹写回。
   覆盖会整份替换 `meta` 表，所以新增偏好设置时**必须**加进 `KEPT_SETTINGS` 白名单，
   否则换库会把用户设置重置（现有：`settings_theme / settings_push / settings_script /
-  settings_font / settings_font_size / settings_tts_rate`）。
+  settings_font / settings_font_size / settings_layout / settings_punct / settings_tts_rate`）。
 
-# 阅读设置（字体 / 字号 / 语速）
+# 阅读设置（字体 / 字号 / 排版 / 标点 / 语速）
 
 - 全部持久化在 `meta` 表的 `settings_*` KV 里，没有 AsyncStorage：
   `settings_font`（`system|song|kai`）、`settings_font_size`（`sm|md|lg|xl`）、
-  `settings_layout`（`horizontal|vertical`）、`settings_tts_rate`（`slow|normal|fast`）。
+  `settings_layout`（`horizontal|vertical`）、`settings_punct`（`keep|space`）、
+  `settings_tts_rate`（`slow|normal|fast`）。
 - 字族 / 字号档位表在 `src/lib/typography.ts`，`AppTypographyProvider`（`src/typography.tsx`）
   读库并往下发 `family / scale / bodySize`；`PoemLines` 不传 `fontSize` 时用 `bodySize`
   （21 × 倍率），行高固定 1.85 倍。
@@ -47,5 +48,22 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
   **注意**：`row-reverse` 下 `scrollX=0` 是内容最左（也就是末句），所以横向溢出时
   必须 `scrollToEnd()`，否则长诗会从最后一列开始读（挂载 + `onContentSizeChange` 里各调一次，
   用户开始拖动后就不再自动跳）。
+- 标点：`src/lib/punct.ts` 的 `hidePunct()` 把标点换成**空格**（不是删掉，否则两句黏在一起），
+  连续空白压成一个、去掉行首尾空格，但**保留换行**——竖排的列数按行算，动换行会把版式搞乱。
+  只在 `PoemLines` / `PoemRow` 渲染时套，复制与朗读仍是原文标点。
 - 朗读语速在 `src/lib/tts.ts`，`expo-speech` 的 `rate` 是倍率（1.0 = 系统默认，中文偏快，
   所以「标准」= 0.9）。`PoemActions` 每次朗读现读设置，改完不用重启。
+
+# 诗词卡片（截图 → 相册）
+
+- `src/app/card/[id].tsx`：`?id=` 取诗，可选 `?date=`（每日一诗那天，印在底部）；
+  `captureRef(viewRef)`（`react-native-view-shot`）截外层 `View`，**必须** `collapsable={false}`，
+  否则 Android 会把这层拍平，截出来是空的。
+- `src/lib/card-save.ts`：`expo-media-library` 的「相册」就是 MediaStore 的一个目录，
+  `Album.create(name, [])` 会因为没有第一个文件而报错，所以必须先 `Album.get()`，
+  存在就 `Asset.create(uri, album)`，不存在才带着这张图一起建。
+- 权限：Android 10+ 往 MediaStore 插图片不需要权限，默认直接写、失败才要一次；
+  iOS 必须先授权（调用方传 `askFirst`）。`app.json` 里的 `photosPermission` /
+  `savePhotosPermission` 是 iOS 的用途文案。
+- 卡片配色与字号写死在 `src/components/share-card.tsx`，不跟主题、不跟阅读字号：
+  导出的图是给别人看的，版面要稳定。

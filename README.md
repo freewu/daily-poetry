@@ -25,6 +25,11 @@
   不打包字体文件，全部走系统自带的 CJK 字族。
 - **横排 / 竖排**：竖排按「原文一行 = 一列」逐字竖直堆叠，自右向左排开（仿古籍版式），
   长诗列数超出屏幕时可横向拖动，从最右的第一列读起；列表行仍是横排，方便扫读。
+- **标点可隐**：保留原文标点 / 换成空格（空白断句）两档。仿古版式下不点标点，
+  但直接删会让句子黏成一串，所以改成句读间隙；只影响显示，复制与朗读仍带原文标点。
+- **诗词卡片**：一键把诗排成一张笺纸（题目 / 作者 / 正文 / 出处 / 日期戳），
+  截图后存进相册的「每日诗词」文件夹，可直接分享；卡片固定横排、不跟夜间模式，
+  导出的图在哪儿都好看。
 - **纸墨主题**：宣纸底、朱砂印、楷体图标；浅色 / 深色 / 跟随系统。
 
 ## 技术栈
@@ -35,6 +40,7 @@
 | 存储 | `expo-sqlite`（SQLiteProvider + assetSource 内置库） |
 | 农历 | `lunar-javascript`（节气 / 节日 / 干支换算） |
 | 朗读 | `expo-speech`（系统 TTS） |
+| 卡片 | `react-native-view-shot`（截图）+ `expo-media-library`（存相册） |
 | 构建 | Node ≥22 `node:sqlite`（`DatabaseSync`）、OpenCC-js、Python/Pillow（图标） |
 | 工作流 | `just` |
 
@@ -151,9 +157,10 @@ just test-cov        # 生成 coverage/lcov.info
 覆盖范围：`format`（繁简 / 断句）、`lunar`（节气 / 干支 / 节日应景）、`db`（每日算法、
 搜索、收藏）、`script`（简繁取字段）、`db-bootstrap`（换库时保留收藏 / 足迹）、
 `assets/poetry.db`（构建产物结构校验）、`theme`（跟随系统 / 持久化）、
-`typography`（字族 / 字号 / 排版 / 语速档位），
-以及路由骨架（入口重定向、根布局、底栏）与五个屏幕、诗文 / 操作栏组件。
-当前：16 套件 / 158 用例，语句覆盖 ~95%、行覆盖 ~98%。
+`typography`（字族 / 字号 / 排版 / 语速档位）、`punct`（标点隐显的空白处理）、
+`card`（文件名 / 日期戳 / 存相册时的权限编排），
+以及路由骨架（入口重定向、根布局、底栏）与六个屏幕、诗文 / 操作栏 / 卡片组件。
+当前：20 套件 / 197 用例，语句覆盖 ~94%、行覆盖 ~97%。
 
 **② E2E（Maestro）** —— 真机或模拟器上的冒烟流程，断言用的是组件 `testID`：
 
@@ -178,7 +185,7 @@ Windows 的 adb server（见 `tool/android-env.sh`）。缺 adb 时 `just androi
   因此繁體是原文、简体是转写，两种字体都不需要运行时转换库；检索时两列一起 LIKE。
 - 换库：`meta.schema_version` 与 App 内的 `DB_SCHEMA_VERSION` 不一致时，启动会把随包库整份覆盖，
   覆盖前先把收藏 / 足迹按「题目 + 作者 + 首句」抄出来，新库落盘后按同样的键找回
-  （见 `src/lib/db-bootstrap.ts`）。用户偏好（主题 / 推送 / 简繁 / 字体 / 字号 / 语速）也在
+  （见 `src/lib/db-bootstrap.ts`）。用户偏好（主题 / 推送 / 简繁 / 字体 / 字号 / 排版 / 标点 / 语速）也在
   `KEPT_SETTINGS` 白名单里一并搬迁，换库不会把设置重置回默认。
 - 每日算法：`dayNumber(date) = UTC 天数`，`offset = dayNumber % 精选池大小`，
   取 `daily=1` 且 `ORDER BY id` 的第 offset 首 —— 幂等、稳定。
@@ -194,6 +201,8 @@ Windows 的 adb server（见 `tool/android-env.sh`）。缺 adb 时 `just androi
 - [x] 朗读（系统 TTS，语速可调）
 - [x] 正文字体 / 字号可调（系统字体 / 宋体 / 楷体，四档字号）
 - [x] 横排 / 竖排（自右向左，仿古籍）
+- [x] 标点可隐：空白断句（设置 → 标点）
+- [x] 诗词卡片：截图存相册（`react-native-view-shot` + `expo-media-library`）
 - [ ] 注音译注 —— chinese-poetry 语料不含译注；需要额外引入注音（如 pinyin-pro）与
       白话译注数据源后再做
 - [x] EAS 云构建配置（`eas.json` + 应用标识就绪，登录 EAS 账号即可出包）

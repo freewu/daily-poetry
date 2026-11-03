@@ -101,4 +101,16 @@ describe('<PoemActions />', () => {
     await view.unmount();
     expect(g.__SPEECH__.stop).toHaveBeenCalled();
   });
+
+  it('传了 onCard 才出现「存图」，点一下回调出去', async () => {
+    const onCard = jest.fn();
+    await renderWithTheme(<PoemActions poem={poem} onCard={onCard} />);
+    await fireEvent.press(screen.getByTestId('act-card'));
+    expect(onCard).toHaveBeenCalledTimes(1);
+  });
+
+  it('没传 onCard 就不显示「存图」', async () => {
+    await renderWithTheme(<PoemActions poem={poem} />);
+    expect(screen.queryByTestId('act-card')).toBeNull();
+  });
 });

@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -24,6 +24,7 @@ export default function TodayScreen() {
   const db = useSQLiteContext();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [date, setDate] = useState(todayStr());
   const [poem, setPoem] = useState<Poem | null>(null);
   const [info, setInfo] = useState<DayInfo | null>(null);
@@ -117,7 +118,12 @@ export default function TodayScreen() {
 
       {poem ? (
         <View style={{ paddingBottom: Math.max(insets.bottom, 8) }}>
-          <PoemActions poem={poem} />
+          <PoemActions
+            poem={poem}
+            onCard={() =>
+              router.push({ pathname: '/card/[id]', params: { id: String(poem.id), date } })
+            }
+          />
         </View>
       ) : null}
     </View>

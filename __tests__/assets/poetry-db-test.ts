@@ -92,10 +92,23 @@ describeDb('assets/poetry.db（随包数据）', () => {
   });
 
   it('选集名 / 体裁也有繁体', async () => {
-    const row = await db.getFirstAsync<{ name: string; name_tw: string; kind_tw: string }>(
-      "SELECT name, name_tw, kind_tw FROM collections WHERE id = 'ci'",
+    // 标准库（just db）与全量库（just db-full）收录的选集不一样，
+    // 所以逐行校验「每一行都写了繁体」，再点名一个两边都有的选集。
+    const rows = await db.getAllAsync<{ id: string; name: string; name_tw: string; kind_tw: string }>(
+      'SELECT id, name, name_tw, kind_tw FROM collections',
     );
-    expect(row).toEqual({ name: '全宋词', name_tw: '全宋詞', kind_tw: '詞' });
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.filter((r) => !r.name_tw?.trim() || !r.kind_tw?.trim())).toEqual([]);
+
+    expect(rows.find((r) => r.id === 'tangshi')).toMatchObject({
+      name: '唐诗三百首',
+      name_tw: '唐詩三百首',
+      kind_tw: '詩',
+    });
+
+    // 全宋词 / 元曲只在全量库里，标准库不该硬要求
+    const ci = rows.find((r) => r.id === 'ci');
+    if (ci) expect(ci).toMatchObject({ name: '全宋词', name_tw: '全宋詞', kind_tw: '詞' });
   });
 
   it('每日池非空，且一整年轮换不重复、不漏日', async () => {

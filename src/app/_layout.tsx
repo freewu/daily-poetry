@@ -36,6 +36,7 @@ function RootNavigator() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="poem/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="collection/[id]" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="card/[id]" options={{ animation: 'slide_from_bottom' }} />
       </Stack>
     </>
   );

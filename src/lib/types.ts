@@ -56,6 +56,9 @@ export type RateKey = 'slow' | 'normal' | 'fast';
 /** 正文排版：横排（自上而下逐行）/ 竖排（自右向左逐列，仿古籍） */
 export type Layout = 'horizontal' | 'vertical';
 
+/** 标点显示：保留原文标点 / 标点换成空格（空白断句） */
+export type PunctKey = 'keep' | 'space';
+
 /** 应景日（传统节日 / 二十四节气）及其检索词 */
 export interface Occasion {
   id: string;

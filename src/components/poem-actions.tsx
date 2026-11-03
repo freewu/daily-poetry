@@ -20,8 +20,8 @@ function utteranceOf(poem: Poem): string {
   return text.trim();
 }
 
-/** 底部操作栏：收藏 / 朗读 / 复制 */
-export function PoemActions({ poem: raw }: { poem: Poem }) {
+/** 底部操作栏：收藏 / 朗读 / 复制 / 存图 */
+export function PoemActions({ poem: raw, onCard }: { poem: Poem; onCard?: () => void }) {
   const db = useSQLiteContext();
   const { colors } = useTheme();
   const { script } = useScript();
@@ -143,6 +143,21 @@ export function PoemActions({ poem: raw }: { poem: Poem }) {
           {copied ? '已复制' : '复制'}
         </Text>
       </Pressable>
+
+      {onCard ? (
+        <Pressable
+          testID="act-card"
+          accessibilityLabel="生成卡片"
+          onPress={onCard}
+          style={({ pressed }) => [
+            styles.btn,
+            { backgroundColor: colors.card, borderColor: colors.line, borderWidth: 1 },
+            pressed && styles.pressed,
+          ]}>
+          <Ionicons name="image-outline" size={19} color={colors.text} />
+          <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600' }}>存图</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -150,8 +165,8 @@ export function PoemActions({ poem: raw }: { poem: Poem }) {
 const styles = StyleSheet.create({
   bar: {
     flexDirection: 'row',
-    gap: 10,
-    paddingHorizontal: 20,
+    gap: 8,
+    paddingHorizontal: 16,
     paddingTop: 8,
   },
   btn: {

@@ -1,0 +1,86 @@
+import { ShareCard } from '@/components/share-card';
+import type { Poem } from '@/lib/types';
+
+import { asDb, createTestDb, renderWithTheme, screen } from '../helpers/test-utils';
+
+const poem: Poem = {
+  id: 1,
+  collection: 'tang',
+  name: '唐诗三百首',
+  kind: '五言绝句',
+  dynasty: '唐',
+  author: '李白',
+  title: '静夜思',
+  subtitle: '',
+  content: '床前明月光\n疑是地上霜\n举头望明月\n低头思故乡',
+  daily: 1,
+};
+
+/** 用繁体列 + 竖排偏好，验证卡片的取舍 */
+async function dbWith(opts: { tw?: boolean; vertical?: boolean } = {}) {
+  const db = createTestDb();
+  const set = async (k: string, v: string) =>
+    asDb(db).runAsync('INSERT INTO meta (key, value) VALUES (?, ?)', k, v);
+  if (opts.tw) await set('settings_script', 'tw');
+  if (opts.vertical) await set('settings_layout', 'vertical');
+  return db;
+}
+
+describe('<ShareCard />', () => {
+  it('排上题目、作者、正文、出处与日期戳', async () => {
+    await renderWithTheme(<ShareCard poem={poem} date="2026-11-03" width={340} />, {
+      db: await dbWith(),
+    });
+    expect(screen.getByText('静夜思')).toBeTruthy();
+    expect(screen.getByText('唐 · 李白')).toBeTruthy();
+    expect(screen.getByText(/床前明月光/)).toBeTruthy();
+    expect(screen.getByText('选自《唐诗三百首》')).toBeTruthy();
+    expect(screen.getByText('每日一诗')).toBeTruthy();
+    expect(screen.getByText('每日一诗 · 2026年11月3日')).toBeTruthy();
+    expect(screen.getByText('五言绝句')).toBeTruthy();
+  });
+
+  it('不传日期就只印签名（不印日期戳）', async () => {
+    await renderWithTheme(<ShareCard poem={poem} width={340} />, { db: await dbWith() });
+    // 顶栏签名 + 底部签名，两处都是「每日一诗」
+    expect(screen.getAllByText('每日一诗')).toHaveLength(2);
+    expect(screen.queryByText(/\d{4}年\d{1,2}月\d{1,2}日/)).toBeNull();
+  });
+
+  it('跟着简繁设置走（繁体用 title_tw / content_tw）', async () => {
+    const tw: Poem = {
+      ...poem,
+      title_tw: '靜夜思',
+      content_tw: '床前明月光\n疑是地上霜',
+    };
+    await renderWithTheme(<ShareCard poem={tw} width={340} />, { db: await dbWith({ tw: true }) });
+    expect(screen.getByText('靜夜思')).toBeTruthy();
+  });
+
+  it('卡片固定横排：设置里选了竖排也不变竖列', async () => {
+    await renderWithTheme(<ShareCard poem={poem} width={340} />, {
+      db: await dbWith({ vertical: true }),
+    });
+    expect(screen.queryByTestId('poem-vertical')).toBeNull();
+    // 四句还是一段横排文本（含换行），不是四个竖列
+    expect(screen.getByText(/举头望明月/).props.children).toContain('\n');
+  });
+
+  it('没有题目 / 作者时退回选集名，作者行整个不印', async () => {
+    const bare: Poem = { ...poem, title: '', author: '', dynasty: '', subtitle: '' };
+    await renderWithTheme(<ShareCard poem={bare} width={340} />, { db: await dbWith() });
+    // 题目空 → 用 name（选集名）顶上，卡片不会空一块
+    expect(screen.getByText('唐诗三百首')).toBeTruthy();
+    // 没有朝代 / 作者，就不画「唐 · 李白」那一行
+    expect(screen.queryByText(/·/)).toBeNull();
+  });
+
+  it('宽度按传入值走', async () => {
+    await renderWithTheme(<ShareCard poem={poem} width={377} testID="share-card" />, {
+      db: await dbWith(),
+    });
+    const style = screen.getByTestId('share-card').props.style;
+    const flat = Array.isArray(style) ? Object.assign({}, ...style.filter(Boolean)) : style;
+    expect(flat.width).toBe(377);
+  });
+});

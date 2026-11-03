@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { attributionOf, linePreview } from '@/lib/format';
+import { hidePunct } from '@/lib/punct';
 import { localizePoem } from '@/lib/script';
 import { scaled } from '@/lib/typography';
 import type { Poem } from '@/lib/types';
@@ -20,7 +21,7 @@ interface Props {
 export function PoemRow({ poem: raw, index, right }: Props) {
   const { colors } = useTheme();
   const { script } = useScript();
-  const { family, scale } = useTypography();
+  const { family, scale, punct } = useTypography();
   const poem = localizePoem(raw, script);
   const router = useRouter();
   const attr = attributionOf(poem);
@@ -49,7 +50,7 @@ export function PoemRow({ poem: raw, index, right }: Props) {
           numberOfLines={1}
           style={[styles.preview, { color: colors.sub, fontSize: scaled(13, scale) }]}>
           {attr ? `${attr} · ` : ''}
-          {linePreview(poem)}
+          {linePreview(punct === 'space' ? { ...poem, content: hidePunct(poem.content) } : poem)}
         </Text>
       </View>
       {right ?? (

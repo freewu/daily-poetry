@@ -15,6 +15,7 @@ import {
   setSetting,
 } from '@/lib/db';
 import { PoemLines } from '@/components/poem-lines';
+import { PUNCT_OPTS } from '@/lib/punct';
 import { SCRIPT_OPTS } from '@/lib/script';
 import { DEFAULT_RATE_KEY, isRateKey, RATE_OPTS, rateOf, SPEECH_SAMPLE } from '@/lib/tts';
 import { fontOptions, LAYOUT_OPTS, scaled, SIZE_OPTS } from '@/lib/typography';
@@ -22,6 +23,7 @@ import type {
   FontKey,
   Layout,
   Poem,
+  PunctKey,
   PushPref,
   RateKey,
   Script,
@@ -61,7 +63,7 @@ export default function SettingsScreen() {
   const db = useSQLiteContext();
   const { colors, mode, setMode } = useTheme();
   const { script, setScript } = useScript();
-  const { font, size, layout, scale, setFont, setSize, setLayout } = useTypography();
+  const { font, size, layout, punct, scale, setFont, setSize, setLayout, setPunct } = useTypography();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -168,6 +170,14 @@ export default function SettingsScreen() {
             value={size}
             onChange={(k: SizeKey) => setSize(k)}
             hint={SIZE_OPTS.find((o) => o.key === size)?.hint}
+          />
+          <SubLabel text="标点" />
+          <Segment
+            testIDPrefix="punct"
+            options={PUNCT_OPTS}
+            value={punct}
+            onChange={(k: PunctKey) => setPunct(k)}
+            hint={PUNCT_OPTS.find((o) => o.key === punct)?.hint}
           />
           <SubLabel text="简繁" />
           <Segment

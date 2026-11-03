@@ -146,6 +146,30 @@ describe('<SettingsScreen />', () => {
     );
   });
 
+  it('切换标点并落库，预览只剩句读空白', async () => {
+    const db = await seed();
+    await renderWithTheme(<SettingsScreen />, { db });
+    await waitFor(() => expect(screen.getByTestId('punct-space')).toBeTruthy());
+
+    // 默认保留标点
+    expect(screen.getByText('床前明月光，\n疑是地上霜。\n举头望明月，\n低头思故乡。')).toBeTruthy();
+
+    await fireEvent.press(screen.getByTestId('punct-space'));
+    await waitFor(async () =>
+      expect(await asDb(db).getFirstAsync("SELECT value FROM meta WHERE key = 'settings_punct'"))
+        .toEqual({ value: 'space' }),
+    );
+    expect(screen.getByText('标点换成空格，只留句读间隙（仅影响显示）')).toBeTruthy();
+    expect(screen.getByText('床前明月光\n疑是地上霜\n举头望明月\n低头思故乡')).toBeTruthy();
+
+    await fireEvent.press(screen.getByTestId('punct-keep'));
+    await waitFor(async () =>
+      expect(await asDb(db).getFirstAsync("SELECT value FROM meta WHERE key = 'settings_punct'"))
+        .toEqual({ value: 'keep' }),
+    );
+    expect(screen.getByText('按语料原文排版，逗号句号都在')).toBeTruthy();
+  });
+
   it('打开设置时读回已存的字体 / 字号 / 语速', async () => {
     const db = await seed();
     await asDb(db).runAsync(
