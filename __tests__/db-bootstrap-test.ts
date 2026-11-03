@@ -42,7 +42,7 @@ describe('snapshotUserData', () => {
     db.raw.exec(
       `INSERT INTO meta (key, value) VALUES
          ('settings_theme', 'dark'), ('settings_script', 'tw'),
-         ('settings_font', 'song'), ('settings_font_size', 'xl'),
+         ('settings_font', 'song'), ('settings_font_size', 'xl'), ('settings_layout', 'vertical'),
          ('settings_tts_rate', 'slow'), ('dataset', 'standard')`,
     );
     const plan = await snapshotUserData(asDb(db));
@@ -51,6 +51,7 @@ describe('snapshotUserData', () => {
       settings_script: 'tw',
       settings_font: 'song',
       settings_font_size: 'xl',
+      settings_layout: 'vertical',
       settings_tts_rate: 'slow',
     });
   });

@@ -34,6 +34,13 @@ function dbWithTw(): TestDb {
   return db;
 }
 
+/** 预置竖排的内存库 */
+function dbVertical(): TestDb {
+  const db = useMemoryDb();
+  db.raw.exec("INSERT INTO meta (key, value) VALUES ('settings_layout', 'vertical')");
+  return db;
+}
+
 /** 预置字体 / 字号的内存库 */
 function dbWithType(font: string, size: string): TestDb {
   const db = useMemoryDb();
@@ -127,6 +134,59 @@ describe('字体与字号', () => {
       db: dbWithType('song', 'xl'),
     });
     expect(screen.getByText(poem.content)).toHaveStyle({ fontSize: 40 });
+  });
+});
+
+describe('竖排', () => {
+  it('每行原文变成一列，字竖直堆叠', async () => {
+    await renderWithTheme(<PoemLines poem={poem} color="#000" />, { db: dbVertical() });
+    await waitFor(() => expect(screen.getByTestId('poem-vertical')).toBeTruthy());
+    // 4 行 → 4 列，每列逐字换行
+    expect(screen.getByText('床\n前\n明\n月\n光')).toBeTruthy();
+    expect(screen.getByText('低\n头\n思\n故\n乡')).toBeTruthy();
+    // 横排的整段文本不再出现
+    expect(screen.queryByText(poem.content)).toBeNull();
+  });
+
+  it('列从右往左排（row-reverse），整体居中', async () => {
+    await renderWithTheme(<PoemLines poem={poem} color="#000" />, { db: dbVertical() });
+    const box = screen.getByTestId('poem-vertical');
+    expect(box.props.contentContainerStyle).toMatchObject({
+      flexDirection: 'row-reverse',
+      justifyContent: 'center',
+    });
+  });
+
+  it('字号 / 字族照样生效', async () => {
+    await renderWithTheme(<PoemLines poem={poem} color="#000" />, {
+      db: (() => {
+        const db = dbVertical();
+        db.raw.exec("INSERT INTO meta (key, value) VALUES ('settings_font','song'), ('settings_font_size','lg')");
+        return db;
+      })(),
+    });
+    const col = await screen.findByText('床\n前\n明\n月\n光');
+    expect(col).toHaveStyle({ fontSize: 24, fontFamily: 'serif' });
+  });
+
+  it('长诗横向溢出时从第一列（最右）读起', async () => {
+    await renderWithTheme(<PoemLines poem={poem} color="#000" />, { db: dbVertical() });
+    const box = screen.getByTestId('poem-vertical');
+    expect(box.props.horizontal).toBe(true);
+    // row-reverse 下 scrollX=0 是最左（末句），所以挂载 / 内容尺寸变化时滚到最右
+    expect(typeof box.props.onContentSizeChange).toBe('function');
+  });
+
+  it('卡片里的正文也竖排', async () => {
+    await renderWithTheme(<PoemCard poem={poem} />, { db: dbVertical() });
+    await waitFor(() => expect(screen.getByTestId('poem-vertical')).toBeTruthy());
+    expect(screen.getByText('举\n头\n望\n明\n月')).toBeTruthy();
+  });
+
+  it('默认横排：不出竖排容器', async () => {
+    await renderWithTheme(<PoemLines poem={poem} color="#000" />);
+    expect(screen.queryByTestId('poem-vertical')).toBeNull();
+    expect(screen.getByText(poem.content)).toBeTruthy();
   });
 });
 

@@ -36,11 +36,16 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
 
 - 全部持久化在 `meta` 表的 `settings_*` KV 里，没有 AsyncStorage：
   `settings_font`（`system|song|kai`）、`settings_font_size`（`sm|md|lg|xl`）、
-  `settings_tts_rate`（`slow|normal|fast`）。
+  `settings_layout`（`horizontal|vertical`）、`settings_tts_rate`（`slow|normal|fast`）。
 - 字族 / 字号档位表在 `src/lib/typography.ts`，`AppTypographyProvider`（`src/typography.tsx`）
   读库并往下发 `family / scale / bodySize`；`PoemLines` 不传 `fontSize` 时用 `bodySize`
   （21 × 倍率），行高固定 1.85 倍。
 - 不打包字体：走系统 CJK 字族。Android `serif` 会落到 `NotoSerifCJK`（宋体感），
   没有楷体，所以 `fontOptions()` 在 Android 上过滤掉 `kai`；iOS 用 `Songti SC` / `Kaiti SC`。
+- 竖排：RN 没有 `writing-mode`，`PoemLines` 把正文按 `columnsOf()` 拆成列，
+  每列用 `toColumnText()` 逐字换行堆叠，外层 `flexDirection: 'row-reverse'` 从右往左排。
+  **注意**：`row-reverse` 下 `scrollX=0` 是内容最左（也就是末句），所以横向溢出时
+  必须 `scrollToEnd()`，否则长诗会从最后一列开始读（挂载 + `onContentSizeChange` 里各调一次，
+  用户开始拖动后就不再自动跳）。
 - 朗读语速在 `src/lib/tts.ts`，`expo-speech` 的 `rate` 是倍率（1.0 = 系统默认，中文偏快，
   所以「标准」= 0.9）。`PoemActions` 每次朗读现读设置，改完不用重启。

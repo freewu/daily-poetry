@@ -53,6 +53,9 @@ export type SizeKey = 'sm' | 'md' | 'lg' | 'xl';
 /** 朗读语速档位 */
 export type RateKey = 'slow' | 'normal' | 'fast';
 
+/** 正文排版：横排（自上而下逐行）/ 竖排（自右向左逐列，仿古籍） */
+export type Layout = 'horizontal' | 'vertical';
+
 /** 应景日（传统节日 / 二十四节气）及其检索词 */
 export interface Occasion {
   id: string;

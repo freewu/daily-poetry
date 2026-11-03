@@ -42,6 +42,7 @@ export const KEPT_SETTINGS = [
   'settings_script',
   'settings_font',
   'settings_font_size',
+  'settings_layout',
   'settings_tts_rate',
 ] as const;
 

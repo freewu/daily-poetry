@@ -1,4 +1,4 @@
-# 收藏 → 设置：收藏一首诗、切主题 / 简繁 / 字体字号 / 语速、清空收藏
+# 收藏 → 设置：收藏一首诗、切主题 / 简繁 / 排版 / 字体字号 / 语速、清空收藏
 appId: com.bluefrog.dailypoetry
 name: 收藏与设置
 ---
@@ -37,6 +37,15 @@ name: 收藏与设置
 - tapOn:
     id: 'script-cn'
 - assertVisible: '正文用大陆简体（OpenCC 转写）'
+
+# 排版：竖排（自右向左），预览变竖列，再切回横排
+- tapOn:
+    id: 'layout-vertical'
+- assertVisible: '自右向左竖读，仿古籍版式'
+- takeScreenshot: settings-vertical
+- tapOn:
+    id: 'layout-horizontal'
+- assertVisible: '自左向右横读，长句更好排'
 
 # 字体：宋体（衬线），再切特大字号，预览跟着变
 - tapOn:

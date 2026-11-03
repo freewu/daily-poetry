@@ -14,10 +14,20 @@ import {
   historyDays,
   setSetting,
 } from '@/lib/db';
+import { PoemLines } from '@/components/poem-lines';
 import { SCRIPT_OPTS } from '@/lib/script';
 import { DEFAULT_RATE_KEY, isRateKey, RATE_OPTS, rateOf, SPEECH_SAMPLE } from '@/lib/tts';
-import { fontOptions, scaled, SIZE_OPTS } from '@/lib/typography';
-import type { FontKey, PushPref, RateKey, Script, SizeKey, ThemeMode } from '@/lib/types';
+import { fontOptions, LAYOUT_OPTS, scaled, SIZE_OPTS } from '@/lib/typography';
+import type {
+  FontKey,
+  Layout,
+  Poem,
+  PushPref,
+  RateKey,
+  Script,
+  SizeKey,
+  ThemeMode,
+} from '@/lib/types';
 import { useScript } from '@/script';
 import { useTheme } from '@/theme';
 import { useTypography } from '@/typography';
@@ -33,11 +43,25 @@ const PUSH_OPTS: { key: PushPref; label: string; hint: string }[] = [
   { key: 'occasion', label: '应景优先', hint: '恰逢节日 / 节气当天，先推应景之作' },
 ];
 
+/** 设置页预览用的五言绝句：横排 4 行、竖排 4 列，正好看出排版差异 */
+const PREVIEW_POEM: Poem = {
+  id: -1,
+  collection: '',
+  name: '',
+  kind: '',
+  dynasty: '',
+  author: '',
+  title: '',
+  subtitle: '',
+  content: '床前明月光，\n疑是地上霜。\n举头望明月，\n低头思故乡。',
+  daily: 0,
+};
+
 export default function SettingsScreen() {
   const db = useSQLiteContext();
   const { colors, mode, setMode } = useTheme();
   const { script, setScript } = useScript();
-  const { font, size, family, scale, setFont, setSize } = useTypography();
+  const { font, size, layout, scale, setFont, setSize, setLayout } = useTypography();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -129,6 +153,14 @@ export default function SettingsScreen() {
             onChange={(k: FontKey) => setFont(k)}
             hint={fontOptions().find((o) => o.key === font)?.hint}
           />
+          <SubLabel text="排版" />
+          <Segment
+            testIDPrefix="layout"
+            options={LAYOUT_OPTS}
+            value={layout}
+            onChange={(k: Layout) => setLayout(k)}
+            hint={LAYOUT_OPTS.find((o) => o.key === layout)?.hint}
+          />
           <SubLabel text="字号" />
           <Segment
             testIDPrefix="size"
@@ -145,18 +177,13 @@ export default function SettingsScreen() {
             onChange={(k: Script) => setScript(k)}
             hint={SCRIPT_OPTS.find((o) => o.key === script)?.hint}
           />
-          <View testID="font-preview" style={[styles.preview, { borderTopColor: colors.line }]}>
-            <Text
-              style={{
-                color: colors.text,
-                fontFamily: family,
-                fontSize: scaled(19, scale),
-                lineHeight: Math.round(scaled(19, scale) * 1.7),
-                textAlign: 'center',
-                letterSpacing: 2,
-              }}>
-              床前明月光，疑是地上霜。
-            </Text>
+          <View style={[styles.preview, { borderTopColor: colors.line }]}>
+            <PoemLines
+              testID="font-preview"
+              poem={PREVIEW_POEM}
+              color={colors.text}
+              fontSize={scaled(19, scale)}
+            />
           </View>
         </Section>
 

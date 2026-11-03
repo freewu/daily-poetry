@@ -1,11 +1,16 @@
 import { fireEvent, waitFor } from '@testing-library/react-native';
-import { Alert } from 'react-native';
+import { Alert, StyleSheet, type TextStyle } from 'react-native';
 
 import SettingsScreen from '@/app/(tabs)/settings';
 
 import { asDb, renderWithTheme, screen, seedPoems, useMemoryDb } from '../helpers/test-utils';
 
 const g = globalThis as any;
+
+/** 预览正文的样式（PoemLines 传的是数组，flatten 一下好断言） */
+function previewStyle(): TextStyle {
+  return StyleSheet.flatten(screen.getByTestId('font-preview').props.style) as TextStyle;
+}
 
 async function seed() {
   const db = useMemoryDb();
@@ -69,22 +74,47 @@ describe('<SettingsScreen />', () => {
     await waitFor(() => expect(screen.getByTestId('font-song')).toBeTruthy());
 
     // 默认系统字体：预览不带 fontFamily
-    expect(screen.getByTestId('font-preview').props.children.props.style.fontFamily).toBeUndefined();
+    expect(previewStyle().fontFamily).toBeUndefined();
 
     await fireEvent.press(screen.getByTestId('font-song'));
     await waitFor(async () =>
       expect(await asDb(db).getFirstAsync("SELECT value FROM meta WHERE key = 'settings_font'"))
         .toEqual({ value: 'song' }),
     );
-    expect(screen.getByTestId('font-preview').props.children.props.style.fontFamily).toBe('serif');
+    expect(previewStyle().fontFamily).toBe('serif');
     expect(screen.getByText('衬线体，横细竖粗、起收有顿，接近刻本')).toBeTruthy();
+  });
+
+  it('切换排版并落库，预览从横排变竖排', async () => {
+    const db = await seed();
+    await renderWithTheme(<SettingsScreen />, { db });
+    await waitFor(() => expect(screen.getByTestId('layout-vertical')).toBeTruthy());
+
+    // 默认横排：预览是一整段文本
+    expect(screen.getByText('床前明月光，\n疑是地上霜。\n举头望明月，\n低头思故乡。')).toBeTruthy();
+    expect(screen.queryByTestId('poem-vertical')).toBeNull();
+
+    await fireEvent.press(screen.getByTestId('layout-vertical'));
+    await waitFor(async () =>
+      expect(await asDb(db).getFirstAsync("SELECT value FROM meta WHERE key = 'settings_layout'"))
+        .toEqual({ value: 'vertical' }),
+    );
+    expect(screen.getByText('自右向左竖读，仿古籍版式')).toBeTruthy();
+    expect(screen.getByTestId('poem-vertical')).toBeTruthy();
+    expect(screen.getByText('床\n前\n明\n月\n光\n，')).toBeTruthy();
+
+    await fireEvent.press(screen.getByTestId('layout-horizontal'));
+    await waitFor(async () =>
+      expect(await asDb(db).getFirstAsync("SELECT value FROM meta WHERE key = 'settings_layout'"))
+        .toEqual({ value: 'horizontal' }),
+    );
   });
 
   it('切换字号并落库，预览跟着放大', async () => {
     const db = await seed();
     await renderWithTheme(<SettingsScreen />, { db });
     await waitFor(() => expect(screen.getByTestId('size-xl')).toBeTruthy());
-    expect(screen.getByTestId('font-preview').props.children.props.style.fontSize).toBe(19);
+    expect(previewStyle().fontSize).toBe(19);
 
     await fireEvent.press(screen.getByTestId('size-xl'));
     await waitFor(async () =>
@@ -92,9 +122,7 @@ describe('<SettingsScreen />', () => {
         await asDb(db).getFirstAsync("SELECT value FROM meta WHERE key = 'settings_font_size'"),
       ).toEqual({ value: 'xl' }),
     );
-    expect(screen.getByTestId('font-preview').props.children.props.style.fontSize).toBe(
-      Math.round(19 * 1.3),
-    );
+    expect(previewStyle().fontSize).toBe(Math.round(19 * 1.3));
     expect(screen.getByText('正文字号 27，适合长辈阅读')).toBeTruthy();
   });
 
@@ -126,7 +154,7 @@ describe('<SettingsScreen />', () => {
     await renderWithTheme(<SettingsScreen />, { db });
     await waitFor(() => expect(screen.getByText('正文字号 24，适合小屏长读')).toBeTruthy());
     expect(screen.getByText('0.7× 语速，一句一句听得清')).toBeTruthy();
-    expect(screen.getByTestId('font-preview').props.children.props.style.fontFamily).toBe('serif');
+    expect(previewStyle().fontFamily).toBe('serif');
   });
 
   it('切换主题并落库', async () => {
