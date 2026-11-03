@@ -7,7 +7,9 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { copyTextOf } from '@/lib/format';
 import { isFavorite, toggleFavorite } from '@/lib/db';
+import { localizePoem } from '@/lib/script';
 import type { Poem } from '@/lib/types';
+import { useScript } from '@/script';
 import { useTheme } from '@/theme';
 
 /** 朗读文本：题目、作者与正文拼成一段，句读规整 */
@@ -18,9 +20,12 @@ function utteranceOf(poem: Poem): string {
 }
 
 /** 底部操作栏：收藏 / 朗读 / 复制 */
-export function PoemActions({ poem }: { poem: Poem }) {
+export function PoemActions({ poem: raw }: { poem: Poem }) {
   const db = useSQLiteContext();
   const { colors } = useTheme();
+  const { script } = useScript();
+  // 朗读 / 复制也跟着简繁走
+  const poem = localizePoem(raw, script);
   const [fav, setFav] = useState(false);
   const [copied, setCopied] = useState(false);
   const [speaking, setSpeaking] = useState(false);

@@ -8,8 +8,17 @@ export interface Poem {
   author: string;
   title: string;
   subtitle: string;
+  /** 简体正文（OpenCC t→cn），检索与默认显示都用它 */
   content: string;
   daily: number;
+  // ---- 繁体列：随库一起发布，老库 / 测试里可能没有，取不到就回退简体
+  name_tw?: string;
+  kind_tw?: string;
+  dynasty_tw?: string;
+  author_tw?: string;
+  title_tw?: string;
+  subtitle_tw?: string;
+  content_tw?: string;
 }
 
 export interface CollectionMeta {
@@ -18,6 +27,8 @@ export interface CollectionMeta {
   kind: string;
   count: number;
   daily: number;
+  name_tw?: string;
+  kind_tw?: string;
 }
 
 export interface FavoriteRow {
@@ -26,6 +37,9 @@ export interface FavoriteRow {
 }
 
 export type ThemeMode = 'auto' | 'light' | 'dark';
+
+/** 正文用字：简体 / 繁体 */
+export type Script = 'cn' | 'tw';
 
 /** 每日推送偏好 */
 export type PushPref = 'classic' | 'occasion';

@@ -17,7 +17,9 @@ import {
   todayStr,
 } from '@/lib/db';
 import { dayInfo, occasionFor } from '@/lib/lunar';
+import { localizePoem } from '@/lib/script';
 import type { Poem, PushPref } from '@/lib/types';
+import { useScript } from '@/script';
 import { useTheme } from '@/theme';
 
 /**
@@ -29,6 +31,7 @@ export default function PoemScreen() {
   const params = useLocalSearchParams<{ id?: string; date?: string }>();
   const db = useSQLiteContext();
   const { colors } = useTheme();
+  const { script } = useScript();
   const insets = useSafeAreaInsets();
 
   const dailyMode = useMemo(() => Boolean(params.date), [params.date]);
@@ -76,7 +79,9 @@ export default function PoemScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <ScreenBar title={dailyMode ? `${date} · 每日一诗` : (poem?.name ?? '诗词')} />
+      <ScreenBar
+        title={dailyMode ? `${date} · 每日一诗` : (poem ? localizePoem(poem, script).name : '诗词')}
+      />
 
       {dailyMode ? (
         <View style={styles.dateNav}>

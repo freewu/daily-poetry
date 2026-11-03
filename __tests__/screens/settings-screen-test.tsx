@@ -26,7 +26,7 @@ describe('<SettingsScreen />', () => {
     await renderWithTheme(<SettingsScreen />, { db: await seed() });
     await waitFor(() => expect(screen.getByText('2 首')).toBeTruthy());
     expect(screen.getByText('1 天')).toBeTruthy();
-    expect(screen.getByText('精选集')).toBeTruthy();
+    expect(screen.getByText('诗歌词曲全库')).toBeTruthy();
     expect(screen.getByText('1396 首')).toBeTruthy();
     expect(screen.getByText(/每日诗词 v/)).toBeTruthy();
   });
@@ -42,6 +42,25 @@ describe('<SettingsScreen />', () => {
         .toEqual({ value: 'occasion' }),
     );
     expect(screen.getByText('恰逢节日 / 节气当天，先推应景之作')).toBeTruthy();
+  });
+
+  it('切换正文字体并落库', async () => {
+    const db = await seed();
+    await renderWithTheme(<SettingsScreen />, { db });
+    await waitFor(() => expect(screen.getByTestId('script-tw')).toBeTruthy());
+
+    await fireEvent.press(screen.getByTestId('script-tw'));
+    await waitFor(async () =>
+      expect(await asDb(db).getFirstAsync("SELECT value FROM meta WHERE key = 'settings_script'"))
+        .toEqual({ value: 'tw' }),
+    );
+    expect(screen.getByText('正文用傳統繁體（保留語料原文）')).toBeTruthy();
+
+    await fireEvent.press(screen.getByTestId('script-cn'));
+    await waitFor(async () =>
+      expect(await asDb(db).getFirstAsync("SELECT value FROM meta WHERE key = 'settings_script'"))
+        .toEqual({ value: 'cn' }),
+    );
   });
 
   it('切换主题并落库', async () => {

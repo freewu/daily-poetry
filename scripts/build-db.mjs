@@ -3,13 +3,16 @@
  * build-db.mjs — 把 chinese-poetry 语料导入 SQLite（assets/poetry.db）
  *
  * 用法:
- *   node scripts/build-db.mjs                # 精简语料（唐诗三百首/千家诗/诗经/楚辞/花间集/南唐词）
- *   node scripts/build-db.mjs --full         # 完整语料（+全宋词/元曲/古文观止/纳兰/曹操/幽梦影/论语/四书/蒙学）
+ *   node scripts/build-db.mjs                # 主体语料：唐诗三百首/千家诗/全唐诗/诗经/楚辞/五代诗词/全宋词/元曲
+ *   node scripts/build-db.mjs --full         # 再加杂项：古文观止/纳兰/曹操/幽梦影/论语/四书/蒙学
  *   node scripts/build-db.mjs --data <dir>   # 指定语料目录（默认 .data/chinese-poetry）
  *   node scripts/build-db.mjs --out <file>   # 指定输出文件（默认 assets/poetry.db）
  *   node scripts/build-db.mjs --check        # 只校验已有 DB，不重建
  *
- * 语料中的繁体文本统一经 opencc-js（t→cn）转成简体后入库。
+ * 简繁双写：每首诗存简体（title/author/content…）与繁体（*_tw）两套文本。
+ * 语料本来就是繁体（全唐诗、宋词、元曲、五代诗词、诗经、楚辞）的原样保留，
+ * 简体源（蒙学等）用 OpenCC cn→tw 转一份，App 端直接按字段选，无需转换库。
+ * 缺哪个语料目录就跳哪个，其余照常建库。
  */
 import { existsSync, mkdirSync, readdirSync, statSync, readFileSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
@@ -30,7 +33,26 @@ const FULL = process.argv.includes('--full');
 const CHECK = process.argv.includes('--check');
 
 const toCn = Converter({ from: 't', to: 'cn' });
-const s = (x) => (typeof x === 'string' ? toCn(x).trim() : '');
+const toTw = Converter({ from: 'cn', to: 'tw' });
+
+/** 只去空白：繁体原文要留着，简繁两套文本在写库时再算 */
+const s = (x) => (typeof x === 'string' ? x.trim() : '');
+
+/**
+ * 简繁双写：语料里 全唐诗/宋词/元曲/五代/诗经/楚辞 本来就是繁体，蒙学等是简体。
+ * - cn：统一转成大陆简体（检索、默认显示都用它）
+ * - tw：源文已是繁体就原样保留（保真），否则用 OpenCC cn→tw 转一份
+ * 这样两种字体都是“无损”的，App 端不需要任何转换库。
+ */
+function variants(x) {
+  const src = s(x);
+  if (!src) return ['', ''];
+  const cn = toCn(src);
+  return [cn, cn === src ? toTw(cn) : src];
+}
+
+/** 库结构版本：改动表结构时 +1，App 端据此判断是否需要替换随包数据库 */
+const SCHEMA_VERSION = 2;
 
 /** 每日精选池：始终只用这些精选集 */
 const DAILY_COLLECTIONS = new Set([
@@ -73,6 +95,30 @@ function parseTangQian(rel, coll, name, kind) {
       const title = !empty(it.subchapter) ? s(it.subchapter) : s(it.chapter);
       if (empty(title)) continue;
       out.push({ coll, name, kind, dynasty, author, title, subtitle: '', lines: it.paragraphs.map(s) });
+    }
+  }
+  return out;
+}
+
+/** 全唐诗: 全唐诗/poet.tang.*.json [{title, author, paragraphs}]（繁体，按卷分文件） */
+function parseQuanTang() {
+  const dir = join(DATA_DIR, '全唐诗');
+  const files = readdirSync(dir)
+    .filter((f) => /^poet\.tang\.\d+\.json$/.test(f))
+    .sort((a, b) => Number(a.match(/\d+/)[0]) - Number(b.match(/\d+/)[0]));
+  const out = [];
+  for (const f of files) {
+    const arr = JSON.parse(readFileSync(join(dir, f), 'utf8'));
+    for (const it of arr) {
+      if (!Array.isArray(it.paragraphs) || !it.paragraphs.length) continue;
+      const lines = it.paragraphs.map(s).filter((l) => !empty(l));
+      if (!lines.length) continue;
+      // 少数条目无题（只存残句），退用首句，避免列表里只剩集名
+      const title = s(it.title || '') || lines[0].slice(0, 12);
+      out.push({
+        coll: 'quantangshi', name: '全唐诗', kind: '诗', dynasty: '唐',
+        author: s(it.author || ''), title, subtitle: '', lines,
+      });
     }
   }
   return out;
@@ -317,13 +363,14 @@ function parseMengxue(rel, coll, name, author, dynasty) {
 const PARSERS = (full) => [
   [() => parseTangQian('蒙学/tangshisanbaishou.json', 'tangshi', '唐诗三百首', '诗'), 'tangshi'],
   [() => parseTangQian('蒙学/qianjiashi.json', 'qianjiashi', '千家诗', '诗'), 'qianjiashi'],
+  [parseQuanTang, 'quantangshi'],
   [parseShijing, 'shijing'],
   [parseChuci, 'chuci'],
   [parseHuajian, 'huajianji'],
   [parseNantang, 'nantang'],
+  [parseCiSong, 'ci'],
+  [parseYuanqu, 'qu'],
   ...(full ? [
-    [parseCiSong, 'ci'],
-    [parseYuanqu, 'qu'],
     [parseGuwen, 'guwen'],
     [parseNalan, 'nalan'],
     [parseCaocao, 'caocao'],
@@ -344,6 +391,7 @@ const PARSERS = (full) => [
 
 function build() {
   const rows = [];
+  const seen = new Set(); // 去重：同集内 author+title+正文 全同（全唐诗有重出诗）
   const colMeta = new Map(); // coll -> {name, kind, count}
   for (const [parser, coll] of PARSERS(FULL)) {
     const before = rows.length;
@@ -351,28 +399,60 @@ function build() {
     try {
       batch = parser();
     } catch (e) {
+      // 语料是分目录 sparse 下载的：缺哪块跳哪块，其余照常建库
+      if (e.code === 'ENOENT' || /缺少语料文件/.test(e.message ?? '')) {
+        console.warn(`   – ${coll}: 语料缺失，已跳过（${e.message}）`);
+        continue;
+      }
       console.error(`   ✗ ${coll}: ${e.message}`);
       throw e;
     }
+    let dup = 0;
     for (const r of batch) {
       if (!r.lines.length) continue;
       const lines = r.lines.filter((l) => !empty(l));
       if (!lines.length) continue;
       const name = r.name || coll;
+      const [content, contentTw] = variants(lines.join('\n'));
+      const [title, titleTw] = variants(r.title);
+      const [author, authorTw] = variants(r.author);
+      const [subtitle, subtitleTw] = variants(r.subtitle);
+      const [dynasty, dynastyTw] = variants(r.dynasty);
+      const [, nameTw] = variants(name);
+      const [kindCn, kindTw] = variants(r.kind || '诗');
+      const key = [coll, author, title, content].join('\u0000');
+      if (seen.has(key)) {
+        dup += 1;
+        continue;
+      }
+      seen.add(key);
       rows.push({
         collection: coll,
         name,
-        kind: r.kind || '诗',
-        dynasty: r.dynasty || '',
-        author: r.author || '',
-        title: r.title || '',
-        subtitle: r.subtitle || '',
-        content: lines.join('\n'),
+        name_tw: nameTw,
+        kind: kindCn,
+        kind_tw: kindTw,
+        dynasty,
+        dynasty_tw: dynastyTw,
+        author,
+        author_tw: authorTw,
+        title,
+        title_tw: titleTw,
+        subtitle,
+        subtitle_tw: subtitleTw,
+        content,
+        content_tw: contentTw,
         daily: DAILY_COLLECTIONS.has(coll) ? 1 : 0,
       });
     }
-    colMeta.set(coll, { name: rows[before]?.name ?? coll, count: rows.length - before });
-    console.log(`   ✓ ${coll}: +${rows.length - before} 首`);
+    colMeta.set(coll, {
+      name: rows[before]?.name ?? coll,
+      name_tw: rows[before]?.name_tw ?? coll,
+      kind: rows[before]?.kind ?? '诗',
+      kind_tw: rows[before]?.kind_tw ?? '诗',
+      count: rows.length - before,
+    });
+    console.log(`   ✓ ${coll}: +${rows.length - before} 首${dup ? `（去重 ${dup}）` : ''}`);
   }
   if (!rows.length) throw new Error('没有导入任何诗词！请检查语料目录。');
 
@@ -387,23 +467,32 @@ function build() {
     DROP TABLE IF EXISTS history;
     DROP TABLE IF EXISTS meta;
     CREATE TABLE poems (
-      id         INTEGER PRIMARY KEY,
-      collection TEXT NOT NULL,
-      name       TEXT NOT NULL,
-      kind       TEXT NOT NULL,
-      dynasty    TEXT NOT NULL DEFAULT '',
-      author     TEXT NOT NULL DEFAULT '',
-      title      TEXT NOT NULL DEFAULT '',
-      subtitle   TEXT NOT NULL DEFAULT '',
-      content    TEXT NOT NULL,
-      daily      INTEGER NOT NULL DEFAULT 0
+      id           INTEGER PRIMARY KEY,
+      collection   TEXT NOT NULL,
+      name         TEXT NOT NULL,
+      name_tw      TEXT NOT NULL DEFAULT '',
+      kind         TEXT NOT NULL,
+      kind_tw      TEXT NOT NULL DEFAULT '',
+      dynasty      TEXT NOT NULL DEFAULT '',
+      dynasty_tw   TEXT NOT NULL DEFAULT '',
+      author       TEXT NOT NULL DEFAULT '',
+      author_tw    TEXT NOT NULL DEFAULT '',
+      title        TEXT NOT NULL DEFAULT '',
+      title_tw     TEXT NOT NULL DEFAULT '',
+      subtitle     TEXT NOT NULL DEFAULT '',
+      subtitle_tw  TEXT NOT NULL DEFAULT '',
+      content      TEXT NOT NULL,
+      content_tw   TEXT NOT NULL DEFAULT '',
+      daily        INTEGER NOT NULL DEFAULT 0
     );
     CREATE INDEX idx_poems_collection ON poems(collection);
     CREATE INDEX idx_poems_daily ON poems(daily, id);
     CREATE TABLE collections (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
+      name_tw TEXT NOT NULL DEFAULT '',
       kind TEXT NOT NULL,
+      kind_tw TEXT NOT NULL DEFAULT '',
       count INTEGER NOT NULL DEFAULT 0,
       daily INTEGER NOT NULL DEFAULT 0
     );
@@ -420,25 +509,30 @@ function build() {
   `);
 
   const ins = db.prepare(`INSERT INTO poems
-    (collection,name,kind,dynasty,author,title,subtitle,content,daily)
-    VALUES (?,?,?,?,?,?,?,?,?)`);
+    (collection,name,name_tw,kind,kind_tw,dynasty,dynasty_tw,author,author_tw,
+     title,title_tw,subtitle,subtitle_tw,content,content_tw,daily)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
   db.exec('BEGIN');
   for (const r of rows) {
-    ins.run(r.collection, r.name, r.kind, r.dynasty, r.author, r.title, r.subtitle, r.content, r.daily);
+    ins.run(r.collection, r.name, r.name_tw, r.kind, r.kind_tw, r.dynasty, r.dynasty_tw,
+      r.author, r.author_tw, r.title, r.title_tw, r.subtitle, r.subtitle_tw,
+      r.content, r.content_tw, r.daily);
   }
   db.exec('COMMIT');
 
-  const colIns = db.prepare('INSERT INTO collections (id,name,kind,count,daily) VALUES (?,?,?,?,?)');
+  const colIns = db.prepare(
+    'INSERT INTO collections (id,name,name_tw,kind,kind_tw,count,daily) VALUES (?,?,?,?,?,?,?)',
+  );
   db.exec('BEGIN');
-  for (const [coll, { name, count }] of colMeta) {
-    colIns.run(coll, name, rows.find((r) => r.collection === coll)?.kind ?? '诗', count,
+  for (const [coll, m] of colMeta) {
+    colIns.run(coll, m.name, m.name_tw, m.kind, m.kind_tw, m.count,
       DAILY_COLLECTIONS.has(coll) ? 1 : 0);
   }
   db.exec('COMMIT');
 
   const metaIns = db.prepare('INSERT INTO meta (key,value) VALUES (?,?)');
   db.exec('BEGIN');
-  metaIns.run('schema_version', '1');
+  metaIns.run('schema_version', String(SCHEMA_VERSION));
   metaIns.run('dataset', FULL ? 'full' : 'standard');
   metaIns.run('built_at', new Date().toISOString());
   metaIns.run('poem_count', String(rows.length));
@@ -465,19 +559,23 @@ function check() {
   const daily = db.prepare('SELECT COUNT(*) n FROM poems WHERE daily=1').get().n;
   const fav = db.prepare('SELECT COUNT(*) n FROM favorites').get().n;
   const meta = Object.fromEntries(db.prepare('SELECT key,value FROM meta').all().map((r) => [r.key, r.value]));
-  const sample = db.prepare('SELECT id,collection,title,author,substr(content,1,40) c FROM poems WHERE daily=1 ORDER BY id LIMIT 1').get();
+  const sample = db.prepare('SELECT id,collection,title,title_tw,author,substr(content,1,40) c FROM poems WHERE daily=1 ORDER BY id LIMIT 1').get();
+  const noTw = db.prepare("SELECT COUNT(*) n FROM poems WHERE content_tw = ''").get().n;
   db.close();
   console.log('DB 校验 OK:');
-  console.log(`  dataset=${meta.dataset ?? '?'}  built_at=${meta.built_at ?? '?'}`);
-  console.log(`  poems=${total}  daily_pool=${daily}  favorites=${fav}`);
+  console.log(`  schema=${meta.schema_version ?? '?'}  dataset=${meta.dataset ?? '?'}  built_at=${meta.built_at ?? '?'}`);
+  console.log(`  poems=${total}  daily_pool=${daily}  favorites=${fav}  无繁体正文=${noTw}`);
   console.log('  样例:', JSON.stringify(sample));
   if (!total || !daily) throw new Error('DB 为空或每日池为空');
+  if (Number(meta.schema_version) !== SCHEMA_VERSION) {
+    throw new Error(`schema_version=${meta.schema_version}，期望 ${SCHEMA_VERSION}：请重建库（just db）`);
+  }
 }
 
 if (CHECK) {
   check();
 } else {
   console.log(`语料目录: ${DATA_DIR}`);
-  console.log(`模式: ${FULL ? 'full（完整语料）' : 'standard（精选语料）'}`);
+  console.log(`模式: ${FULL ? 'full（主体 + 杂项）' : '主体（诗歌词曲）'}`);
   build();
 }

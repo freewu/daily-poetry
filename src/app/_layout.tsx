@@ -2,10 +2,16 @@ import { SQLiteProvider } from 'expo-sqlite';
 import * as SplashScreen from 'expo-splash-screen';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { DB_NAME } from '@/lib/db';
+import {
+  planDatabaseAsset,
+  restoreUserData,
+  type DbPlan,
+} from '@/lib/db-bootstrap';
+import { AppScriptProvider } from '@/script';
 import { AppThemeProvider, useTheme } from '@/theme';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -35,14 +41,35 @@ function RootNavigator() {
 }
 
 export default function RootLayout() {
+  // 先确认随包库版本：结构变了就整份覆盖，并保留用户的收藏 / 足迹
+  const [plan, setPlan] = useState<DbPlan | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    planDatabaseAsset()
+      .then((p) => alive && setPlan(p))
+      .catch(() => alive && setPlan({ forceOverwrite: false, restore: null }));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  if (!plan) return null; // 启动图还盖着
+
   return (
     <SafeAreaProvider>
       <SQLiteProvider
         databaseName={DB_NAME}
-        assetSource={{ assetId: require('@/assets/poetry.db') }}>
-        <AppThemeProvider>
-          <RootNavigator />
-        </AppThemeProvider>
+        assetSource={{
+          assetId: require('@/assets/poetry.db'),
+          forceOverwrite: plan.forceOverwrite,
+        }}
+        onInit={(db) => restoreUserData(db, plan.restore)}>
+        <AppScriptProvider>
+          <AppThemeProvider>
+            <RootNavigator />
+          </AppThemeProvider>
+        </AppScriptProvider>
       </SQLiteProvider>
     </SafeAreaProvider>
   );

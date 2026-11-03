@@ -29,6 +29,15 @@ name: 收藏与设置
 - assertVisible: '深色'
 - takeScreenshot: settings-dark
 
+# 简繁切换：繁體读 *_tw 列（语料原文），提示文案跟着变
+- tapOn:
+    id: 'script-tw'
+- assertVisible: '正文用傳統繁體（保留語料原文）'
+- takeScreenshot: settings-tw
+- tapOn:
+    id: 'script-cn'
+- assertVisible: '正文用大陆简体（OpenCC 转写）'
+
 # 切回浅色，再切推送偏好为「应景优先」
 - tapOn:
     id: 'theme-light'

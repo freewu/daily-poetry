@@ -3,7 +3,9 @@ import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { attributionOf, linePreview } from '@/lib/format';
+import { localizePoem } from '@/lib/script';
 import type { Poem } from '@/lib/types';
+import { useScript } from '@/script';
 import { useTheme } from '@/theme';
 
 interface Props {
@@ -13,8 +15,10 @@ interface Props {
 }
 
 /** 诗词库 / 收藏列表行 */
-export function PoemRow({ poem, index, right }: Props) {
+export function PoemRow({ poem: raw, index, right }: Props) {
   const { colors } = useTheme();
+  const { script } = useScript();
+  const poem = localizePoem(raw, script);
   const router = useRouter();
   const attr = attributionOf(poem);
   return (

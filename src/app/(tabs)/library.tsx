@@ -14,7 +14,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PoemRow } from '@/components/poem-row';
 import { listCollections, searchPoems } from '@/lib/db';
+import { localizeCollection } from '@/lib/script';
 import type { CollectionMeta, Poem } from '@/lib/types';
+import { useScript } from '@/script';
 import { useTheme } from '@/theme';
 
 export default function LibraryScreen() {
@@ -108,8 +110,10 @@ export default function LibraryScreen() {
   );
 }
 
-function CollectionCard({ coll }: { coll: CollectionMeta }) {
+function CollectionCard({ coll: raw }: { coll: CollectionMeta }) {
   const { colors } = useTheme();
+  const { script } = useScript();
+  const coll = localizeCollection(raw, script);
   const router = useRouter();
   return (
     <Pressable

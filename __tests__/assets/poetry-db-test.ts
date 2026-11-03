@@ -7,6 +7,7 @@ import path from 'node:path';
 
 import {
   dayNumber,
+  DB_SCHEMA_VERSION,
   getSetting,
   pickPoemForDate,
   poemForDay,
@@ -46,6 +47,10 @@ describeDb('assets/poetry.db（随包数据）', () => {
     expect(await getSetting(asDb(db), 'built_at')).toBeTruthy();
   });
 
+  it('库结构版本与 App 期望一致（否则启动会换库）', async () => {
+    expect(await getSetting(asDb(db), 'schema_version')).toBe(String(DB_SCHEMA_VERSION));
+  });
+
   it('诗词数与 meta 记录一致', async () => {
     const meta = Number(await getSetting(asDb(db), 'poem_count'));
     const row = await db.getFirstAsync<{ n: number }>('SELECT COUNT(*) n FROM poems');
@@ -62,6 +67,35 @@ describeDb('assets/poetry.db（随包数据）', () => {
       'SELECT COUNT(*) n FROM poems p LEFT JOIN collections c ON c.id = p.collection WHERE c.id IS NULL',
     );
     expect(orphan?.n).toBe(0);
+  });
+
+  it('每首都有繁体文本，繁体源保留原文、简体源由 OpenCC 转写', async () => {
+    const empty = await db.getFirstAsync<{ n: number }>(
+      "SELECT COUNT(*) n FROM poems WHERE TRIM(content_tw) = '' OR TRIM(title_tw) = ''",
+    );
+    expect(empty?.n).toBe(0);
+
+    // 唐诗三百首是简体源 → cn→tw
+    const cnSrc = await db.getFirstAsync<Poem>(
+      "SELECT * FROM poems WHERE collection = 'tangshi' AND title = '静夜思'",
+    );
+    expect(cnSrc?.content).toContain('举头');
+    expect(cnSrc?.content_tw).toContain('舉頭');
+
+    // 全唐诗是繁体源 → 原文里的「髮」不会被转成简体再转回来
+    const twSrc = await db.getFirstAsync<Poem>(
+      "SELECT * FROM poems WHERE collection = 'quantangshi' AND content_tw LIKE '%白髮%' LIMIT 1",
+    );
+    expect(twSrc).not.toBeNull();
+    expect(twSrc?.content).toContain('白发');
+    expect(twSrc?.content_tw).toContain('白髮');
+  });
+
+  it('选集名 / 体裁也有繁体', async () => {
+    const row = await db.getFirstAsync<{ name: string; name_tw: string; kind_tw: string }>(
+      "SELECT name, name_tw, kind_tw FROM collections WHERE id = 'ci'",
+    );
+    expect(row).toEqual({ name: '全宋词', name_tw: '全宋詞', kind_tw: '詞' });
   });
 
   it('每日池非空，且一整年轮换不重复、不漏日', async () => {
@@ -129,6 +163,12 @@ describeDb('assets/poetry.db（随包数据）', () => {
     expect(hits.length).toBeGreaterThan(0);
     expect(hits[0].title).toContain('静夜思');
     expect(hits[0].author).toContain('李白');
+  });
+
+  it('繁体查询也能命中（简繁两列一起检索）', async () => {
+    const hits = await searchPoems(asDb(db), '靜夜思', 5);
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits[0].title).toBe('静夜思');
   });
 
   it('全新安装的库没有被写脏（收藏 / 足迹为空）', async () => {

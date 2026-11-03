@@ -15,19 +15,19 @@ init: deps data db assets
 deps:
     npm install
 
-# 下载精简语料（唐诗三百首 / 千家诗 / 诗经 / 楚辞 / 花间集 / 南唐词）
+# 下载主体语料（全唐诗 / 全宋词 / 元曲 / 诗经 / 楚辞 / 五代诗词 / 唐诗三百首 / 千家诗）
 data:
     test -d .data/chinese-poetry && echo "语料已存在，跳过下载" || bash scripts/fetch-corpus.sh standard
 
-# 下载完整语料（再含全宋词 / 元曲 / 古文观止 / 纳兰 / 曹操 / 幽梦影 / 论语 / 四书 / 蒙学）
+# 下载全部语料（再含古文观止 / 纳兰 / 曹操 / 幽梦影 / 论语 / 四书 / 蒙学）
 data-full:
     bash scripts/fetch-corpus.sh full
 
-# 构建 SQLite 数据库 → assets/poetry.db（精选集）
+# 构建 SQLite 数据库 → assets/poetry.db（约 9 万首，简繁双写，约 56MB）
 db: deps data
     node scripts/build-db.mjs
 
-# 构建完整语料库（体积约 12MB）
+# 构建完整语料库（再加杂项，体积约 60MB）
 db-full: deps data-full
     node scripts/build-db.mjs --full
 
@@ -55,7 +55,7 @@ test *args:
 test-cov:
     npx jest --coverage
 
-# Android 工具链自检：SDK / adb / 模拟器 / 在线设备 / Maestro
+# Android 工具链自检：SDK / adb / 模拟器 / 在线设备 / JDK17 / ccache / Maestro
 android-doctor:
     bash tool/android.sh doctor
 
@@ -83,6 +83,8 @@ envcheck:
     @npm -v 2>/dev/null || true
     @echo "python3: $(command -v python3 || echo 缺失)"
     @node -e "console.log('node:sqlite:', typeof require('node:sqlite').DatabaseSync)" 2>/dev/null || echo "node:sqlite: 不可用（需要 Node 22.5+）"
+    @echo "—— 原生构建前置（Gradle 跑在 Windows 侧）——"
+    @bash tool/android.sh doctor
 
 # 启动开发服务器
 start:

@@ -6,13 +6,16 @@ import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { PoemRow } from '@/components/poem-row';
 import { ScreenBar } from '@/components/screen-bar';
 import { getCollection, poemsOfCollection } from '@/lib/db';
+import { localizeCollection } from '@/lib/script';
 import type { CollectionMeta, Poem } from '@/lib/types';
+import { useScript } from '@/script';
 import { useTheme } from '@/theme';
 
 export default function CollectionScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const db = useSQLiteContext();
   const { colors } = useTheme();
+  const { script } = useScript();
 
   const [meta, setMeta] = useState<CollectionMeta | null>(null);
   const [poems, setPoems] = useState<Poem[]>([]);
@@ -39,8 +42,9 @@ export default function CollectionScreen() {
     };
   }, [db, id]);
 
-  const title = meta?.name ?? '选集';
-  const subtitle = meta ? `${meta.kind} · 共 ${poems.length} 首` : '';
+  const coll = meta ? localizeCollection(meta, script) : null;
+  const title = coll?.name ?? '选集';
+  const subtitle = coll ? `${coll.kind} · 共 ${poems.length} 首` : '';
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>

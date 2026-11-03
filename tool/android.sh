@@ -16,7 +16,8 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 # shellcheck disable=SC1091
-. tool/android-env.sh
+# 传一个非 doctor 的参数，避免 source 时就把自检结果打印一遍（doctor 里会再跑一次）
+. tool/android-env.sh sourced
 
 info() { printf '  %s\n' "$*"; }
 die() { printf '✗ %s\n' "$*" >&2; exit 1; }

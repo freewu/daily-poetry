@@ -13,7 +13,9 @@ import {
   historyDays,
   setSetting,
 } from '@/lib/db';
-import type { PushPref, ThemeMode } from '@/lib/types';
+import { SCRIPT_OPTS } from '@/lib/script';
+import type { PushPref, Script, ThemeMode } from '@/lib/types';
+import { useScript } from '@/script';
 import { useTheme } from '@/theme';
 
 const MODES: { key: ThemeMode; label: string }[] = [
@@ -30,6 +32,7 @@ const PUSH_OPTS: { key: PushPref; label: string; hint: string }[] = [
 export default function SettingsScreen() {
   const db = useSQLiteContext();
   const { colors, mode, setMode } = useTheme();
+  const { script, setScript } = useScript();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -82,7 +85,12 @@ export default function SettingsScreen() {
     ]);
   };
 
-  const datasetLabel = meta.dataset === 'full' ? '完整库（含全宋词、元曲等）' : meta.dataset === 'standard' ? '精选集' : '—';
+  const datasetLabel =
+    meta.dataset === 'full'
+      ? '完整库（诗歌词曲 + 古文蒙学）'
+      : meta.dataset === 'standard'
+        ? '诗歌词曲全库'
+        : '—';
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top + 8 }}>
@@ -92,67 +100,30 @@ export default function SettingsScreen() {
 
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
         <Section label="每日推送">
-          <View style={styles.segment}>
-            {PUSH_OPTS.map((o) => {
-              const sel = push === o.key;
-              return (
-                <Pressable
-                  key={o.key}
-                  testID={`push-${o.key}`}
-                  onPress={() => {
-                    setPush(o.key);
-                    setSetting(db, 'settings_push', o.key).catch(() => {});
-                  }}
-                  style={[
-                    styles.segBtn,
-                    sel
-                      ? { backgroundColor: colors.accent }
-                      : { borderColor: colors.line, borderWidth: 1 },
-                  ]}>
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      fontWeight: '600',
-                      color: sel ? colors.onAccent : colors.sub,
-                    }}>
-                    {o.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          <Text style={[styles.hint, { color: colors.faint }]}>
-            {PUSH_OPTS.find((o) => o.key === push)?.hint}
-          </Text>
+          <Segment
+            testIDPrefix="push"
+            options={PUSH_OPTS}
+            value={push}
+            onChange={(k) => {
+              setPush(k);
+              setSetting(db, 'settings_push', k).catch(() => {});
+            }}
+            hint={PUSH_OPTS.find((o) => o.key === push)?.hint}
+          />
+        </Section>
+
+        <Section label="正文字体">
+          <Segment
+            testIDPrefix="script"
+            options={SCRIPT_OPTS}
+            value={script}
+            onChange={(k: Script) => setScript(k)}
+            hint={SCRIPT_OPTS.find((o) => o.key === script)?.hint}
+          />
         </Section>
 
         <Section label="外观">
-          <View style={styles.segment}>
-            {MODES.map((m) => {
-              const sel = mode === m.key;
-              return (
-                <Pressable
-                  key={m.key}
-                  testID={`theme-${m.key}`}
-                  onPress={() => setMode(m.key)}
-                  style={[
-                    styles.segBtn,
-                    sel
-                      ? { backgroundColor: colors.accent }
-                      : { borderColor: colors.line, borderWidth: 1 },
-                  ]}>
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      fontWeight: '600',
-                      color: sel ? colors.onAccent : colors.sub,
-                    }}>
-                    {m.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+          <Segment testIDPrefix="theme" options={MODES} value={mode} onChange={setMode} />
         </Section>
 
         <Section label="我的">
@@ -175,7 +146,7 @@ export default function SettingsScreen() {
         <Section label="关于">
           <Text style={[styles.about, { color: colors.sub }]}>
             每日诗词 v{Constants.expoConfig?.version ?? '1.0.0'} · 一款“每日一诗”小应用。
-            {'\n\n'}语料整理自 GitHub 开源项目 chinese-poetry（唐诗三百首、千家诗、诗经、楚辞、花间集、南唐词及全宋词、元曲等），繁体文本已按大陆简体转写（OpenCC）。
+            {'\n\n'}语料整理自 GitHub 开源项目 chinese-poetry（全唐诗、全宋词、元曲、诗经、楚辞、五代诗词、唐诗三百首、千家诗等），简体为 OpenCC 转写，繁體保留语料原文，可在上方「正文字体」切换。
             {'\n\n'}每日推送算法与日期一一对应、可复现：同一日期，无论何时打开，都会遇见同一首诗。
           </Text>
         </Section>
@@ -196,9 +167,56 @@ function Section({ label, children }: { label: string; children: React.ReactNode
   );
 }
 
+/** 分段选择器：推送偏好 / 简繁 / 主题共用，testID 为 `${testIDPrefix}-${key}` */
+function Segment<T extends string>({
+  testIDPrefix,
+  options,
+  value,
+  onChange,
+  hint,
+}: {
+  testIDPrefix: string;
+  options: { key: T; label: string }[];
+  value: T;
+  onChange: (key: T) => void;
+  hint?: string;
+}) {
+  const { colors } = useTheme();
+  return (
+    <>
+      <View style={styles.segment}>
+        {options.map((o) => {
+          const sel = value === o.key;
+          return (
+            <Pressable
+              key={o.key}
+              testID={`${testIDPrefix}-${o.key}`}
+              onPress={() => onChange(o.key)}
+              style={[
+                styles.segBtn,
+                sel
+                  ? { backgroundColor: colors.accent }
+                  : { borderColor: colors.line, borderWidth: 1 },
+              ]}>
+              <Text
+                style={{
+                  fontSize: 14,
+                  fontWeight: '600',
+                  color: sel ? colors.onAccent : colors.sub,
+                }}>
+                {o.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      {hint ? <Text style={[styles.hint, { color: colors.faint }]}>{hint}</Text> : null}
+    </>
+  );
+}
+
 function Row({
-  testID,
-  label,
+  testID,  label,
   value,
   onPress,
   danger,

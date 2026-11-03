@@ -10,23 +10,32 @@ import type { Poem } from '@/lib/types';
 /** 与 scripts/build-db.mjs 产出的库结构保持一致 */
 const SCHEMA = `
   CREATE TABLE poems (
-    id         INTEGER PRIMARY KEY,
-    collection TEXT NOT NULL,
-    name       TEXT NOT NULL,
-    kind       TEXT NOT NULL,
-    dynasty    TEXT NOT NULL DEFAULT '',
-    author     TEXT NOT NULL DEFAULT '',
-    title      TEXT NOT NULL DEFAULT '',
-    subtitle   TEXT NOT NULL DEFAULT '',
-    content    TEXT NOT NULL,
-    daily      INTEGER NOT NULL DEFAULT 0
+    id           INTEGER PRIMARY KEY,
+    collection   TEXT NOT NULL,
+    name         TEXT NOT NULL,
+    name_tw      TEXT NOT NULL DEFAULT '',
+    kind         TEXT NOT NULL,
+    kind_tw      TEXT NOT NULL DEFAULT '',
+    dynasty      TEXT NOT NULL DEFAULT '',
+    dynasty_tw   TEXT NOT NULL DEFAULT '',
+    author       TEXT NOT NULL DEFAULT '',
+    author_tw    TEXT NOT NULL DEFAULT '',
+    title        TEXT NOT NULL DEFAULT '',
+    title_tw     TEXT NOT NULL DEFAULT '',
+    subtitle     TEXT NOT NULL DEFAULT '',
+    subtitle_tw  TEXT NOT NULL DEFAULT '',
+    content      TEXT NOT NULL,
+    content_tw   TEXT NOT NULL DEFAULT '',
+    daily        INTEGER NOT NULL DEFAULT 0
   );
   CREATE INDEX idx_poems_collection ON poems(collection);
   CREATE INDEX idx_poems_daily ON poems(daily, id);
   CREATE TABLE collections (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
+    name_tw TEXT NOT NULL DEFAULT '',
     kind TEXT NOT NULL,
+    kind_tw TEXT NOT NULL DEFAULT '',
     count INTEGER NOT NULL DEFAULT 0,
     daily INTEGER NOT NULL DEFAULT 0
   );
@@ -106,20 +115,29 @@ export interface SeedPoem extends Partial<Omit<Poem, 'id'>> {
 /** 按 id 顺序插入诗词，未给出的字段取合理默认值 */
 export function seedPoems(db: TestDb, poems: SeedPoem[]): void {
   const stmt = db.raw.prepare(
-    `INSERT INTO poems (id, collection, name, kind, dynasty, author, title, subtitle, content, daily)
-     VALUES (?,?,?,?,?,?,?,?,?,?)`,
+    `INSERT INTO poems (id, collection, name, name_tw, kind, kind_tw, dynasty, dynasty_tw,
+                        author, author_tw, title, title_tw, subtitle, subtitle_tw,
+                        content, content_tw, daily)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
   );
   poems.forEach((p, i) => {
     stmt.run(
       p.id ?? i + 1,
       p.collection ?? 'tang',
       p.name ?? '唐诗三百首',
+      p.name_tw ?? '',
       p.kind ?? '五言绝句',
+      p.kind_tw ?? '',
       p.dynasty ?? '唐',
+      p.dynasty_tw ?? '',
       p.author ?? '李白',
+      p.author_tw ?? '',
       p.title,
+      p.title_tw ?? '',
       p.subtitle ?? '',
+      p.subtitle_tw ?? '',
       p.content,
+      p.content_tw ?? '',
       p.daily ?? 1,
     );
   });
@@ -127,12 +145,23 @@ export function seedPoems(db: TestDb, poems: SeedPoem[]): void {
 
 export function seedCollections(
   db: TestDb,
-  cols: { id: string; name: string; kind?: string; count?: number; daily?: number }[],
+  cols: {
+    id: string;
+    name: string;
+    name_tw?: string;
+    kind?: string;
+    kind_tw?: string;
+    count?: number;
+    daily?: number;
+  }[],
 ): void {
   const stmt = db.raw.prepare(
-    'INSERT INTO collections (id, name, kind, count, daily) VALUES (?,?,?,?,?)',
+    `INSERT INTO collections (id, name, name_tw, kind, kind_tw, count, daily)
+     VALUES (?,?,?,?,?,?,?)`,
   );
-  for (const c of cols) stmt.run(c.id, c.name, c.kind ?? '诗集', c.count ?? 0, c.daily ?? 1);
+  for (const c of cols) {
+    stmt.run(c.id, c.name, c.name_tw ?? '', c.kind ?? '诗集', c.kind_tw ?? '', c.count ?? 0, c.daily ?? 1);
+  }
 }
 
 /** 项目的函数签名要求 expo-sqlite 的 SQLiteDatabase，内存实现结构一致 */

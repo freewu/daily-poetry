@@ -4,6 +4,13 @@ import type { CollectionMeta, Occasion, Poem } from './types';
 
 export const DB_NAME = 'poetry.db';
 
+/**
+ * 随包数据库的结构版本，与 scripts/build-db.mjs 的 SCHEMA_VERSION 对应。
+ * 不一致时（老版本安装、旧库缺繁体列）启动会换用随包新库，收藏/足迹按
+ * 「题目 + 作者 + 首句」重新对上（见 lib/db-bootstrap.ts）。
+ */
+export const DB_SCHEMA_VERSION = 2;
+
 // ---------------------------------------------------------------- 设置 KV
 export async function getSetting(db: SQLiteDatabase, key: string): Promise<string | null> {
   const row = await db.getFirstAsync<{ value: string }>('SELECT value FROM meta WHERE key = ?', key);
@@ -69,10 +76,18 @@ export async function poemsOfCollection(db: SQLiteDatabase, coll: string): Promi
 
 export async function searchPoems(db: SQLiteDatabase, q: string, limit = 100): Promise<Poem[]> {
   const like = `%${q.trim()}%`;
+  // 简繁两套列都查：用户输简体或繁體都能命中（不需要任何转换表）
   return db.getAllAsync<Poem>(
     `SELECT * FROM poems
-     WHERE title LIKE ? OR author LIKE ? OR name LIKE ? OR content LIKE ?
+     WHERE title LIKE ? OR title_tw LIKE ?
+        OR author LIKE ? OR author_tw LIKE ?
+        OR name LIKE ? OR name_tw LIKE ?
+        OR content LIKE ? OR content_tw LIKE ?
      ORDER BY daily DESC, id LIMIT ?`,
+    like,
+    like,
+    like,
+    like,
     like,
     like,
     like,

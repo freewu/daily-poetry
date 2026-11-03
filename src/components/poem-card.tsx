@@ -2,12 +2,16 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { PoemLines } from '@/components/poem-lines';
 import { attributionOf, sourceOf } from '@/lib/format';
+import { localizePoem } from '@/lib/script';
 import type { Poem } from '@/lib/types';
+import { useScript } from '@/script';
 import { useTheme } from '@/theme';
 
 /** 诗词卡片：体裁章 · 题目 · 作者 · 正文 · 出处 */
-export function PoemCard({ poem, testID }: { poem: Poem; testID?: string }) {
+export function PoemCard({ poem: raw, testID }: { poem: Poem; testID?: string }) {
   const { colors } = useTheme();
+  const { script } = useScript();
+  const poem = localizePoem(raw, script);
   const attr = attributionOf(poem);
   return (
     <View

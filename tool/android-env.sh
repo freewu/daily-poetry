@@ -119,9 +119,33 @@ EMULATOR="$(detect_emulator)" || EMULATOR=""
 AVD="$(detect_avd)" || AVD=""
 [ -n "$AVD" ] && export AVD
 
+# ------------------------------------------------- Windows 侧辅助（构建前置检查）
+# Gradle / NDK 实际跑在 Windows 上，所以 JDK 与 ccache 都要看 Windows 那一侧。
+win_userprofile() {
+  if on_wsl; then
+    p="$(cmd.exe /c "echo %USERPROFILE%" 2>/dev/null | tr -d '\r')"
+    [ -n "$p" ] || return 1
+    wslpath -u "$p" 2>/dev/null || return 1
+  elif on_windows; then
+    printf '%s' "${USERPROFILE:-$HOME}"
+  else
+    return 1
+  fi
+}
+
+# Windows 侧 PATH 上的某个可执行文件（WSL 下借 cmd 的 where）
+win_which() {
+  if on_wsl; then
+    cmd.exe /c "where $1" 2>/dev/null | tr -d '\r' | head -1
+  else
+    command -v "$1" 2>/dev/null
+  fi
+}
+
 if [ "${1:-}" = "doctor" ]; then
   ok() { printf '  ✓ %s\n' "$*"; }
   bad() { printf '  ✗ %s\n' "$*"; }
+  hint() { printf '     %s\n' "$*"; }
   echo "环境：$(uname -s) $(uname -r)$(on_wsl && echo ' (WSL)')"
   [ -n "$ANDROID_HOME" ] && ok "ANDROID_HOME=$ANDROID_HOME" \
     || bad "没找到 Android SDK（设置 ANDROID_HOME，或装 Android Studio）"
@@ -129,6 +153,53 @@ if [ "${1:-}" = "doctor" ]; then
   [ -n "${ADB_SERVER_SOCKET:-}" ] && ok "复用 Windows adb server：$ADB_SERVER_SOCKET"
   [ -n "$EMULATOR" ] && ok "emulator=$EMULATOR" || bad "没找到 emulator"
   [ -n "$AVD" ] && ok "默认 AVD=$AVD" || bad "没有可用 AVD（avdmanager create avd 建一个）"
+
+  # ---- Gradle / JDK 17
+  # RN 的 gradle-plugin 用 jvmToolchain(17)，而 Gradle 不会自动扫 IDEA 的 jdks/，
+  # 找不到就去 GitHub 自动下载 JDK —— 国内网络基本卡死在 0 字节的 .part 上。
+  up="$(win_userprofile)" || up=""
+  props="$up/.gradle/gradle.properties"
+  jdk17=""
+  if ! on_wsl && [ -n "${JAVA_HOME:-}" ]; then
+    case "$("$JAVA_HOME/bin/java" -version 2>&1 | head -1)" in
+      *'"17.'*) jdk17="$JAVA_HOME" ;;
+    esac
+  fi
+  if [ -z "$jdk17" ] && [ -n "$up" ] && [ -f "$props" ] &&
+    grep -qi 'org\.gradle\.java\.installations\.paths.*jdk-17' "$props"; then
+    jdk17="$props"
+  fi
+  if [ -n "$jdk17" ]; then
+    ok "Gradle 能解析到 JDK 17（满足 RN gradle-plugin 的 toolchain）"
+  else
+    bad "Gradle 找不到 JDK 17：会去 GitHub 自动下载，常常卡死 / 失败"
+    found=""
+    [ -n "$up" ] && found="$(ls -d "$up"/jdks/jdk-17* 2>/dev/null | head -1)"
+    if [ -n "$found" ]; then
+      esc="$(to_windows_path "$found" | sed 's/\\/\\\\/g')"
+      hint "已装：$found（Gradle 不会自动扫 jdks/）"
+      hint "在 $props 里加：org.gradle.java.installations.paths=$esc"
+      hint "并加：org.gradle.java.installations.auto-download=false（失败时快速报错而不是干等）"
+    elif [ -n "$up" ]; then
+      hint "装一个 JDK 17，再在 $props 里登记 org.gradle.java.installations.paths"
+    fi
+  fi
+
+  # ---- ccache
+  # RN 的 ReactNative-application.cmake 会自动把 ccache 设成编译器启动器；
+  # Cygwin/MSYS 版的 ccache 认不了 C:\...\clang++.exe，NDK 编译会整片失败。
+  cc="$(win_which ccache)"
+  if [ -z "$cc" ]; then
+    ok "PATH 上没有 ccache（NDK 直接调 clang，正常）"
+  else
+    case "$(printf '%s' "$cc" | tr 'A-Z' 'a-z')" in
+      *cygwin* | *msys*)
+        bad "ccache 是 Cygwin/MSYS 版，NDK 编译会全部失败：$cc"
+        hint "装原生版（choco install ccache），或把这个 ccache.exe 改名禁用"
+        ;;
+      *) ok "ccache=$cc" ;;
+    esac
+  fi
   if [ -n "$ADB" ]; then
     devs="$("$ADB" devices | awk 'NR>1 && $2=="device" { print $1 }')"
     [ -n "$devs" ] && ok "在线设备：$(echo "$devs" | tr '\n' ' ')" \
