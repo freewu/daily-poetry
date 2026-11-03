@@ -28,3 +28,19 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
 - 改表结构必须同时改：`scripts/build-db.mjs` 的 `SCHEMA_VERSION`、`src/lib/db.ts` 的
   `DB_SCHEMA_VERSION`、`__tests__/helpers/memory-db.ts` 的 `SCHEMA`。
   版本不一致时 `src/lib/db-bootstrap.ts` 会在启动时覆盖随包库，并按「题目 + 作者 + 首句」把收藏 / 足迹写回。
+  覆盖会整份替换 `meta` 表，所以新增偏好设置时**必须**加进 `KEPT_SETTINGS` 白名单，
+  否则换库会把用户设置重置（现有：`settings_theme / settings_push / settings_script /
+  settings_font / settings_font_size / settings_tts_rate`）。
+
+# 阅读设置（字体 / 字号 / 语速）
+
+- 全部持久化在 `meta` 表的 `settings_*` KV 里，没有 AsyncStorage：
+  `settings_font`（`system|song|kai`）、`settings_font_size`（`sm|md|lg|xl`）、
+  `settings_tts_rate`（`slow|normal|fast`）。
+- 字族 / 字号档位表在 `src/lib/typography.ts`，`AppTypographyProvider`（`src/typography.tsx`）
+  读库并往下发 `family / scale / bodySize`；`PoemLines` 不传 `fontSize` 时用 `bodySize`
+  （21 × 倍率），行高固定 1.85 倍。
+- 不打包字体：走系统 CJK 字族。Android `serif` 会落到 `NotoSerifCJK`（宋体感），
+  没有楷体，所以 `fontOptions()` 在 Android 上过滤掉 `kai`；iOS 用 `Songti SC` / `Kaiti SC`。
+- 朗读语速在 `src/lib/tts.ts`，`expo-speech` 的 `rate` 是倍率（1.0 = 系统默认，中文偏快，
+  所以「标准」= 0.9）。`PoemActions` 每次朗读现读设置，改完不用重启。

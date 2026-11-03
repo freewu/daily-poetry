@@ -13,6 +13,7 @@ import {
 } from '@/lib/db-bootstrap';
 import { AppScriptProvider } from '@/script';
 import { AppThemeProvider, useTheme } from '@/theme';
+import { AppTypographyProvider } from '@/typography';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -66,9 +67,11 @@ export default function RootLayout() {
         }}
         onInit={(db) => restoreUserData(db, plan.restore)}>
         <AppScriptProvider>
-          <AppThemeProvider>
-            <RootNavigator />
-          </AppThemeProvider>
+          <AppTypographyProvider>
+            <AppThemeProvider>
+              <RootNavigator />
+            </AppThemeProvider>
+          </AppTypographyProvider>
         </AppScriptProvider>
       </SQLiteProvider>
     </SafeAreaProvider>

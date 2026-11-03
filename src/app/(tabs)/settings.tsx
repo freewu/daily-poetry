@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
+import * as Speech from 'expo-speech';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useState } from 'react';
@@ -14,9 +15,12 @@ import {
   setSetting,
 } from '@/lib/db';
 import { SCRIPT_OPTS } from '@/lib/script';
-import type { PushPref, Script, ThemeMode } from '@/lib/types';
+import { DEFAULT_RATE_KEY, isRateKey, RATE_OPTS, rateOf, SPEECH_SAMPLE } from '@/lib/tts';
+import { fontOptions, scaled, SIZE_OPTS } from '@/lib/typography';
+import type { FontKey, PushPref, RateKey, Script, SizeKey, ThemeMode } from '@/lib/types';
 import { useScript } from '@/script';
 import { useTheme } from '@/theme';
+import { useTypography } from '@/typography';
 
 const MODES: { key: ThemeMode; label: string }[] = [
   { key: 'auto', label: '跟随系统' },
@@ -33,12 +37,14 @@ export default function SettingsScreen() {
   const db = useSQLiteContext();
   const { colors, mode, setMode } = useTheme();
   const { script, setScript } = useScript();
+  const { font, size, family, scale, setFont, setSize } = useTypography();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
   const [favCount, setFavCount] = useState(0);
   const [days, setDays] = useState(0);
   const [push, setPush] = useState<PushPref>('classic');
+  const [rate, setRate] = useState<RateKey>(DEFAULT_RATE_KEY);
   const [meta, setMeta] = useState<{ dataset: string; poems: string; built: string }>({
     dataset: '',
     poems: '',
@@ -55,12 +61,14 @@ export default function SettingsScreen() {
         getSetting(db, 'poem_count'),
         getSetting(db, 'built_at'),
         getSetting(db, 'settings_push'),
+        getSetting(db, 'settings_tts_rate'),
       ])
-        .then(([f, d, ds, pc, ba, sp]) => {
+        .then(([f, d, ds, pc, ba, sp, sr]) => {
           if (!alive) return;
           setFavCount(f);
           setDays(d);
           setPush(sp === 'occasion' ? 'occasion' : 'classic');
+          setRate(isRateKey(sr) ? sr : DEFAULT_RATE_KEY);
           setMeta({
             dataset: ds ?? '',
             poems: pc ?? '',
@@ -113,12 +121,65 @@ export default function SettingsScreen() {
         </Section>
 
         <Section label="正文字体">
+          <SubLabel text="字体" />
+          <Segment
+            testIDPrefix="font"
+            options={fontOptions()}
+            value={font}
+            onChange={(k: FontKey) => setFont(k)}
+            hint={fontOptions().find((o) => o.key === font)?.hint}
+          />
+          <SubLabel text="字号" />
+          <Segment
+            testIDPrefix="size"
+            options={SIZE_OPTS}
+            value={size}
+            onChange={(k: SizeKey) => setSize(k)}
+            hint={SIZE_OPTS.find((o) => o.key === size)?.hint}
+          />
+          <SubLabel text="简繁" />
           <Segment
             testIDPrefix="script"
             options={SCRIPT_OPTS}
             value={script}
             onChange={(k: Script) => setScript(k)}
             hint={SCRIPT_OPTS.find((o) => o.key === script)?.hint}
+          />
+          <View testID="font-preview" style={[styles.preview, { borderTopColor: colors.line }]}>
+            <Text
+              style={{
+                color: colors.text,
+                fontFamily: family,
+                fontSize: scaled(19, scale),
+                lineHeight: Math.round(scaled(19, scale) * 1.7),
+                textAlign: 'center',
+                letterSpacing: 2,
+              }}>
+              床前明月光，疑是地上霜。
+            </Text>
+          </View>
+        </Section>
+
+        <Section label="朗读">
+          <SubLabel text="语速" />
+          <Segment
+            testIDPrefix="rate"
+            options={RATE_OPTS}
+            value={rate}
+            onChange={(k: RateKey) => {
+              setRate(k);
+              setSetting(db, 'settings_tts_rate', k).catch(() => {});
+            }}
+            hint={RATE_OPTS.find((o) => o.key === rate)?.hint}
+          />
+          <Row
+            testID="rate-preview"
+            label="试听"
+            value={SPEECH_SAMPLE}
+            onPress={() => {
+              Speech.stop();
+              Speech.speak(SPEECH_SAMPLE, { language: 'zh-CN', rate: rateOf(rate) });
+            }}
           />
         </Section>
 
@@ -167,7 +228,13 @@ function Section({ label, children }: { label: string; children: React.ReactNode
   );
 }
 
-/** 分段选择器：推送偏好 / 简繁 / 主题共用，testID 为 `${testIDPrefix}-${key}` */
+/** 卡片内的小标题：字体 / 字号 / 简繁 / 语速 */
+function SubLabel({ text }: { text: string }) {
+  const { colors } = useTheme();
+  return <Text style={[styles.subLabel, { color: colors.sub }]}>{text}</Text>;
+}
+
+/** 分段选择器：推送偏好 / 字体 / 字号 / 简繁 / 语速 / 主题共用，testID 为 `${testIDPrefix}-${key}` */
 function Segment<T extends string>({
   testIDPrefix,
   options,
@@ -265,6 +332,8 @@ const styles = StyleSheet.create({
   },
   rowLabel: { fontSize: 15, fontWeight: '500', flexShrink: 0 },
   rowValue: { flex: 1, fontSize: 13, textAlign: 'right' },
+  subLabel: { fontSize: 12, paddingHorizontal: 14, paddingTop: 12, letterSpacing: 1 },
+  preview: { borderTopWidth: 1, paddingVertical: 16, paddingHorizontal: 14, marginTop: 4 },
   segment: { flexDirection: 'row', gap: 8, padding: 10 },
   hint: { fontSize: 12, paddingHorizontal: 14, paddingTop: 0, paddingBottom: 12, lineHeight: 18 },
   segBtn: {

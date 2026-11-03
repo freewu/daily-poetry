@@ -44,6 +44,15 @@ export type Script = 'cn' | 'tw';
 /** 每日推送偏好 */
 export type PushPref = 'classic' | 'occasion';
 
+/** 正文字族：系统默认 / 宋体 / 楷体（楷体仅 iOS） */
+export type FontKey = 'system' | 'song' | 'kai';
+
+/** 正文字号档位 */
+export type SizeKey = 'sm' | 'md' | 'lg' | 'xl';
+
+/** 朗读语速档位 */
+export type RateKey = 'slow' | 'normal' | 'fast';
+
 /** 应景日（传统节日 / 二十四节气）及其检索词 */
 export interface Occasion {
   id: string;

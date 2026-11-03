@@ -72,6 +72,30 @@ describe('<PoemActions />', () => {
     await waitFor(() => expect(screen.getByText('朗读')).toBeTruthy());
   });
 
+  it('朗读语速跟随设置（settings_tts_rate）', async () => {
+    const db = createTestDb();
+    await asDb(db).runAsync("INSERT INTO meta (key, value) VALUES ('settings_tts_rate', 'slow')");
+    await renderWithTheme(<PoemActions poem={poem} />, { db });
+    await fireEvent.press(screen.getByTestId('act-speak'));
+
+    await waitFor(() => expect(g.__SPEECH__.speak).toHaveBeenCalled());
+    expect(g.__SPEECH__.speak).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ rate: 0.7 }),
+    );
+  });
+
+  it('语速没设置时用默认值 0.9', async () => {
+    await renderWithTheme(<PoemActions poem={poem} />);
+    await fireEvent.press(screen.getByTestId('act-speak'));
+
+    await waitFor(() => expect(g.__SPEECH__.speak).toHaveBeenCalled());
+    expect(g.__SPEECH__.speak).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ rate: 0.9 }),
+    );
+  });
+
   it('卸载时停掉朗读', async () => {
     const view = await renderWithTheme(<PoemActions poem={poem} />);
     await view.unmount();

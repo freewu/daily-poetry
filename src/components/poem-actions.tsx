@@ -6,8 +6,9 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { copyTextOf } from '@/lib/format';
-import { isFavorite, toggleFavorite } from '@/lib/db';
+import { getSetting, isFavorite, toggleFavorite } from '@/lib/db';
 import { localizePoem } from '@/lib/script';
+import { DEFAULT_RATE_KEY, isRateKey, rateOf } from '@/lib/tts';
 import type { Poem } from '@/lib/types';
 import { useScript } from '@/script';
 import { useTheme } from '@/theme';
@@ -56,9 +57,11 @@ export function PoemActions({ poem: raw }: { poem: Poem }) {
       return;
     }
     setSpeaking(true);
+    // 语速在设置里可调，每次朗读时现取，改完不用重启
+    const rk = await getSetting(db, 'settings_tts_rate').catch(() => null);
     Speech.speak(utteranceOf(poem), {
       language: 'zh-CN',
-      rate: 0.88,
+      rate: rateOf(isRateKey(rk) ? rk : DEFAULT_RATE_KEY),
       onDone: stopSpeaking,
       onStopped: stopSpeaking,
       onError: stopSpeaking,

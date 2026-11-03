@@ -1,4 +1,4 @@
-# 收藏 → 设置：收藏一首诗、切主题、切推送偏好、清空收藏
+# 收藏 → 设置：收藏一首诗、切主题 / 简繁 / 字体字号 / 语速、清空收藏
 appId: com.bluefrog.dailypoetry
 name: 收藏与设置
 ---
@@ -37,6 +37,34 @@ name: 收藏与设置
 - tapOn:
     id: 'script-cn'
 - assertVisible: '正文用大陆简体（OpenCC 转写）'
+
+# 字体：宋体（衬线），再切特大字号，预览跟着变
+- tapOn:
+    id: 'font-song'
+- assertVisible: '衬线体，横细竖粗、起收有顿，接近刻本'
+- tapOn:
+    id: 'size-xl'
+- assertVisible: '正文字号 27，适合长辈阅读'
+- takeScreenshot: settings-font-xl
+- tapOn:
+    id: 'size-md'
+- tapOn:
+    id: 'font-system'
+- assertVisible: '跟随系统字体（黑体 / 苹方），笔画均匀'
+
+# 朗读语速：慢 / 标准 / 快，试听按当前语速朗读
+- scrollUntilVisible:
+    element:
+      id: 'rate-fast'
+    direction: DOWN
+- tapOn:
+    id: 'rate-fast'
+- assertVisible: '1.2× 语速，赶时间用'
+- tapOn:
+    id: 'rate-preview'
+- tapOn:
+    id: 'rate-normal'
+- assertVisible: '0.9× 语速，接近吟诵节奏'
 
 # 切回浅色，再切推送偏好为「应景优先」
 - tapOn:

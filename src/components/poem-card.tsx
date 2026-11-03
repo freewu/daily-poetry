@@ -3,14 +3,17 @@ import { StyleSheet, Text, View } from 'react-native';
 import { PoemLines } from '@/components/poem-lines';
 import { attributionOf, sourceOf } from '@/lib/format';
 import { localizePoem } from '@/lib/script';
+import { scaled } from '@/lib/typography';
 import type { Poem } from '@/lib/types';
 import { useScript } from '@/script';
 import { useTheme } from '@/theme';
+import { useTypography } from '@/typography';
 
 /** 诗词卡片：体裁章 · 题目 · 作者 · 正文 · 出处 */
 export function PoemCard({ poem: raw, testID }: { poem: Poem; testID?: string }) {
   const { colors } = useTheme();
   const { script } = useScript();
+  const { family, scale } = useTypography();
   const poem = localizePoem(raw, script);
   const attr = attributionOf(poem);
   return (
@@ -25,9 +28,17 @@ export function PoemCard({ poem: raw, testID }: { poem: Poem; testID?: string })
           {poem.kind}
         </Text>
       </View>
-      <Text style={[styles.title, { color: colors.text }]}>{poem.title || poem.name}</Text>
+      <Text
+        style={[
+          styles.title,
+          { color: colors.text, fontFamily: family, fontSize: scaled(27, scale) },
+        ]}>
+        {poem.title || poem.name}
+      </Text>
       {attr ? (
-        <Text style={[styles.attr, { color: colors.sub }]}>{attr}</Text>
+        <Text style={[styles.attr, { color: colors.sub, fontSize: scaled(14, scale) }]}>
+          {attr}
+        </Text>
       ) : null}
       <View style={[styles.rule, { backgroundColor: colors.line }]} />
       <PoemLines poem={poem} color={colors.text} />

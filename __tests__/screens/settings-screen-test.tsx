@@ -63,6 +63,72 @@ describe('<SettingsScreen />', () => {
     );
   });
 
+  it('切换字体并落库，预览跟着换字族', async () => {
+    const db = await seed();
+    await renderWithTheme(<SettingsScreen />, { db });
+    await waitFor(() => expect(screen.getByTestId('font-song')).toBeTruthy());
+
+    // 默认系统字体：预览不带 fontFamily
+    expect(screen.getByTestId('font-preview').props.children.props.style.fontFamily).toBeUndefined();
+
+    await fireEvent.press(screen.getByTestId('font-song'));
+    await waitFor(async () =>
+      expect(await asDb(db).getFirstAsync("SELECT value FROM meta WHERE key = 'settings_font'"))
+        .toEqual({ value: 'song' }),
+    );
+    expect(screen.getByTestId('font-preview').props.children.props.style.fontFamily).toBe('serif');
+    expect(screen.getByText('衬线体，横细竖粗、起收有顿，接近刻本')).toBeTruthy();
+  });
+
+  it('切换字号并落库，预览跟着放大', async () => {
+    const db = await seed();
+    await renderWithTheme(<SettingsScreen />, { db });
+    await waitFor(() => expect(screen.getByTestId('size-xl')).toBeTruthy());
+    expect(screen.getByTestId('font-preview').props.children.props.style.fontSize).toBe(19);
+
+    await fireEvent.press(screen.getByTestId('size-xl'));
+    await waitFor(async () =>
+      expect(
+        await asDb(db).getFirstAsync("SELECT value FROM meta WHERE key = 'settings_font_size'"),
+      ).toEqual({ value: 'xl' }),
+    );
+    expect(screen.getByTestId('font-preview').props.children.props.style.fontSize).toBe(
+      Math.round(19 * 1.3),
+    );
+    expect(screen.getByText('正文字号 27，适合长辈阅读')).toBeTruthy();
+  });
+
+  it('切换朗读语速并落库，「试听」用新语速朗读', async () => {
+    const db = await seed();
+    await renderWithTheme(<SettingsScreen />, { db });
+    await waitFor(() => expect(screen.getByTestId('rate-fast')).toBeTruthy());
+
+    await fireEvent.press(screen.getByTestId('rate-fast'));
+    await waitFor(async () =>
+      expect(
+        await asDb(db).getFirstAsync("SELECT value FROM meta WHERE key = 'settings_tts_rate'"),
+      ).toEqual({ value: 'fast' }),
+    );
+    expect(screen.getByText('1.2× 语速，赶时间用')).toBeTruthy();
+
+    await fireEvent.press(screen.getByTestId('rate-preview'));
+    expect(g.__SPEECH__.speak).toHaveBeenCalledWith(
+      '床前明月光，疑是地上霜。',
+      expect.objectContaining({ language: 'zh-CN', rate: 1.2 }),
+    );
+  });
+
+  it('打开设置时读回已存的字体 / 字号 / 语速', async () => {
+    const db = await seed();
+    await asDb(db).runAsync(
+      "INSERT INTO meta (key, value) VALUES ('settings_font','song'), ('settings_font_size','lg'), ('settings_tts_rate','slow')",
+    );
+    await renderWithTheme(<SettingsScreen />, { db });
+    await waitFor(() => expect(screen.getByText('正文字号 24，适合小屏长读')).toBeTruthy());
+    expect(screen.getByText('0.7× 语速，一句一句听得清')).toBeTruthy();
+    expect(screen.getByTestId('font-preview').props.children.props.style.fontFamily).toBe('serif');
+  });
+
   it('切换主题并落库', async () => {
     const db = await seed();
     await renderWithTheme(<SettingsScreen />, { db });

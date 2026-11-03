@@ -4,9 +4,11 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { attributionOf, linePreview } from '@/lib/format';
 import { localizePoem } from '@/lib/script';
+import { scaled } from '@/lib/typography';
 import type { Poem } from '@/lib/types';
 import { useScript } from '@/script';
 import { useTheme } from '@/theme';
+import { useTypography } from '@/typography';
 
 interface Props {
   poem: Poem;
@@ -18,6 +20,7 @@ interface Props {
 export function PoemRow({ poem: raw, index, right }: Props) {
   const { colors } = useTheme();
   const { script } = useScript();
+  const { family, scale } = useTypography();
   const poem = localizePoem(raw, script);
   const router = useRouter();
   const attr = attributionOf(poem);
@@ -33,11 +36,18 @@ export function PoemRow({ poem: raw, index, right }: Props) {
           {index != null ? (
             <Text style={[styles.index, { color: colors.faint }]}>{String(index).padStart(3, '0')}</Text>
           ) : null}
-          <Text numberOfLines={1} style={[styles.title, { color: colors.text }]}>
+          <Text
+            numberOfLines={1}
+            style={[
+              styles.title,
+              { color: colors.text, fontFamily: family, fontSize: scaled(16, scale) },
+            ]}>
             {poem.title || poem.name}
           </Text>
         </View>
-        <Text numberOfLines={1} style={[styles.preview, { color: colors.sub }]}>
+        <Text
+          numberOfLines={1}
+          style={[styles.preview, { color: colors.sub, fontSize: scaled(13, scale) }]}>
           {attr ? `${attr} · ` : ''}
           {linePreview(poem)}
         </Text>

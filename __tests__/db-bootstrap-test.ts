@@ -40,10 +40,19 @@ describe('snapshotUserData', () => {
     const db = useMemoryDb();
     seedPoems(db, POEMS);
     db.raw.exec(
-      "INSERT INTO meta (key, value) VALUES ('settings_theme', 'dark'), ('settings_script', 'tw'), ('dataset', 'standard')",
+      `INSERT INTO meta (key, value) VALUES
+         ('settings_theme', 'dark'), ('settings_script', 'tw'),
+         ('settings_font', 'song'), ('settings_font_size', 'xl'),
+         ('settings_tts_rate', 'slow'), ('dataset', 'standard')`,
     );
     const plan = await snapshotUserData(asDb(db));
-    expect(plan.settings).toEqual({ settings_theme: 'dark', settings_script: 'tw' });
+    expect(plan.settings).toEqual({
+      settings_theme: 'dark',
+      settings_script: 'tw',
+      settings_font: 'song',
+      settings_font_size: 'xl',
+      settings_tts_rate: 'slow',
+    });
   });
 });
 

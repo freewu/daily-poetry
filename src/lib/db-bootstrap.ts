@@ -36,7 +36,14 @@ export interface DbPlan {
 const KEY_COLUMNS = 'p.title, p.author, substr(p.content, 1, 12) AS head';
 
 /** 换库时要保留的 meta 键（其余如 dataset / poem_count 属于库本身） */
-export const KEPT_SETTINGS = ['settings_theme', 'settings_push', 'settings_script'] as const;
+export const KEPT_SETTINGS = [
+  'settings_theme',
+  'settings_push',
+  'settings_script',
+  'settings_font',
+  'settings_font_size',
+  'settings_tts_rate',
+] as const;
 
 /** 抄出旧库里的收藏、足迹与偏好设置 */
 export async function snapshotUserData(db: SQLiteDatabase): Promise<RestorePlan> {

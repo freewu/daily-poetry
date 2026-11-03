@@ -34,6 +34,15 @@ function dbWithTw(): TestDb {
   return db;
 }
 
+/** 预置字体 / 字号的内存库 */
+function dbWithType(font: string, size: string): TestDb {
+  const db = useMemoryDb();
+  db.raw.exec(
+    `INSERT INTO meta (key, value) VALUES ('settings_font', '${font}'), ('settings_font_size', '${size}')`,
+  );
+  return db;
+}
+
 describe('<PoemCard />', () => {
   it('画出体裁 / 题目 / 作者 / 正文 / 出处', async () => {
     await renderWithTheme(<PoemCard poem={poem} testID="card" />);
@@ -76,6 +85,48 @@ describe('简繁切换', () => {
     await renderWithTheme(<PoemCard poem={poem} />);
     expect(screen.getByText('静夜思')).toBeTruthy();
     expect(screen.getByText(poem.content)).toBeTruthy();
+  });
+});
+
+describe('字体与字号', () => {
+  it('默认：正文 21 号，不指定 fontFamily', async () => {
+    await renderWithTheme(<PoemLines poem={poem} color="#000" />);
+    expect(screen.getByText(poem.content)).toHaveStyle({ fontSize: 21 });
+    expect(screen.getByText(poem.content).props.style.fontFamily).toBeUndefined();
+  });
+
+  it('宋体 + 特大：正文 27 号、衬线族、行距按比例放大', async () => {
+    await renderWithTheme(<PoemLines poem={poem} color="#000" />, {
+      db: dbWithType('song', 'xl'),
+    });
+    await waitFor(() =>
+      expect(screen.getByText(poem.content)).toHaveStyle({ fontSize: 27, fontFamily: 'serif' }),
+    );
+    expect(screen.getByText(poem.content)).toHaveStyle({ lineHeight: Math.round(27 * 1.85) });
+  });
+
+  it('卡片题目与作者跟着缩放，正文用同一字族', async () => {
+    await renderWithTheme(<PoemCard poem={poem} />, { db: dbWithType('song', 'lg') });
+    await waitFor(() =>
+      expect(screen.getByText('静夜思')).toHaveStyle({ fontSize: Math.round(27 * 1.15) }),
+    );
+    expect(screen.getByText('静夜思')).toHaveStyle({ fontFamily: 'serif' });
+    expect(screen.getByText('唐 · 李白')).toHaveStyle({ fontSize: Math.round(14 * 1.15) });
+    expect(screen.getByText(poem.content)).toHaveStyle({ fontFamily: 'serif' });
+  });
+
+  it('列表行也跟着缩放', async () => {
+    await renderWithTheme(<PoemRow poem={poem} index={1} />, { db: dbWithType('song', 'sm') });
+    await waitFor(() =>
+      expect(screen.getByText('静夜思')).toHaveStyle({ fontSize: Math.round(16 * 0.9) }),
+    );
+  });
+
+  it('显式传 fontSize 时以传入值为准（预览用）', async () => {
+    await renderWithTheme(<PoemLines poem={poem} color="#000" fontSize={40} />, {
+      db: dbWithType('song', 'xl'),
+    });
+    expect(screen.getByText(poem.content)).toHaveStyle({ fontSize: 40 });
   });
 });
 
