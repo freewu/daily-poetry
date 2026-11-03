@@ -15,6 +15,8 @@ module.exports = {
     // 顺序重要：@/assets/* 必须先于 @/*（否则会被映射到 src/assets）
     '^@/assets/(.*)$': '<rootDir>/assets/$1',
     '^@/(.*)$': '<rootDir>/src/$1',
+    // .db 不是 Metro 认识的图片 / 字体类型，用占位 asset id 代替
+    '\\.db$': '<rootDir>/__tests__/helpers/asset-stub.js',
   },
   testMatch: ['<rootDir>/__tests__/**/*-test.{ts,tsx}'],
   collectCoverageFrom: [

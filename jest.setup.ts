@@ -45,8 +45,39 @@ jest.mock('expo-router', () => ({
     (globalThis as any).__REDIRECTED_TO__ = href;
     return null;
   },
-  Stack: ({ children }: any) => children ?? null,
+  Stack: Object.assign(({ children }: any) => children ?? null, {
+    Screen: () => null,
+  }),
 }));
+
+// ------------------------------------------------- expo-router/unstable-native-tabs
+// 底栏用原生 tabs；测试里降级成普通 View，好断言「有哪几个 tab、文案是什么」。
+jest.mock('expo-router/unstable-native-tabs', () => {
+  const React = require('react');
+  const { Text, View } = require('react-native');
+  const Trigger = ({ name, children }: any) =>
+    React.createElement(View, { testID: `tab-${name}` }, children);
+  Trigger.Label = ({ children }: any) => React.createElement(Text, null, children);
+  Trigger.Icon = () => null;
+  const NativeTabs = ({ children }: any) =>
+    React.createElement(View, { testID: 'native-tabs' }, children);
+  NativeTabs.Trigger = Trigger;
+  return { NativeTabs };
+});
+
+// ---------------------------------------------------------------- expo-splash-screen
+const splash = {
+  preventAutoHideAsync: jest.fn(async () => true),
+  hideAsync: jest.fn(async () => true),
+};
+g.__SPLASH__ = splash;
+jest.mock('expo-splash-screen', () => ({
+  preventAutoHideAsync: () => (globalThis as any).__SPLASH__.preventAutoHideAsync(),
+  hideAsync: () => (globalThis as any).__SPLASH__.hideAsync(),
+}));
+
+// ---------------------------------------------------------------- expo-status-bar
+jest.mock('expo-status-bar', () => ({ StatusBar: () => null }));
 
 // ---------------------------------------------------------------- expo-speech
 const speech = {
@@ -92,4 +123,5 @@ beforeEach(() => {
   g.__SPEECH__.speak.mockClear();
   g.__SPEECH__.stop.mockClear();
   g.__CLIPBOARD__.setStringAsync.mockClear();
+  g.__SPLASH__.hideAsync.mockClear();
 });
