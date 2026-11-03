@@ -19,6 +19,7 @@ export function PoemRow({ poem, index, right }: Props) {
   const attr = attributionOf(poem);
   return (
     <Pressable
+      testID={`poem-row-${poem.id}`}
       onPress={() =>
         router.push({ pathname: '/poem/[id]', params: { id: String(poem.id) } })
       }

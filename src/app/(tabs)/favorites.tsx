@@ -39,7 +39,7 @@ export default function FavoritesScreen() {
         </Text>
       </View>
       {list.length === 0 ? (
-        <View style={styles.emptyWrap}>
+        <View testID="favorites-empty" style={styles.emptyWrap}>
           <Ionicons name="heart-outline" size={44} color={colors.faint} />
           <Text style={[styles.empty, { color: colors.faint }]}>
             还没有收藏。在诗页点“收藏”，{'\n'}便可将它留在此处。
@@ -47,6 +47,7 @@ export default function FavoritesScreen() {
         </View>
       ) : (
         <FlatList
+          testID="favorites-list"
           data={list}
           keyExtractor={(p) => String(p.id)}
           renderItem={({ item, index }) => <PoemRow poem={item} index={index + 1} />}

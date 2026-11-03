@@ -44,6 +44,11 @@ src/
   components/         诗卡 / 诗文渲染 / 列表行 / 顶栏 / 操作栏
   lib/                db.ts（查询与每日算法）· format.ts · types.ts
   theme.tsx           纸墨双主题（浅色 / 深色 / 跟随系统）
+__tests__/            Jest 单元 / 组件测试（纯 Node，无需模拟器）
+.maestro/             Maestro E2E 流程（真机 / 模拟器）
+tool/
+  android-env.sh      adb / emulator / Maestro 环境探测
+  android.sh          doctor · setup · boot · install · e2e
 justfile              常用开发命令
 ```
 
@@ -81,9 +86,15 @@ just db-full  # 改用完整语料：另含 全宋词 21053 / 元曲 10914 / 古
 
 | 配方 | 说明 |
 | --- | --- |
-| `just check` | DB 校验 + `tsc` 类型检查 + `expo lint` |
+| `just check` | DB 校验 + `tsc` 类型检查 + `expo lint` + `jest` |
+| `just test [模式]` | 单元 / 组件测试，如 `just test 农历` |
+| `just test-cov` | 覆盖率报告（`coverage/`） |
 | `just start` | 启动 Expo dev server |
-| `just android` / `ios` | 指定平台启动 |
+| `just android` / `ios` | 原生 Debug 构建并在设备上启动 |
+| `just emulator [avd]` | 启动模拟器并等到开机完成 |
+| `just android-install` | 构建 Debug 包并安装到设备 |
+| `just e2e [流程]` | 跑 Maestro E2E（全部或单条 `.maestro/*.yaml`） |
+| `just android-doctor` | Android 工具链自检（SDK / adb / 设备 / Maestro） |
 | `just export` | 打 Android JS bundle 至 `dist/`（验证打包） |
 | `just build` | 提示使用 EAS Build 出真机安装包 |
 | `just envcheck` | 环境自检 |
@@ -98,6 +109,38 @@ just db-full  # 改用完整语料：另含 全宋词 21053 / 元曲 10914 / 古
 >
 > 构建会自动带上 `assets/poetry.db`（已在 `metro.config.js` 注册 `db` 为资源类型）。
 > iOS 云构建需在 EAS 项目设置中配置 Apple 凭证。
+
+## 测试
+
+两层，互补：
+
+**① 单元 / 组件测试（Jest + jest-expo）** —— 跑在 Node 上，不用模拟器。
+原生模块在 `jest.setup.ts` 里换成内存实现（SQLite / speech / clipboard / router），
+`__tests__/helpers/memory-db.ts` 用一个纯 JS 的内存库承接真实 SQL，
+所以 `src/lib/db.ts` 的查询语句本身也被覆盖。
+
+```bash
+just test            # 全量（约 5s）
+just test 农历       # 按文件名 / 用例名过滤
+just test-cov        # 生成 coverage/lcov.info
+```
+
+覆盖范围：`format`（繁简 / 断句）、`lunar`（节气 / 干支 / 节日应景）、`db`（每日算法、
+搜索、收藏）、`assets/poetry.db`（构建产物结构校验），以及五个屏幕与诗文 / 操作栏组件。
+
+**② E2E（Maestro）** —— 真机或模拟器上的冒烟流程，断言用的是组件 `testID`：
+
+```bash
+just android-doctor   # 先确认 adb / 设备 / maestro 都在
+just emulator         # 需要的话先起模拟器
+just android-install  # 装 Debug 包（首次会拉 Gradle 依赖）
+just start            # 另开一个终端跑 Metro
+just e2e              # 跑 .maestro 下全部流程，或 just e2e .maestro/01-today.yaml
+```
+
+WSL 下注意：模拟器是 Windows 程序，由 Windows 侧启动；WSL 里的 adb 客户端连
+Windows 的 adb server（见 `tool/android-env.sh`）。缺 adb 时 `just android-setup`
+会下载 Linux platform-tools。
 
 ## 数据说明
 
@@ -118,6 +161,7 @@ just db-full  # 改用完整语料：另含 全宋词 21053 / 元曲 10914 / 古
 - [ ] 注音译注 —— chinese-poetry 语料不含译注；需要额外引入注音（如 pinyin-pro）与
       白话译注数据源后再做
 - [x] EAS 云构建配置（`eas.json` + 应用标识就绪，登录 EAS 账号即可出包）
+- [x] 测试：Jest 单元 / 组件测试（`just test`）+ Maestro E2E 冒烟（`just e2e`）
 
 ## License
 

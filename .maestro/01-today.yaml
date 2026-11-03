@@ -1,0 +1,37 @@
+# 今日：开屏 → 等到今日诗篇 → 翻到前一天 → 再翻回来
+#
+# 前提：设备上已装好 Debug 包（just android-install），Metro 在 8081 上跑着
+# （just start），并且 adb 能看到设备（just android-doctor）。
+appId: com.bluefrog.dailypoetry
+name: 今日一诗
+---
+- launchApp:
+    clearState: true # 清掉旧库，让 App 重新从 assets 里释放 poetry.db
+
+# 首屏要拷库 + 建索引，慢设备上会停留几秒
+- assertVisible: '每日一诗'
+- extendedWaitUntil:
+    visible:
+      id: 'today-poem'
+    timeout: 45000
+
+- assertVisible: '农历.*'
+- takeScreenshot: today
+
+# 前一天：日期与诗都应变化
+- tapOn:
+    id: 'day-prev'
+- extendedWaitUntil:
+    visible:
+      id: 'today-poem'
+    timeout: 15000
+- takeScreenshot: yesterday
+
+# 回到今天（未来不可点，所以这里点「后一天」是安全的）
+- tapOn:
+    id: 'day-next'
+- extendedWaitUntil:
+    visible:
+      id: 'today-poem'
+    timeout: 15000
+- assertVisible: '每日一诗'

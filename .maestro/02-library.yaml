@@ -1,0 +1,37 @@
+# 诗词库：选集卡片 → 全文检索 → 诗词详情 → 返回
+appId: com.bluefrog.dailypoetry
+name: 诗词库检索
+---
+- launchApp
+- tapOn: '诗词库'
+- assertVisible: '经典与全藏 · 支持全文检索'
+
+# 选集卡片进列表页
+- tapOn:
+    id: 'collection-tang'
+- assertVisible: '诗 · 共 .* 首'
+- takeScreenshot: collection
+- tapOn:
+    id: 'screen-back'
+
+# 全文检索
+- tapOn:
+    id: 'search-input'
+- inputText: '明月'
+- extendedWaitUntil:
+    visible: '找到 .* 首与「明月」相关'
+    timeout: 20000
+- assertVisible:
+    id: 'search-results'
+- takeScreenshot: search
+
+# 点第一条命中进详情，再返回
+- tapOn:
+    id: 'poem-row-.*'
+- assertVisible: '选自《.*》'
+- assertVisible:
+    id: 'act-favorite'
+- takeScreenshot: poem-detail
+- tapOn:
+    id: 'screen-back'
+- assertVisible: '找到 .* 首与「明月」相关'

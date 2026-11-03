@@ -57,6 +57,7 @@ export default function LibraryScreen() {
         ]}>
         <Ionicons name="search" size={16} color={colors.faint} />
         <TextInput
+          testID="search-input"
           value={q}
           onChangeText={setQ}
           placeholder="搜题目 / 作者 / 诗句…"
@@ -73,6 +74,8 @@ export default function LibraryScreen() {
 
       {searching ? (
         <FlatList
+          key="search"
+          testID="search-results"
           data={results ?? []}
           keyExtractor={(p) => String(p.id)}
           keyboardShouldPersistTaps="handled"
@@ -83,7 +86,7 @@ export default function LibraryScreen() {
             </Text>
           }
           ListEmptyComponent={
-            <Text style={[styles.empty, { color: colors.faint }]}>
+            <Text testID="search-empty" style={[styles.empty, { color: colors.faint }]}>
               没有找到相关诗词，换个词试试
             </Text>
           }
@@ -91,6 +94,8 @@ export default function LibraryScreen() {
         />
       ) : (
         <FlatList
+          key="grid"
+          testID="collections"
           data={cols}
           keyExtractor={(c) => c.id}
           numColumns={2}
@@ -108,6 +113,7 @@ function CollectionCard({ coll }: { coll: CollectionMeta }) {
   const router = useRouter();
   return (
     <Pressable
+      testID={`collection-${coll.id}`}
       onPress={() =>
         router.push({ pathname: '/collection/[id]', params: { id: coll.id } })
       }

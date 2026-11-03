@@ -34,12 +34,41 @@ dbcheck:
 assets:
     python3 scripts/make-assets.py
 
-# 全套检查：数据库 + 类型检查 + ESLint
+# 全套检查：数据库 + 类型检查 + ESLint + 测试
 check:
     test -f assets/poetry.db || just db
     node scripts/build-db.mjs --check
     npx tsc --noEmit
     npx expo lint
+    npx jest
+
+# 单元 / 组件测试（Jest + jest-expo，可按名字过滤：just test 农历）
+test *args:
+    npx jest {{args}}
+
+# 覆盖率报告（输出到 coverage/）
+test-cov:
+    npx jest --coverage
+
+# Android 工具链自检：SDK / adb / 模拟器 / 在线设备 / Maestro
+android-doctor:
+    bash tool/android.sh doctor
+
+# WSL 里没有 adb 时下载 Linux platform-tools（约 10MB）
+android-setup:
+    bash tool/android.sh setup
+
+# 启动 Android 模拟器并等到开机完成；可指定 AVD：just emulator Pixel_8
+emulator avd="":
+    bash tool/android.sh boot {{avd}}
+
+# 构建并安装 Debug 包到模拟器 / 真机（首次会下载 Gradle 依赖）
+android-install:
+    bash tool/android.sh install
+
+# Maestro E2E：just e2e 跑全部，或 just e2e .maestro/01-today.yaml 跑单个
+e2e *args:
+    bash tool/android.sh e2e {{args}}
 
 # 环境自检
 envcheck:
@@ -54,9 +83,9 @@ envcheck:
 start:
     npx expo start
 
-# 在 Android 模拟器/真机启动
+# 在 Android 模拟器/真机启动（原生 Debug 构建 + Metro）
 android: check
-    npx expo start --android
+    npx expo run:android
 
 # 在 iOS 模拟器启动（仅 macOS）
 ios: check

@@ -78,6 +78,8 @@ export function PoemActions({ poem }: { poem: Poem }) {
   return (
     <View style={styles.bar}>
       <Pressable
+        testID="act-favorite"
+        accessibilityLabel={fav ? '取消收藏' : '收藏'}
         onPress={onFav}
         style={({ pressed }) => [
           styles.btn,
@@ -95,6 +97,8 @@ export function PoemActions({ poem }: { poem: Poem }) {
       </Pressable>
 
       <Pressable
+        testID="act-speak"
+        accessibilityLabel={speaking ? '停止朗读' : '朗读'}
         onPress={onSpeak}
         style={({ pressed }) => [
           styles.btn,
@@ -114,6 +118,8 @@ export function PoemActions({ poem }: { poem: Poem }) {
       </Pressable>
 
       <Pressable
+        testID="act-copy"
+        accessibilityLabel="复制全文"
         onPress={onCopy}
         style={({ pressed }) => [
           styles.btn,

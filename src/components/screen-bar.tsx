@@ -33,6 +33,7 @@ export function ScreenBar({ title, right, onBack }: Props) {
         gap: 4,
       }}>
       <Pressable
+        testID="screen-back"
         onPress={back}
         hitSlop={10}
         style={({ pressed }) => ({

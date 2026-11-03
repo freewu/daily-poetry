@@ -6,11 +6,12 @@ import type { Poem } from '@/lib/types';
 import { useTheme } from '@/theme';
 
 /** 诗词卡片：体裁章 · 题目 · 作者 · 正文 · 出处 */
-export function PoemCard({ poem }: { poem: Poem }) {
+export function PoemCard({ poem, testID }: { poem: Poem; testID?: string }) {
   const { colors } = useTheme();
   const attr = attributionOf(poem);
   return (
     <View
+      testID={testID}
       style={[
         styles.card,
         { backgroundColor: colors.card, borderColor: colors.line },

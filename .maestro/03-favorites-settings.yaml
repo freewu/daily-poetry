@@ -1,0 +1,49 @@
+# 收藏 → 设置：收藏一首诗、切主题、切推送偏好、清空收藏
+appId: com.bluefrog.dailypoetry
+name: 收藏与设置
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: 'today-poem'
+    timeout: 45000
+
+# 今日页收藏 —— 文案从「收藏」变成「已收藏」
+- tapOn:
+    id: 'act-favorite'
+- assertVisible: '已收藏'
+- takeScreenshot: favorited
+
+# 收藏页应该能看到这一首
+- tapOn: '收藏'
+- assertVisible: '已收藏 1 首'
+- assertVisible:
+    id: 'favorites-list'
+- takeScreenshot: favorites
+
+# 设置：切深色主题
+- tapOn: '设置'
+- tapOn:
+    id: 'theme-dark'
+- assertVisible: '深色'
+- takeScreenshot: settings-dark
+
+# 切回浅色，再切推送偏好为「应景优先」
+- tapOn:
+    id: 'theme-light'
+- tapOn:
+    id: 'push-occasion'
+- assertVisible: '恰逢节日 / 节气当天，先推应景之作'
+- assertVisible: '1 首' # 收藏数仍为 1
+- takeScreenshot: settings-light
+
+# 清空收藏：二次确认后回到「暂无」
+- scrollUntilVisible:
+    element:
+      text: '清空收藏'
+    direction: DOWN
+- tapOn: '清空收藏'
+- assertVisible: '将删除全部收藏，此操作不可恢复。'
+- tapOn: '清空'
+- assertVisible: '暂无'

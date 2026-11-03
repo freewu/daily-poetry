@@ -98,6 +98,7 @@ export default function SettingsScreen() {
               return (
                 <Pressable
                   key={o.key}
+                  testID={`push-${o.key}`}
                   onPress={() => {
                     setPush(o.key);
                     setSetting(db, 'settings_push', o.key).catch(() => {});
@@ -132,6 +133,7 @@ export default function SettingsScreen() {
               return (
                 <Pressable
                   key={m.key}
+                  testID={`theme-${m.key}`}
                   onPress={() => setMode(m.key)}
                   style={[
                     styles.segBtn,
@@ -154,7 +156,12 @@ export default function SettingsScreen() {
         </Section>
 
         <Section label="我的">
-          <Row label="收藏的诗词" value={favCount ? `${favCount} 首` : '暂无'} onPress={() => router.push('/favorites')} />
+          <Row
+            testID="settings-favorites"
+            label="收藏的诗词"
+            value={favCount ? `${favCount} 首` : '暂无'}
+            onPress={() => router.push('/favorites')}
+          />
           <Row label="累计读诗天数" value={`${days} 天`} />
         </Section>
 
@@ -190,11 +197,13 @@ function Section({ label, children }: { label: string; children: React.ReactNode
 }
 
 function Row({
+  testID,
   label,
   value,
   onPress,
   danger,
 }: {
+  testID?: string;
   label: string;
   value: string;
   onPress?: () => void;
@@ -203,6 +212,7 @@ function Row({
   const { colors } = useTheme();
   return (
     <Pressable
+      testID={testID}
       disabled={!onPress}
       onPress={onPress}
       style={({ pressed }) => [

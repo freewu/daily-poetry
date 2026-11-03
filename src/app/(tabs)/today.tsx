@@ -81,8 +81,13 @@ export default function TodayScreen() {
           </View>
         </View>
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          <DayBtn icon="chevron-back" onPress={prev} />
-          <DayBtn icon="chevron-forward" onPress={next} disabled={isFuture} />
+          <DayBtn testID="day-prev" icon="chevron-back" onPress={prev} />
+          <DayBtn
+            testID="day-next"
+            icon="chevron-forward"
+            onPress={next}
+            disabled={isFuture}
+          />
         </View>
       </View>
 
@@ -102,9 +107,11 @@ export default function TodayScreen() {
         ) : null}
 
         {poem ? (
-          <PoemCard poem={poem} />
+          <PoemCard poem={poem} testID="today-poem" />
         ) : (
-          <Text style={[styles.loading, { color: colors.sub }]}>正在挑拣今日诗篇…</Text>
+          <Text testID="today-loading" style={[styles.loading, { color: colors.sub }]}>
+            正在挑拣今日诗篇…
+          </Text>
         )}
       </ScrollView>
 
@@ -118,10 +125,12 @@ export default function TodayScreen() {
 }
 
 function DayBtn({
+  testID,
   icon,
   onPress,
   disabled,
 }: {
+  testID: string;
   icon: 'chevron-back' | 'chevron-forward';
   onPress: () => void;
   disabled?: boolean;
@@ -129,6 +138,7 @@ function DayBtn({
   const { colors } = useTheme();
   return (
     <Pressable
+      testID={testID}
       disabled={disabled}
       onPress={onPress}
       hitSlop={6}
