@@ -55,13 +55,24 @@ justfile              常用开发命令
 ## 快速开始
 
 前置：`git`、Node ≥ 22.5（自带 `node:sqlite`）、npm、[`just`](https://github.com/casey/just)、
-Python3 + Pillow（仅生成图标需要）。
+Python3 + Pillow（仅生成图标需要）。系统情况：`just envcheck`
 
-Windows (WSL) 若 node/npm 不在默认 PATH，先执行：
+终端：**WSL 里直接跑，或在 Windows 的 PowerShell / CMD 里跑**都行 ——
+`justfile` 固定了 `set shell := ["bash", "-uc"]`，Windows 上会落到
+`C:\Windows\System32\bash.exe`（即 WSL），`node` / `npm` 由 WSL 的 PATH 解析。
+（不要指望 just 自己找的 Cygwin `sh`：它看不见 nvm-windows 的 junction
+`/cygdrive/d/env/nodejs`，`npm install` 会以 127 失败。）
+
+WSL 里若 node/npm 不在默认 PATH，先执行：
 
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
 ```
+
+> 在 PowerShell 里跑时，每行命令前面可能多出一行
+> `wsl: 无法配置网络 (networkingMode Nat)…` —— 那是 WSL 自身的启动告警
+> （`.wslconfig` 的 networkingMode + localhost 代理），与配方无关，不影响执行。
+> 想消掉：把 `.wslconfig` 改成 `networkingMode=mirrored`，或去掉 localhost 代理配置。
 
 ```bash
 # 一键初始化：装依赖 → 下语料 → 建库 → 生成图标
@@ -74,6 +85,7 @@ just start
 手动分步：
 
 ```bash
+just envcheck # 先看 node / npm / python3 / node:sqlite 是否就绪
 just deps     # npm install
 just data     # 下载精简语料（约 30MB，sparse clone）
 just db       # 构建 assets/poetry.db（1396 首精选，约 0.6MB）

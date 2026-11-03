@@ -2,6 +2,11 @@
 # 说明：Windows WSL 下若 node/npm 不在默认 PATH，先执行
 #   export PATH="$HOME/.local/bin:$PATH"
 
+# 显式指定 POSIX shell：Windows 上 just 默认会摸到 Cygwin 的 sh（D:\env\cygwin64），
+# 它看不见 nvm-windows 的 junction（/cygdrive/d/env/nodejs），于是 npm 变成 127。
+# 固定用 bash 后，PowerShell 里会落到 system32\bash.exe（= WSL），PATH 正常翻译成 /mnt/…。
+set shell := ["bash", "-uc"]
+
 # 一键初始化：安装依赖 + 下载语料 + 构建数据库 + 生成图标
 init: deps data db assets
     @echo "初始化完成 🎉 运行 just start 开始开发"
@@ -72,11 +77,11 @@ e2e *args:
 
 # 环境自检
 envcheck:
-    @echo "node:    $$(command -v node || echo 缺失)"
+    @echo "node:    $(command -v node || echo 缺失)"
     @node -v 2>/dev/null || true
-    @echo "npm:     $$(command -v npm || echo 缺失)"
+    @echo "npm:     $(command -v npm || echo 缺失)"
     @npm -v 2>/dev/null || true
-    @echo "python3: $$(command -v python3 || echo 缺失)"
+    @echo "python3: $(command -v python3 || echo 缺失)"
     @node -e "console.log('node:sqlite:', typeof require('node:sqlite').DatabaseSync)" 2>/dev/null || echo "node:sqlite: 不可用（需要 Node 22.5+）"
 
 # 启动开发服务器
