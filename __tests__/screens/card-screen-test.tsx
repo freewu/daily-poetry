@@ -149,20 +149,29 @@ describe('<CardScreen />', () => {
     await waitFor(() => expect(screen.getByTestId('share-card')).toBeTruthy());
 
     await act(async () => {
-      screen.getByTestId('card-size').props.onValueChange(26);
+      screen.getByTestId('card-size').props.onValueChange(22);
     });
     const body = () =>
       StyleSheet.flatten(screen.getByText('床前明月光，疑是地上霜。').props.style) as {
         fontSize?: number;
       };
-    expect(body().fontSize).toBe(26);
+    expect(body().fontSize).toBe(22);
+    // 拖动中不落库
+    expect(
+      await asDb(db).getFirstAsync("SELECT value FROM meta WHERE key = 'settings_card_size'"),
+    ).toBeNull();
 
-    // 卡片页没有「松手才落库」这回事（压根不存），onSlidingComplete 只是兜底
+    // 松手才记住
     await act(async () => {
-      screen.getByTestId('card-size').props.onSlidingComplete(31);
+      screen.getByTestId('card-size').props.onSlidingComplete(24);
     });
-    expect(body().fontSize).toBe(31);
-    // 只影响这一张卡片，阅读设置原样
+    expect(body().fontSize).toBe(24);
+    await waitFor(async () =>
+      expect(
+        await asDb(db).getFirstAsync("SELECT value FROM meta WHERE key = 'settings_card_size'"),
+      ).toEqual({ value: '24' }),
+    );
+    // 卡片字号不是阅读设置，正文字号原样
     expect(
       await asDb(db).getFirstAsync("SELECT value FROM meta WHERE key = 'settings_font_size'"),
     ).toBeNull();
@@ -178,6 +187,12 @@ describe('<CardScreen />', () => {
 
     await fireEvent.press(screen.getByTestId('card-script-cn'));
     await waitFor(() => expect(screen.getByText('静夜思')).toBeTruthy());
+    // 记住的是卡片自己的键，阅读用的 settings_script 不动
+    await waitFor(async () =>
+      expect(
+        await asDb(db).getFirstAsync("SELECT value FROM meta WHERE key = 'settings_card_script'"),
+      ).toEqual({ value: 'cn' }),
+    );
     expect(
       await asDb(db).getFirstAsync("SELECT value FROM meta WHERE key = 'settings_script'"),
     ).toBeNull();
@@ -194,9 +209,47 @@ describe('<CardScreen />', () => {
 
     await fireEvent.press(screen.getByTestId('card-punct-keep'));
     await waitFor(() => expect(screen.getByText('床前明月光，疑是地上霜。')).toBeTruthy());
+    await waitFor(async () =>
+      expect(
+        await asDb(db).getFirstAsync("SELECT value FROM meta WHERE key = 'settings_card_punct'"),
+      ).toEqual({ value: 'keep' }),
+    );
     expect(
       await asDb(db).getFirstAsync("SELECT value FROM meta WHERE key = 'settings_punct'"),
     ).toBeNull();
+  });
+
+  it('再进卡片页沿用上次的字号 / 简繁 / 标点', async () => {
+    const db = seeded();
+    await asDb(db).runAsync(
+      `INSERT INTO meta (key, value) VALUES
+         ('settings_card_size','23'),
+         ('settings_card_script','tw'),
+         ('settings_card_punct','space')`,
+    );
+    await renderWithTheme(<CardScreen />, { db });
+    await waitFor(() => expect(screen.getByTestId('share-card')).toBeTruthy());
+
+    // 繁體标题 + 标点换成空位 + 23 号正文
+    expect(screen.getByText('靜夜思')).toBeTruthy();
+    const body = screen.getByText('床前明月光 疑是地上霜');
+    expect((StyleSheet.flatten(body.props.style) as { fontSize?: number }).fontSize).toBe(23);
+    expect(screen.getByTestId('card-size-value').props.children).toBe(23);
+  });
+
+  it('记住的值坏掉了就退回默认（字号越界收回到 24、脏简繁忽略）', async () => {
+    const db = seeded();
+    await asDb(db).runAsync(
+      `INSERT INTO meta (key, value) VALUES
+         ('settings_card_size','99'),
+         ('settings_card_script','jp')`,
+    );
+    await renderWithTheme(<CardScreen />, { db });
+    await waitFor(() => expect(screen.getByTestId('share-card')).toBeTruthy());
+    // 越界收回 10–24 的上限
+    expect(screen.getByTestId('card-size-value').props.children).toBe(24);
+    // 脏值当没存过 → 跟阅读设置（默认简体）
+    expect(screen.getByText('静夜思')).toBeTruthy();
   });
 
   it('没动过开关时，简繁 / 标点跟阅读设置走', async () => {

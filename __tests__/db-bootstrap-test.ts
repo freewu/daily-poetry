@@ -43,7 +43,8 @@ describe('snapshotUserData', () => {
       `INSERT INTO meta (key, value) VALUES
          ('settings_theme', 'dark'), ('settings_script', 'tw'),
          ('settings_font', 'song'), ('settings_font_size', 'xl'), ('settings_layout', 'vertical'),
-         ('settings_tts_rate', 'slow'), ('dataset', 'standard')`,
+         ('settings_tts_rate', 'slow'), ('settings_card_size', '23'),
+         ('settings_card_punct', 'space'), ('dataset', 'standard')`,
     );
     const plan = await snapshotUserData(asDb(db));
     expect(plan.settings).toEqual({
@@ -53,6 +54,9 @@ describe('snapshotUserData', () => {
       settings_font_size: 'xl',
       settings_layout: 'vertical',
       settings_tts_rate: 'slow',
+      // 卡片页「记住上次」的三个键也得跟着走，否则换库把用户的选择清掉
+      settings_card_size: '23',
+      settings_card_punct: 'space',
     });
   });
 });

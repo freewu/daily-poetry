@@ -46,6 +46,10 @@ export const KEPT_SETTINGS = [
   'settings_punct',
   'settings_tts_rate',
   'settings_daily_gap',
+  // 卡片页「记住上次」的字号 / 简繁 / 标点（见 lib/card.ts 的 CARD_*_KEY）
+  'settings_card_size',
+  'settings_card_script',
+  'settings_card_punct',
 ] as const;
 
 /** 抄出旧库里的收藏、足迹与偏好设置 */

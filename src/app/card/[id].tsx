@@ -18,9 +18,18 @@ import { FontSizeSlider } from '@/components/font-size-slider';
 import { ScreenBar } from '@/components/screen-bar';
 import { Segment } from '@/components/segment';
 import { CARD_BODY, ShareCard } from '@/components/share-card';
-import { cardFileName } from '@/lib/card';
+import {
+  CARD_PUNCT_KEY,
+  CARD_SCRIPT_KEY,
+  CARD_SIZE_KEY,
+  cardBodyOf,
+  cardFileName,
+  cardPunctOf,
+  cardScriptOf,
+} from '@/lib/card';
 import { saveImageToLibrary, shareImage } from '@/lib/card-save';
-import { getPoem } from '@/lib/db';
+import { getPoem, getSetting, setSetting } from '@/lib/db';
+import { clampBody } from '@/lib/typography';
 import type { Poem, PunctKey, Script } from '@/lib/types';
 import { useScript } from '@/script';
 import { useTheme } from '@/theme';
@@ -49,8 +58,9 @@ const SCRIPT_SHORT: { key: Script; label: string }[] = [
  * 诗词卡片：把一首诗排成一张笺纸，截图存进相册，然后弹系统分享面板。
  * 带 ?date= 时是「每日一诗」，底部会印上那天的日期。
  *
- * 卡片上的字号 / 简繁 / 标点可以在这里现场调（默认跟着设置与卡片版式走），
- * 只影响这一次导出，不会把阅读设置改掉。
+ * 卡片上的字号 / 简繁 / 标点可以在这里现场调，**下一张卡片沿用上次的选择**
+ * （存在 meta 的 `settings_card_*` 里，见 lib/card.ts）。它们不是阅读设置：
+ * 卡片版式是给人看图用的，跟正文字号、竖排、标点偏好互不影响。
  */
 export default function CardScreen() {
   const params = useLocalSearchParams<{ id?: string; date?: string }>();
@@ -65,7 +75,7 @@ export default function CardScreen() {
   const [poem, setPoem] = useState<Poem | null>(null);
   const [missing, setMissing] = useState(false);
   const [phase, setPhase] = useState<Phase>('idle');
-  // null = 还没动过 → 用默认值（卡片字号固定 18，简繁 / 标点跟设置）
+  // null = 还没选过（首次用卡片）→ 用默认值：卡片字号固定 18，简繁 / 标点跟设置
   const [size, setSize] = useState<number | null>(null);
   const [script, setScript] = useState<Script | null>(null);
   const [punct, setPunct] = useState<PunctKey | null>(null);
@@ -80,19 +90,44 @@ export default function CardScreen() {
   useEffect(() => {
     let alive = true;
     const pid = Number(params.id);
-    const load =
-      Number.isFinite(pid) && pid > 0 ? getPoem(db, pid) : Promise.resolve(null);
-    load
-      .then((p) => {
+    // 诗和「上次用的字号 / 简繁 / 标点」一起等：省得卡片先按默认值闪一下再跳
+    Promise.all([
+      Number.isFinite(pid) && pid > 0 ? getPoem(db, pid) : Promise.resolve(null),
+      getSetting(db, CARD_SIZE_KEY),
+      getSetting(db, CARD_SCRIPT_KEY),
+      getSetting(db, CARD_PUNCT_KEY),
+    ])
+      .then(([p, savedSize, savedScript, savedPunct]) => {
         if (!alive) return;
         if (p) setPoem(p);
         else setMissing(true);
+        const s = cardBodyOf(savedSize);
+        if (s != null) setSize(s);
+        const sc = cardScriptOf(savedScript);
+        if (sc) setScript(sc);
+        const pu = cardPunctOf(savedPunct);
+        if (pu) setPunct(pu);
       })
       .catch(() => alive && setMissing(true));
     return () => {
       alive = false;
     };
   }, [db, params.id]);
+
+  // 三个开关：拖动时只改界面（一次拖动会触发几十遍），松手才落库
+  const commitSize = (n: number) => {
+    const px = clampBody(n);
+    setSize(px);
+    setSetting(db, CARD_SIZE_KEY, String(px)).catch(() => {});
+  };
+  const pickScript = (k: Script) => {
+    setScript(k);
+    setSetting(db, CARD_SCRIPT_KEY, k).catch(() => {});
+  };
+  const pickPunct = (k: PunctKey) => {
+    setPunct(k);
+    setSetting(db, CARD_PUNCT_KEY, k).catch(() => {});
+  };
 
   const onSave = async () => {
     if (!poem || phase === 'saving') return;
@@ -169,6 +204,7 @@ export default function CardScreen() {
               testID="card-size"
               value={cardSize}
               onChange={(n) => setSize(n)}
+              onCommit={commitSize}
             />
           </View>
           <View style={styles.panelRow}>
@@ -179,7 +215,7 @@ export default function CardScreen() {
                 testIDPrefix="card-script"
                 options={SCRIPT_SHORT}
                 value={cardScript}
-                onChange={(k: Script) => setScript(k)}
+                onChange={pickScript}
               />
             </View>
             <Text style={[styles.panelLabel, { color: colors.sub }]}>标点</Text>
@@ -189,7 +225,7 @@ export default function CardScreen() {
                 testIDPrefix="card-punct"
                 options={PUNCT_SHORT}
                 value={cardPunct}
-                onChange={(k: PunctKey) => setPunct(k)}
+                onChange={pickPunct}
               />
             </View>
           </View>
