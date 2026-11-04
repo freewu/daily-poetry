@@ -137,6 +137,9 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
   **不影响「已保存」**，只决定要不要提示。`isAvailableAsync()` 为假时静默跳过。
 - 卡片配色与字号写死在 `src/components/share-card.tsx`，不跟主题、不跟阅读字号：
   导出的图是给别人看的，版面要稳定。
+- 卡片顶部是一行抬头：`CARD_MARK`（「每日诗词 APP」）+ 体裁芯片（`poem.kind`：诗 / 词 / 曲 / 文 / 蒙学）。
+  两者在同一个 `styles.head` 里（`testID="share-card-head"`，横排居中、gap 8），
+  别再拆成上下两行；芯片原来单占一行，2026-11 那版把它挪到抬头右边。
 - 卡片上两个品牌位是**两个常量**（`src/lib/card.ts`）：顶部抬头 `CARD_MARK`（`每日诗词 APP`，
   说清这是哪个 App），底部署名 / 相册文件名前缀 `CARD_BRAND`（`每日一诗`）。
   改抬头别顺手把 `CARD_BRAND` 也改掉 —— 那会连相册里的文件名一起变。

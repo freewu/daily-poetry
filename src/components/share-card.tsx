@@ -65,8 +65,10 @@ export function ShareCard({
   return (
     <View testID={testID} style={[styles.card, { width, backgroundColor: PAPER }]}>
       <View style={[styles.frame, { borderColor: LINE }]}>
-        <Text style={[styles.brand, { color: INK_FAINT }]}>{CARD_MARK}</Text>
-        <Text style={[styles.chip, { borderColor: LINE, color: INK_SUB }]}>{poem.kind}</Text>
+        <View testID="share-card-head" style={styles.head}>
+          <Text style={[styles.brand, { color: INK_FAINT }]}>{CARD_MARK}</Text>
+          <Text style={[styles.chip, { borderColor: LINE, color: INK_SUB }]}>{poem.kind}</Text>
+        </View>
         <Text style={[styles.title, { color: INK, fontFamily: family, fontSize: titleSize }]}>
           {poem.title || poem.name}
         </Text>
@@ -98,10 +100,10 @@ const styles = StyleSheet.create({
   card: { borderRadius: 6, padding: 10 },
   frame: { borderWidth: 1, borderRadius: 3, paddingHorizontal: 20, paddingTop: 22, paddingBottom: 20 },
   // 抬头从 4 个字变成「每日诗词 APP」，字距跟着收一点，窄屏也排得下
+  // 体裁（诗 / 词）跟在抬头后面同一行，不再单占一行
+  head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   brand: { fontSize: 11, letterSpacing: 2, textAlign: 'center' },
   chip: {
-    alignSelf: 'center',
-    marginTop: 14,
     fontSize: 11,
     letterSpacing: 1,
     borderWidth: 1,
@@ -111,7 +113,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   title: {
-    marginTop: 14,
+    marginTop: 16,
     fontWeight: '700',
     textAlign: 'center',
     letterSpacing: 3,

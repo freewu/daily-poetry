@@ -1,4 +1,5 @@
 import { StyleSheet } from 'react-native';
+import { within } from '@testing-library/react-native';
 
 import { CARD_BODY, ShareCard } from '@/components/share-card';
 import type { Poem } from '@/lib/types';
@@ -40,6 +41,15 @@ describe('<ShareCard />', () => {
     expect(screen.getByText('每日诗词 APP')).toBeTruthy();
     expect(screen.getByText('每日一诗 · 2026年11月3日')).toBeTruthy();
     expect(screen.getByText('五言绝句')).toBeTruthy();
+  });
+
+  it('体裁（诗 / 词）跟在「每日诗词 APP」后面，同一行', async () => {
+    await renderWithTheme(<ShareCard poem={poem} width={340} />, { db: await dbWith() });
+    const head = screen.getByTestId('share-card-head');
+    const texts = within(head)
+      .getAllByText(/.+/)
+      .map((n) => n.props.children);
+    expect(texts).toEqual(['每日诗词 APP', '五言绝句']);
   });
 
   it('不传日期就只印签名（不印日期戳）', async () => {
