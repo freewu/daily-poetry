@@ -50,6 +50,8 @@ export const KEPT_SETTINGS = [
   'settings_card_size',
   'settings_card_script',
   'settings_card_punct',
+  // 挑战战绩（见 lib/challenge.ts 的 CHALLENGE_LOG_KEY）：换库不该把战绩清空
+  'challenge_log',
 ] as const;
 
 /** 抄出旧库里的收藏、足迹与偏好设置 */

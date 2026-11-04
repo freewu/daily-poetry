@@ -143,6 +143,11 @@ export function seedPoems(db: TestDb, poems: SeedPoem[]): void {
   });
 }
 
+export function seedFavorites(db: TestDb, poemIds: number[]): void {
+  const stmt = db.raw.prepare('INSERT OR IGNORE INTO favorites (poem_id) VALUES (?)');
+  for (const id of poemIds) stmt.run(id);
+}
+
 export function seedCollections(
   db: TestDb,
   cols: {

@@ -51,6 +51,11 @@
   存进相册「每日诗词」后直接弹系统分享面板，发微信 / 存云盘都行。卡片固定横排、
   不跟夜间模式，导出的图在哪儿都好看；卡片页还能现场调**字号 / 简繁 / 空白断句**，
   只改卡片、不动阅读设置，而且**下一张卡片沿用上次的选择**。
+- **诗词挑战**：收藏页右上「挑战」进去，选一个来源（**我的收藏** 或任意一部集子），
+  十道填空等你补 —— 从来源里抽诗、挖掉其中一句，四选一填回去（干扰项按字数挑，
+  看着都像）。**6 题及格、8 题优秀、10 题诗仙下凡**，答完当场出分并回顾错题；
+  每局的**用时 / 答对数 / 参与时间**记进战绩，入口页显示最近几局与平均分。
+  出题用日期种子，同一天同一来源出同一份题，重开一局才换。
 - **纸墨主题**：宣纸底、朱砂印章；浅色 / 深色 / 跟随系统。应用图标就是印章本身
   （`logo.png` → `just assets` 抠底生成各尺寸）。
 
@@ -64,6 +69,7 @@
 | 作者索引 | `pinyin-pro`（姓首字母 / 全拼排序，含姓氏多音字） |
 | 朗读 | `expo-speech`（系统 TTS） |
 | 卡片 | `react-native-view-shot`（截图）+ `expo-media-library`（存相册）+ `expo-sharing`（系统分享） |
+| 挑战 | 纯函数出题（`mulberry32` 定种子）+ `meta` KV 存战绩（不建表） |
 | 设置 | `@react-native-community/slider`（字号滑块，松手才落库） |
 | 构建 | Node ≥22 `node:sqlite`（`DatabaseSync`）、OpenCC-js、Python/Pillow（图标） |
 | 工作流 | `just` |
@@ -79,10 +85,10 @@ scripts/
   make-assets.py      logo.png → 图标 / 启动图（抠纸底、留印泥）+ 底栏图标
 src/
   app/                expo-router 路由（(tabs) + poem/[id] + collection/[id]/{全部诗词,作者统计,词牌统计} +
-                      author/[name]）
+                      author/[name] + challenge/{选题源,对局}）
   components/         诗卡 / 诗文渲染 / 列表行 / 顶栏 / 操作栏 / 首字母索引表
   lib/                db.ts（查询）· daily.ts（每日挑选 / 作者冷却）· authors.ts（首字母分组）·
-                      cipai.ts（词牌）· format.ts · types.ts
+                      cipai.ts（词牌）· challenge.ts（出题 / 评级 / 战绩）· format.ts · types.ts
   theme.tsx           纸墨双主题（浅色 / 深色 / 跟随系统）
 __tests__/            Jest 单元 / 组件测试（纯 Node，无需模拟器）
 .maestro/             Maestro E2E 流程（真机 / 模拟器）

@@ -206,6 +206,39 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
   唐诗三百首 75 位，诗经 305 首全是「佚名」→ 只有一个「其他」分组。
   作者作品数之和必须等于集子总首数（测试盯着这条）。
 
+# 诗词挑战（填空十题）
+
+- 入口在收藏页标题右边那块（`testID="challenge-entry"`）→ `src/app/challenge/index.tsx`（选题源 + 战绩）
+  → `src/app/challenge/[pool].tsx`（对局）。`pool` 是 `favorites` 或集子 id，可带 `?seed=` 复现某局；
+  两个新路由都得在 `_layout.tsx` 里 `Stack.Screen`。选题源名「我的收藏」来自常量
+  `CHALLENGE_FAVORITES = 'favorites'`（`src/lib/db.ts`）。
+- 出题全在 `src/lib/challenge.ts`（纯函数，可单测）：抽诗 → 按行断句 → 挑一句挖成 `BLANK` → 配三个干扰项。
+  种子走 `src/lib/random.ts` 的 `rng()`，**同一天同一来源出同一份题**，重开一局才换种子。
+  挖空只从 `content`（简体正文）派生，要繁体就让调用方先 `localizePoem()` 再传进来。
+- **语料噪声必须挡在门外**（不挡会出「（〖1〗句次成公简诗句后」这种题）：
+  - 全唐诗《补录》里混着约 570 首整理稿 / 校勘记，正文带 `〖〗［］` —— `buildChallenge()` 整首跳过；
+  - 候选句只收**纯汉字**（`HAN_ONLY`），夹着数字 / 字母 / 拼音的一律不挖；
+  - 括号 / 引号 / 书名号也算断句符（`CLAUSE_SEP`），否则注明会整段被当成一句。
+- 挖空句 5–16 个字（`BLANK_MIN` / `BLANK_MAX`）：太短能猜出来，太长选项排不下。
+  干扰项按**字数接近**挑（先 ±2，再 ±5，最后不限），候选句来自池子里所有诗——
+  所以池子至少要 `CHALLENGE_MIN_POOL = 4` 首，入口页按这个数禁用不够的来源。
+- 池子不足十首时不报错，**一首诗出多题**（每遍重新洗牌挑另一句，遍数给到 `size + 2`），
+  实在凑不满就返回少几题，页面照样能玩。
+- 评级 `rankOf()`：6 及格 / 8 优秀 / 10 诗仙下凡（`PASS_RATE` / `GOOD_RATE`），
+  题数不是十题按比例算，全对永远是「诗仙下凡」，`total <= 0` 算不及格。
+- 战绩（用时 / 答对数 / 参与时间 / 来源）存 `meta` KV 的 `challenge_log`，**不建表**，
+  所以这次没动 `SCHEMA_VERSION`；只留最近 `CHALLENGE_LOG_MAX = 20` 局，新的排最前。
+  `challenge_log` 已进 `src/lib/db-bootstrap.ts` 的 `KEPT_SETTINGS`（换库不清战绩）。
+  将来要按月统计之类再建表，那时才需要升 schema。
+- **`challengePoems()` 的两层排序**：内层 `ORDER BY RANDOM() LIMIT ?` 抽 40 首，
+  外面再包一层 `ORDER BY id` —— 行序是 `buildChallenge()` 洗牌的输入，
+  不固定的话同一个种子会出不同的题（测试直接飘）。
+- 页面写法上两个已有的坑：换一局用**外层组件换 `key` 重挂载**，不要 `useEffect` 里 `setState`
+  （`react-hooks/set-state-in-effect`）；开局时刻用 `useRef(0)` 在 effect 里写，
+  **别在 render 里读 `Date.now()`**（`react-hooks/purity`）。
+- 战绩行里的分数带 `testID="challenge-log-score"`：汇总块里也有个「8/10」，
+  测试用 `getByText` 会撞车。
+
 # 图标 / 启动图（`just assets`）
 
 - 全部由 `scripts/make-assets.py`（Pillow）生成，产物在 `assets/images/`：`icon.png`、

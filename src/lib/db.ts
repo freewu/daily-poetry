@@ -1,6 +1,12 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import type { AuthorStat } from './authors';
+import {
+  CHALLENGE_LOG_KEY,
+  parseLog,
+  pushRecord,
+  type ChallengeRecord,
+} from './challenge';
 import { cipaiOf } from './cipai';
 import { createDailyPicker, DEFAULT_GAP, offsetFor, type DailyPicker } from './daily';
 import type { CollectionMeta, DailyGap, Occasion, Poem } from './types';
@@ -299,4 +305,56 @@ export async function listFavorites(db: SQLiteDatabase): Promise<Poem[]> {
 export async function favoriteCount(db: SQLiteDatabase): Promise<number> {
   const r = await db.getFirstAsync<{ n: number }>('SELECT COUNT(*) n FROM favorites');
   return r?.n ?? 0;
+}
+
+// ---------------------------------------------------------------- 挑战（出题池 / 战绩）
+/** 收藏这个「虚拟集子」的 id：挑战页与路由参数都用它 */
+export const CHALLENGE_FAVORITES = 'favorites';
+
+/**
+ * 出题池：随机捞 `limit` 首。
+ * 不能整份读进来 —— 全唐诗 5.7 万首，光一局十题没必要把几 MB 正文塞进内存。
+ * 十首诗里挑十句挖空，干扰项也在这批句子里选，四十首足够。
+ *
+ * 外层再 `ORDER BY id`：`ORDER BY RANDOM()` 的行序是随机的，而 `buildChallenge()`
+ * 的洗牌依赖入参顺序 —— 同一批诗不同行序会出不同的题，测试就没法断言了。
+ */
+export async function challengePoems(
+  db: SQLiteDatabase,
+  poolId: string,
+  limit = 40,
+): Promise<Poem[]> {
+  const n = Math.max(1, Math.floor(limit));
+  if (poolId === CHALLENGE_FAVORITES) {
+    return db.getAllAsync<Poem>(
+      `SELECT * FROM (
+         SELECT p.* FROM favorites f
+         JOIN poems p ON p.id = f.poem_id
+         ORDER BY RANDOM() LIMIT ?
+       ) ORDER BY id`,
+      n,
+    );
+  }
+  return db.getAllAsync<Poem>(
+    `SELECT * FROM (
+       SELECT * FROM poems WHERE collection = ? ORDER BY RANDOM() LIMIT ?
+     ) ORDER BY id`,
+    poolId,
+    n,
+  );
+}
+
+/** 战绩（最近几局）：存在 meta 的 KV 里，跟设置共用一张表 */
+export async function challengeLog(db: SQLiteDatabase): Promise<ChallengeRecord[]> {
+  return parseLog(await getSetting(db, CHALLENGE_LOG_KEY));
+}
+
+/** 记一局并返回新的战绩列表 */
+export async function saveChallengeRecord(
+  db: SQLiteDatabase,
+  rec: ChallengeRecord,
+): Promise<ChallengeRecord[]> {
+  const next = pushRecord(await challengeLog(db), rec);
+  await setSetting(db, CHALLENGE_LOG_KEY, JSON.stringify(next));
+  return next;
 }

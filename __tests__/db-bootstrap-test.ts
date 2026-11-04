@@ -44,7 +44,8 @@ describe('snapshotUserData', () => {
          ('settings_theme', 'dark'), ('settings_script', 'tw'),
          ('settings_font', 'song'), ('settings_font_size', 'xl'), ('settings_layout', 'vertical'),
          ('settings_tts_rate', 'slow'), ('settings_card_size', '23'),
-         ('settings_card_punct', 'space'), ('dataset', 'standard')`,
+         ('settings_card_punct', 'space'), ('challenge_log', '[{"at":"2026-11-05"}]'),
+         ('dataset', 'standard')`,
     );
     const plan = await snapshotUserData(asDb(db));
     expect(plan.settings).toEqual({
@@ -57,6 +58,8 @@ describe('snapshotUserData', () => {
       // 卡片页「记住上次」的三个键也得跟着走，否则换库把用户的选择清掉
       settings_card_size: '23',
       settings_card_punct: 'space',
+      // 挑战战绩也在白名单里：换库不该把战绩清空
+      challenge_log: '[{"at":"2026-11-05"}]',
     });
   });
 });

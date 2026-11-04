@@ -1,4 +1,4 @@
-import { waitFor } from '@testing-library/react-native';
+import { fireEvent, waitFor } from '@testing-library/react-native';
 
 import FavoritesScreen from '@/app/(tabs)/favorites';
 
@@ -16,11 +16,21 @@ function seed(withFavorites: boolean) {
   return db;
 }
 
+const g = globalThis as any;
+
 describe('<FavoritesScreen />', () => {
   it('没有收藏时给出空态', async () => {
     await renderWithTheme(<FavoritesScreen />, { db: seed(false) });
     expect(screen.getByText('把喜欢的诗词收进这里')).toBeTruthy();
     await waitFor(() => expect(screen.getByTestId('favorites-empty')).toBeTruthy());
+  });
+
+  it('标题旁边有「挑战」入口，点了进选题源页', async () => {
+    await renderWithTheme(<FavoritesScreen />, { db: seed(false) });
+    const entry = screen.getByTestId('challenge-entry');
+    expect(screen.getByText('挑战')).toBeTruthy();
+    await fireEvent.press(entry);
+    expect(g.__ROUTER__.push).toHaveBeenCalledWith('/challenge');
   });
 
   it('列出收藏的诗，并显示数量', async () => {
