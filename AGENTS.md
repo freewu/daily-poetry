@@ -110,3 +110,22 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
   **不影响「已保存」**，只决定要不要提示。`isAvailableAsync()` 为假时静默跳过。
 - 卡片配色与字号写死在 `src/components/share-card.tsx`，不跟主题、不跟阅读字号：
   导出的图是给别人看的，版面要稳定。
+
+# 作者统计（集子 → 作者 → 作品）
+
+- 路由改成「目录 + 文件」：`src/app/collection/[id]/index.tsx`（作者统计，也就是点集子的落点）、
+  `src/app/collection/[id]/poems.tsx`（全部诗词，右上「全部诗词」进）、
+  `src/app/author/[name].tsx`（某位作者在这个集子里的作品，参数 `name` / `coll` / `tw`）。
+  `[id].tsx` 和 `[id]/index.tsx` 不能共存，改结构时别再写回单文件。
+- 首字母 / 排序全在 `src/lib/authors.ts`，用 `pinyin-pro` 现算（不落库、不加列、不改 schema）：
+  - `pinyin(name, { surname: 'all' })` 才能把 曾 / 单 / 仇 / 查 / 乐 按姓氏读；
+    仍有个别（如「尉迟恭」的尉）按常用音读，属于可接受的误差。
+  - 「佚名」「无名氏」「无名」「不详」在 `ANON_NAMES` 里，**统一进 `#`（其他）**，
+    否则会按拼音排进 Y / W 冒充真作者；没署名（空串）同样进 `#`，显示为「佚名」。
+  - 组间 A→Z 且 `#` 最后（`compareLetters`），组内按全拼再按名字；空串 sortKey 用 `\uffff` 垫底。
+- 左侧字母条 `src/components/letter-rail.tsx` 只渲染**实际存在**的字母（分组就是字母表），
+  `SectionList` 的 `onViewableItemsChanged` 用 `useCallback([])`（RN 要求常量引用，
+  而 `react-hooks/refs` 规则禁止渲染期读 `ref.current`）；`scrollToLocation` 外面必须 try/catch，
+  冷启动那一下列表还没量好尺寸，会抛 `scrollToIndex` 相关异常。
+- 统计页的量：全唐诗 3650 位作者（`quantangshi`），唐诗三百首 75 位，
+  诗经 305 首全是「佚名」→ 只有一个「其他」分组。作者作品数之和必须等于集子总首数（测试盯着这条）。

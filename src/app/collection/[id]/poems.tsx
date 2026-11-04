@@ -11,7 +11,8 @@ import type { CollectionMeta, Poem } from '@/lib/types';
 import { useScript } from '@/script';
 import { useTheme } from '@/theme';
 
-export default function CollectionScreen() {
+/** 一个集子的全部诗词（从作者统计页的「全部诗词」进来） */
+export default function CollectionPoemsScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const db = useSQLiteContext();
   const { colors } = useTheme();

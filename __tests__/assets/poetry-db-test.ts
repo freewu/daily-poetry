@@ -14,7 +14,10 @@ import {
   poemForOccasion,
   searchPoems,
   shiftDayStr,
+  authorsOfCollection,
+  poemsOfAuthor,
 } from '@/lib/db';
+import { compareLetters, groupAuthors } from '@/lib/authors';
 import { dayInfo, occasionFor } from '@/lib/lunar';
 import type { Poem } from '@/lib/types';
 
@@ -199,6 +202,42 @@ describeDb('assets/poetry.db（随包数据）', () => {
       expect(p).not.toBeNull();
       expect(`${p!.title}${p!.content}`).toContain(occ!.label);
     }
+  });
+
+  it('作者统计：数量对得上选集，名家的首字母也对', async () => {
+    const tang = await authorsOfCollection(asDb(db), 'tangshi');
+    const count = await db.getFirstAsync<{ n: number }>(
+      "SELECT COUNT(*) n FROM poems WHERE collection = 'tangshi'",
+    );
+    // 每位作者的作品数加起来 = 这个集子的总首数（一首都不能漏）
+    expect(tang.reduce((n, a) => n + a.count, 0)).toBe(count?.n);
+    expect(new Set(tang.map((a) => a.name)).size).toBe(tang.length);
+
+    const groups = groupAuthors(tang);
+    const letters = groups.map((g) => g.initial);
+    expect(letters).toEqual([...letters].sort(compareLetters));
+    const li = groups.find((g) => g.initial === 'L')?.data.map((a) => a.name) ?? [];
+    expect(li).toContain('李白');
+    const du = groups.find((g) => g.initial === 'D')?.data.map((a) => a.name) ?? [];
+    expect(du).toContain('杜甫');
+  });
+
+  it('全唐诗的作者统计也扛得住（几千位作者）', async () => {
+    const all = await authorsOfCollection(asDb(db), 'quantangshi');
+    expect(all.length).toBeGreaterThan(1000);
+    // 按作品数排序找得到「杜甫」这种大户
+    const top = [...all].sort((a, b) => b.count - a.count)[0];
+    expect(top.count).toBeGreaterThan(100);
+    // 首字母分组不会漏人
+    const grouped = groupAuthors(all).reduce((n, g) => n + g.data.length, 0);
+    expect(grouped).toBe(all.length);
+  });
+
+  it('点开一位作者只看到他的作品', async () => {
+    const li = await poemsOfAuthor(asDb(db), 'tangshi', '李白');
+    expect(li.length).toBeGreaterThan(0);
+    expect(li.every((p) => p.author === '李白')).toBe(true);
+    expect(li.every((p) => p.collection === 'tangshi')).toBe(true);
   });
 
   it('全文检索能搜到名篇', async () => {

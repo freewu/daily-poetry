@@ -22,6 +22,10 @@
   「朗读」整段自动隐藏，不会留一个点了没反应的按钮。
 - **诗词库**：全唐诗 57599 · 全宋词 21049 · 元曲 10906 · 诗经 / 楚辞 / 五代诗词 / 唐诗三百首 / 千家诗，
   合计约 9.1 万首，支持按题目、作者、诗句全文搜索（简体、繁體都能搜到）。
+- **作者统计**：点开一本诗集先看作者表 —— 按姓首字母 A–Z 分组（**左侧字母条直达**，
+  没有作者的字母不出现），作者后跟收录作品数，点名字只看这位作者的作品（全唐诗 3650 位作者）。
+  首字母用 `pinyin-pro` 按姓氏读音算（曾 / 单 / 仇 / 查 / 乐 不会被排错），
+  「佚名」「无名氏」这类假作者统一进「其他」，不按拼音挤进 Y / W。
 - **收藏 / 复制**：喜欢就点亮红心，一键复制全文（含出处落款）。
 - **离线优先**：全部语料打进一个 SQLite 数据库随应用发布（`.db` asset），无需联网。
 - **简繁切换**：每首诗同时收录简体与繁體两套正文（设置 → 正文字体），繁体保留语料原文，
@@ -47,6 +51,7 @@
 | 框架 | React Native 0.86 · Expo SDK 57 · expo-router（Stack + NativeTabs） |
 | 存储 | `expo-sqlite`（SQLiteProvider + assetSource 内置库） |
 | 农历 | `lunar-javascript`（节气 / 节日 / 干支换算） |
+| 作者索引 | `pinyin-pro`（姓首字母 / 全拼排序，含姓氏多音字） |
 | 朗读 | `expo-speech`（系统 TTS） |
 | 卡片 | `react-native-view-shot`（截图）+ `expo-media-library`（存相册）+ `expo-sharing`（系统分享） |
 | 设置 | `@react-native-community/slider`（字号滑块，松手才落库） |
@@ -63,9 +68,9 @@ scripts/
   build-db.mjs        语料 → poetry.db（适配各 JSON 结构、简繁转换、索引）
   make-assets.py      品牌图标（楷体「诗」印）/ 启动图 / 底栏图标
 src/
-  app/                expo-router 路由（(tabs) + poem/[id] + collection/[id]）
+  app/                expo-router 路由（(tabs) + poem/[id] + collection/[id]/{作者统计,全部诗词} + author/[name]）
   components/         诗卡 / 诗文渲染 / 列表行 / 顶栏 / 操作栏
-  lib/                db.ts（查询）· daily.ts（每日挑选 / 作者冷却）· format.ts · types.ts
+  lib/                db.ts（查询）· daily.ts（每日挑选 / 作者冷却）· authors.ts（首字母分组）· format.ts · types.ts
   theme.tsx           纸墨双主题（浅色 / 深色 / 跟随系统）
 __tests__/            Jest 单元 / 组件测试（纯 Node，无需模拟器）
 .maestro/             Maestro E2E 流程（真机 / 模拟器）
@@ -168,9 +173,10 @@ just test-cov        # 生成 coverage/lcov.info
 `assets/poetry.db`（构建产物结构校验）、`theme`（跟随系统 / 持久化）、
 `typography`（字族 / 字号滑块 / 老档位换算 / 排版）、`punct`（标点隐显的空白处理）、
 `tts`（语音合成可用性 / 语速档位）、`daily`（作者冷却挑选器 / 档位解析）、
+`authors`（姓首字母 / 多音字姓氏 / 分组排序）、
 `card`（文件名 / 日期戳 / 存相册的权限编排 / 分享降级），
-以及路由骨架（入口重定向、根布局、底栏）与六个屏幕、诗文 / 操作栏 / 卡片组件。
-当前：22 套件 / 246 用例，语句覆盖 ~95%、行覆盖 ~98%。
+以及路由骨架（入口重定向、根布局、底栏）与八个屏幕、诗文 / 操作栏 / 卡片 / 字母索引组件。
+当前：25 套件 / 276 用例，语句覆盖 ~95%、行覆盖 ~98%。
 
 **② E2E（Maestro）** —— 真机或模拟器上的冒烟流程，断言用的是组件 `testID`：
 
@@ -217,10 +223,11 @@ Windows 的 adb server（见 `tool/android-env.sh`）。缺 adb 时 `just androi
 - [x] 正文字体 / 字号可调（系统字体 / 宋体 / 楷体，字号滑块 16–34 号）
 - [x] 横排 / 竖排（自右向左，仿古籍）
 - [x] 标点可隐：空白断句（设置 → 标点）
+- [x] 作者统计：按姓首字母 A–Z 分组 + 左侧索引，看每位作者收录多少首、点进去只看他的作品
 - [x] 诗词卡片：截图存相册 + 系统分享（`react-native-view-shot` + `expo-media-library` + `expo-sharing`），
       卡片页可现场调字号 / 简繁 / 空白断句
-- [ ] 注音译注 —— chinese-poetry 语料不含译注；需要额外引入注音（如 pinyin-pro）与
-      白话译注数据源后再做
+- [ ] 注音译注 —— chinese-poetry 语料不含译注；注音可复用作者索引已引入的 `pinyin-pro`，
+      白话译注还需另找数据源
 - [x] EAS 云构建配置（`eas.json` + 应用标识就绪，登录 EAS 账号即可出包）
 - [x] 测试：Jest 单元 / 组件测试（`just test`）+ Maestro E2E 冒烟（`just e2e`）
 

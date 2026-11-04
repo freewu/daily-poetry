@@ -1,4 +1,4 @@
-# 诗词库：选集卡片 → 全文检索 → 诗词详情 → 返回
+# 诗词库：选集卡片 → 作者统计（A–Z 索引）→ 作者作品 → 全文检索 → 诗词详情
 appId: com.bluefrog.dailypoetry
 name: 诗词库检索
 ---
@@ -6,11 +6,33 @@ name: 诗词库检索
 - tapOn: '诗词库'
 - assertVisible: '经典与全藏 · 支持全文检索'
 
-# 选集卡片进列表页
+# 选集卡片 → 作者统计：左侧 A–Z，作者后面跟收录数量
 - tapOn:
     id: 'collection-tang'
+- extendedWaitUntil:
+    visible: '.* 位作者 · 共 .* 首'
+    timeout: 15000
+- assertVisible:
+    id: 'letter-rail'
+- takeScreenshot: collection-authors
+
+# 「全部诗词」还是能看整个集子（在列表头部，先点它）
+- tapOn:
+    id: 'collection-all-poems'
 - assertVisible: '诗 · 共 .* 首'
 - takeScreenshot: collection
+- tapOn:
+    id: 'screen-back'
+
+# 点字母跳到分组，再点作者进他的作品列表
+- tapOn:
+    id: 'letter-L'
+- tapOn:
+    id: 'author-.*'
+- assertVisible: '.* · 共 .* 首'
+- takeScreenshot: author-poems
+- tapOn:
+    id: 'screen-back'
 - tapOn:
     id: 'screen-back'
 

@@ -1,6 +1,6 @@
 import { fireEvent, waitFor } from '@testing-library/react-native';
 
-import CollectionScreen from '@/app/collection/[id]';
+import CollectionPoemsScreen from '@/app/collection/[id]/poems';
 import PoemScreen from '@/app/poem/[id]';
 
 import { renderWithTheme, screen, seedCollections, seedPoems, useMemoryDb } from '../helpers/test-utils';
@@ -62,10 +62,10 @@ describe('<PoemScreen />', () => {
   });
 });
 
-describe('<CollectionScreen />', () => {
+describe('<CollectionPoemsScreen />', () => {
   it('列出该选集的全部诗词与数量', async () => {
     g.__ROUTE_PARAMS__ = { id: 'tang' };
-    await renderWithTheme(<CollectionScreen />, { db: seed() });
+    await renderWithTheme(<CollectionPoemsScreen />, { db: seed() });
 
     await waitFor(() => expect(screen.getByText('唐诗三百首')).toBeTruthy());
     expect(screen.getByText('诗 · 共 2 首')).toBeTruthy();
@@ -76,7 +76,7 @@ describe('<CollectionScreen />', () => {
 
   it('未知选集给出提示', async () => {
     g.__ROUTE_PARAMS__ = { id: 'nope' };
-    await renderWithTheme(<CollectionScreen />, { db: seed() });
+    await renderWithTheme(<CollectionPoemsScreen />, { db: seed() });
     await waitFor(() => expect(screen.getByText('未找到该选集')).toBeTruthy());
   });
 });
