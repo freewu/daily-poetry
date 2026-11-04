@@ -52,7 +52,7 @@
   不跟夜间模式，导出的图在哪儿都好看；卡片页还能现场调**字号 / 简繁 / 空白断句**，
   只改卡片、不动阅读设置，而且**下一张卡片沿用上次的选择**。
 - **纸墨主题**：宣纸底、朱砂印章；浅色 / 深色 / 跟随系统。应用图标就是印章本身
-  （`logo.jpg` → `just assets` 抠底生成各尺寸）。
+  （`logo.png` → `just assets` 抠底生成各尺寸）。
 
 ## 技术栈
 
@@ -76,7 +76,7 @@ assets/               应用图标 / 启动图 / 底栏图标（由脚本生成�
 scripts/
   fetch-corpus.sh     下载 chinese-poetry 语料（sparse + blob:none）
   build-db.mjs        语料 → poetry.db（适配各 JSON 结构、简繁转换、索引）
-  make-assets.py      logo.jpg → 图标 / 启动图（抠纸底、留印泥）+ 底栏图标
+  make-assets.py      logo.png → 图标 / 启动图（抠纸底、留印泥）+ 底栏图标
 src/
   app/                expo-router 路由（(tabs) + poem/[id] + collection/[id]/{全部诗词,作者统计,词牌统计} +
                       author/[name]）
@@ -129,7 +129,7 @@ just envcheck # 先看 node / npm / python3 / node:sqlite 是否就绪
 just deps     # npm install
 just data     # 下载主体语料（约 65MB，sparse clone + 按需取全唐诗）
 just db       # 构建 assets/poetry.db（约 9.1 万首，简繁双写，约 58MB）
-just assets   # 重新生成图标（换 logo.jpg 之后跑一遍）
+just assets   # 重新生成图标（换 logo.png 之后跑一遍）
 
 just db-full  # 再加古文观止 / 幽梦影 / 论语 / 四书 / 蒙学等（约 9.2 万首）
 ```
