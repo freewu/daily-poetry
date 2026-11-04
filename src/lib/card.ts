@@ -3,8 +3,11 @@ import type { Poem } from './types';
 /** 存相册时用的文件夹名（Android 上是一个 MediaStore bucket） */
 export const CARD_ALBUM = '每日诗词';
 
-/** 卡片底部署名 */
+/** 卡片底部署名 + 相册文件名前缀 */
 export const CARD_BRAND = '每日一诗';
+
+/** 卡片**顶部**的抬头（比底部署名多带出「这是哪个 App」） */
+export const CARD_MARK = '每日诗词 APP';
 
 /**
  * 日期戳：`2026-11-03` → `2026年11月3日`。

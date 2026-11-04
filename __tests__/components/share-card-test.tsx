@@ -37,15 +37,16 @@ describe('<ShareCard />', () => {
     expect(screen.getByText('唐 · 李白')).toBeTruthy();
     expect(screen.getByText(/床前明月光/)).toBeTruthy();
     expect(screen.getByText('选自《唐诗三百首》')).toBeTruthy();
-    expect(screen.getByText('每日一诗')).toBeTruthy();
+    expect(screen.getByText('每日诗词 APP')).toBeTruthy();
     expect(screen.getByText('每日一诗 · 2026年11月3日')).toBeTruthy();
     expect(screen.getByText('五言绝句')).toBeTruthy();
   });
 
   it('不传日期就只印签名（不印日期戳）', async () => {
     await renderWithTheme(<ShareCard poem={poem} width={340} />, { db: await dbWith() });
-    // 顶栏签名 + 底部签名，两处都是「每日一诗」
-    expect(screen.getAllByText('每日一诗')).toHaveLength(2);
+    // 顶部抬头是 App 名，底部署名仍是「每日一诗」，各一处
+    expect(screen.getByText('每日诗词 APP')).toBeTruthy();
+    expect(screen.getAllByText('每日一诗')).toHaveLength(1);
     expect(screen.queryByText(/\d{4}年\d{1,2}月\d{1,2}日/)).toBeNull();
   });
 
