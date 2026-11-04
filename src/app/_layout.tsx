@@ -37,7 +37,12 @@ function RootNavigator() {
         <Stack.Screen name="poem/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="collection/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen
-          name="collection/[id]/poems"
+          name="collection/[id]/authors"
+          options={{ animation: 'slide_from_right' }}
+        />
+        <Stack.Screen name="collection/[id]/cipai" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen
+          name="collection/[id]/cipai/[name]"
           options={{ animation: 'slide_from_right' }}
         />
         <Stack.Screen name="author/[name]" options={{ animation: 'slide_from_right' }} />

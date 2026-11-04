@@ -1,6 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import type { AuthorStat } from './authors';
+import { cipaiOf } from './cipai';
 import { createDailyPicker, DEFAULT_GAP, offsetFor, type DailyPicker } from './daily';
 import type { CollectionMeta, DailyGap, Occasion, Poem } from './types';
 
@@ -103,6 +104,30 @@ export async function poemsOfAuthor(
     coll,
     author,
   );
+}
+
+/**
+ * 某个词牌在某个集子里的全部作品。
+ *
+ * 词牌没有落库（见 `lib/cipai.ts`），所以先用题目 / 副题的 LIKE 抄个超集
+ * （词牌一定出现在题目或副题里），再按 `cipaiOf()` 精确比对 ——
+ * `title LIKE '%浣溪沙%'` 会把「和浣溪沙」这类题目一起抄进来，得筛掉。
+ */
+export async function poemsOfCipai(
+  db: SQLiteDatabase,
+  coll: string,
+  cipai: string,
+): Promise<Poem[]> {
+  const name = cipai.trim();
+  if (!name) return [];
+  const like = `%${name}%`;
+  const rows = await db.getAllAsync<Poem>(
+    'SELECT * FROM poems WHERE collection = ? AND (title LIKE ? OR subtitle LIKE ?) ORDER BY id',
+    coll,
+    like,
+    like,
+  );
+  return rows.filter((p) => cipaiOf(p) === name);
 }
 
 export async function searchPoems(db: SQLiteDatabase, q: string, limit = 100): Promise<Poem[]> {

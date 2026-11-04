@@ -1,7 +1,7 @@
 import { fireEvent, waitFor } from '@testing-library/react-native';
 import { SectionList } from 'react-native';
 
-import CollectionAuthorsScreen from '@/app/collection/[id]';
+import CollectionAuthorsScreen from '@/app/collection/[id]/authors';
 
 import { renderWithTheme, screen, seedCollections, seedPoems, useMemoryDb } from '../helpers/test-utils';
 
@@ -79,7 +79,7 @@ describe('<CollectionAuthorsScreen />', () => {
     }
   });
 
-  it('滚动失败时不会把页面带崩（虚拟列表还没量好尺寸）', async () => {
+  it('跳不过去时不会把页面带崩（虚拟列表还没量好尺寸）', async () => {
     const scrollTo = jest
       .spyOn(SectionList.prototype, 'scrollToLocation')
       .mockImplementation(() => {
@@ -96,44 +96,31 @@ describe('<CollectionAuthorsScreen />', () => {
     }
   });
 
-  it('跳不过去时先按平均行高粗滚，再重试精确跳（虚拟列表）', async () => {
-    const scrollTo = jest
-      .spyOn(SectionList.prototype, 'scrollToLocation')
-      .mockImplementation(() => {});
-    // 底层 ScrollView 的 scrollTo 在 Jest 里真调会污染后面的渲染，这里换成一个探针
-    const rough = jest.fn();
-    const responder = jest
-      .spyOn(SectionList.prototype, 'getScrollResponder')
-      .mockReturnValue({ scrollTo: rough } as never);
-    try {
-      g.__ROUTE_PARAMS__ = { id: 'tang' };
-      const view = await renderWithTheme(<CollectionAuthorsScreen />, { db: seed() });
-      const list = await waitFor(() => screen.getByTestId('author-list'));
+  it('给 SectionList 喂了精确的 getItemLayout（跳转才不靠「平均行高」猜）', async () => {
+    g.__ROUTE_PARAMS__ = { id: 'tang' };
+    await renderWithTheme(<CollectionAuthorsScreen />, { db: seed() });
+    const list = await waitFor(() => screen.getByTestId('author-list'));
 
-      fireEvent.press(screen.getByTestId('letter-#'));
-      expect(scrollTo).toHaveBeenCalledTimes(1);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const layout = (list.props as any).getItemLayout as (
+      data: unknown,
+      index: number,
+    ) => { index: number; length: number; offset: number };
+    expect(typeof layout).toBe('function');
 
-      // RN 告诉我们「这一段没量过」→ 按平均行高 40 × 下标 12 粗滚，隔一会儿再精确跳一次。
-      // 直接翻出 props 调，不走 fireEvent：包裹的 act 会和下面 waitFor 的 act 嵌套，
-      // 报「overlapping act()」之后同一个文件后面所有用例都会莫名渲染不出来
-      let node: typeof list | null = screen.getByTestId('author-list');
-      while (node && typeof node.props.onScrollToIndexFailed !== 'function') node = node.parent;
-      if (!node) throw new Error('SectionList 上没挂 onScrollToIndexFailed');
-      node.props.onScrollToIndexFailed({ index: 12, averageItemLength: 40 });
-      expect(rough).toHaveBeenCalledWith({ y: 480, animated: false });
-      // 重试是 80ms 后的事，用 waitFor 等它（别自己套 act：会和 RNTL 内部的 act 撞车）
-      await waitFor(() => expect(scrollTo).toHaveBeenCalledTimes(2));
-      expect(scrollTo).toHaveBeenLastCalledWith({
-        sectionIndex: 2,
-        itemIndex: 0,
-        viewPosition: 0,
-        animated: true,
-      });
-      view.unmount();
-    } finally {
-      responder.mockRestore();
-      scrollTo.mockRestore();
-    }
+    // 三段（D / L / #），每段 = 标题 + 1 行 + 空尾部
+    const head = layout(null, 0);
+    const row = layout(null, 1);
+    const foot = layout(null, 2);
+    expect(head.length).toBeGreaterThan(0);
+    expect(row.offset).toBe(head.offset + head.length);
+    expect(foot.length).toBe(0);
+    expect(foot.offset).toBe(row.offset + row.length);
+
+    // 下一段（L）的标题紧接上一段的尾部，中间不留误差
+    expect(layout(null, 3)).toMatchObject({ offset: foot.offset, length: head.length });
+    // 最后一段（#）的标题：两段的「标题 + 1 行」
+    expect(layout(null, 6).offset).toBe(2 * (head.length + row.length));
   });
 
   it('点作者进他的作品列表', async () => {
@@ -148,16 +135,15 @@ describe('<CollectionAuthorsScreen />', () => {
     });
   });
 
-  it('「全部」进这个集子的全部诗词', async () => {
+  it('「全部诗词」回到集子的诗词列表', async () => {
     g.__ROUTE_PARAMS__ = { id: 'tang' };
     await renderWithTheme(<CollectionAuthorsScreen />, { db: seed() });
     await waitFor(() => expect(screen.getByTestId('collection-all-poems')).toBeTruthy());
 
     await fireEvent.press(screen.getByTestId('collection-all-poems'));
-    expect(g.__ROUTER__.push).toHaveBeenCalledWith({
-      pathname: '/collection/[id]/poems',
-      params: { id: 'tang' },
-    });
+    // 一般是原路返回（列表页 → 作者页）；测试的 router 恒返回 canGoBack() = true
+    expect(g.__ROUTER__.back).toHaveBeenCalled();
+    expect(g.__ROUTER__.push).not.toHaveBeenCalled();
   });
 
   it('繁體模式下作者名用繁体列', async () => {

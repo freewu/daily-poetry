@@ -71,7 +71,7 @@ export function compareLetters(a: string, b: string): number {
   return a < b ? -1 : 1;
 }
 
-/** 把作者按首字母分组：组间 A→Z（# 最后），组内按全拼排 */
+/** 把作者按首字母分组：组间 A→Z（# 最后），组内作品多的在前（同数再按全拼） */
 export function groupAuthors(rows: AuthorStat[]): AuthorSection[] {
   const buckets = new Map<string, { row: AuthorStat; key: string }[]>();
   for (const row of rows) {
@@ -86,7 +86,13 @@ export function groupAuthors(rows: AuthorStat[]): AuthorSection[] {
     .map(([initial, list]) => ({
       initial,
       data: list
-        .sort((a, b) => a.key.localeCompare(b.key) || a.row.name.localeCompare(b.row.name))
+        // 作品数降序：同一姓下谁是这本集子的主力，一眼就看到
+        .sort(
+          (a, b) =>
+            b.row.count - a.row.count ||
+            a.key.localeCompare(b.key) ||
+            a.row.name.localeCompare(b.row.name),
+        )
         .map((e) => e.row),
     }));
 }

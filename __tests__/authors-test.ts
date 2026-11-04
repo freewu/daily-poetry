@@ -63,7 +63,7 @@ describe('姓首字母', () => {
 });
 
 describe('分组', () => {
-  it('组间 A→Z、# 最后，组内按全拼排', () => {
+  it('组间 A→Z、# 最后；组内作品多的在前，同数再按全拼', () => {
     const groups = groupAuthors([
       row('杜甫', 3),
       row('白居易', 2),
@@ -73,10 +73,26 @@ describe('分组', () => {
       row('李商隐', 2),
     ]);
     expect(groups.map((g) => g.initial)).toEqual(['B', 'D', 'L', 'W', OTHER_LETTER]);
-    // L 组：li bai 在 li shang yin 前面
+    // L 组：李白 4 首在前，李商隐 2 首在后
     expect(groups[2].data.map((r) => r.name)).toEqual(['李白', '李商隐']);
-    // 数量不影响排序，只影响显示
     expect(groups[1].data[0].count).toBe(3);
+  });
+
+  it('作品数一样多时才按全拼，不是反过来', () => {
+    const groups = groupAuthors([
+      row('李商隐', 2),
+      row('李白', 2),
+      row('刘禹锡', 9),
+      row('陆游', 9),
+    ]);
+    // 同一字母下先比作品数（刘禹锡 9 = 陆游 9 → 按全拼 liu < lu），再比名字
+    expect(groups[0].data.map((r) => r.name)).toEqual(['刘禹锡', '陆游', '李白', '李商隐']);
+  });
+
+  it('「其他」组也按作品数排（诗经那种全是佚名的集子）', () => {
+    const groups = groupAuthors([row('无名氏', 2), row('', 300), row('佚名', 40)]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].data.map((r) => r.name)).toEqual(['', '佚名', '无名氏']);
   });
 
   it('只有真的存在的字母分组（左侧索引不留空档）', () => {
