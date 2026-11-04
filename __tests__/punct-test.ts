@@ -32,17 +32,23 @@ describe('hidePunct', () => {
   });
 
   it('顿号、问叹号、引号书名号、破折号省略号一并抹掉', () => {
-    expect(hidePunct('“春眠不觉晓”，处处闻啼鸟！')).toBe('春眠不觉晓 处处闻啼鸟');
-    expect(hidePunct('《静夜思》——李白……')).toBe('静夜思 李白');
     expect(hidePunct('东、西；南：北？')).toBe('东 西 南 北');
+    // 连着几个标点就留几个空位，不合并（「」，= 两个空位）
+    expect(hidePunct('“春眠不觉晓”，处处闻啼鸟！')).toBe('春眠不觉晓  处处闻啼鸟');
+    expect(hidePunct('《静夜思》——李白……')).toBe('静夜思   李白');
   });
 
   it('保留换行：原文一行 = 一行（竖排的列数不变）', () => {
     expect(hidePunct('床前明月光，\n疑是地上霜。')).toBe('床前明月光\n疑是地上霜');
   });
 
-  it('连续空白压成一个，行首行尾不留空格', () => {
-    expect(hidePunct('  ，床前  明月光；  ')).toBe('床前 明月光');
+  it('每个标点各留一格空位，相邻标点也不合并', () => {
+    expect(hidePunct('好……啊')).toBe('好  啊');
+    expect(hidePunct('他说：“走吧。”')).toBe('他说  走吧');
+  });
+
+  it('行首行尾不留空格（行末标点不额外顶一格）', () => {
+    expect(hidePunct('  ，床前明月光；  ')).toBe('床前明月光');
     // 语料是 \r\n 换行时，trim 顺手把 \r 也带走
     expect(hidePunct('床前明月光，\r\n疑是地上霜。')).toBe('床前明月光\n疑是地上霜');
   });
@@ -52,7 +58,8 @@ describe('hidePunct', () => {
   });
 
   it('半角西文标点也算', () => {
-    expect(hidePunct('Hello, world!')).toBe('Hello world');
+    // 半角逗号原位留空位，跟原文里的空格各占一格
+    expect(hidePunct('Hello, world!')).toBe('Hello  world');
   });
 
   it('空串仍是空串', () => {

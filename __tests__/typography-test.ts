@@ -104,8 +104,12 @@ describe('排版（横排 / 竖排）', () => {
     expect(toColumnText('床前明月光，')).toBe('床\n前\n明\n月\n光\n，');
   });
 
-  it('竖排去掉行内空白，不把代理对拆开', () => {
-    expect(toColumnText(' 床 前 ')).toBe('床\n前');
+  it('行内空白占满一格：竖排里没有「空格宽度」，空位要跟字一样高', () => {
+    expect(toColumnText(' 床 前 ')).toBe('床\n\u3000\n前');
+    expect(toColumnText('床前 明月光')).toBe('床\n前\n\u3000\n明\n月\n光');
+  });
+
+  it('不把代理对拆开', () => {
     expect(toColumnText('𠀋月')).toBe('𠀋\n月');
   });
 });

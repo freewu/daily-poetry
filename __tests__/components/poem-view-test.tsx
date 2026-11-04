@@ -41,6 +41,13 @@ function dbVertical(): TestDb {
   return db;
 }
 
+/** 预置「竖排 + 空白断句」的内存库 */
+function dbVerticalSpace(): TestDb {
+  const db = dbVertical();
+  db.raw.exec("INSERT INTO meta (key, value) VALUES ('settings_punct', 'space')");
+  return db;
+}
+
 /** 预置字体 / 字号的内存库 */
 function dbWithType(font: string, size: string): TestDb {
   const db = useMemoryDb();
@@ -181,6 +188,14 @@ describe('竖排', () => {
     await renderWithTheme(<PoemCard poem={poem} />, { db: dbVertical() });
     await waitFor(() => expect(screen.getByTestId('poem-vertical')).toBeTruthy());
     expect(screen.getByText('举\n头\n望\n明\n月')).toBeTruthy();
+  });
+
+  it('空白断句：标点原位留一格空位（竖排也照样占位）', async () => {
+    const withPunct = { ...poem, content: '床前明月光，疑是地上霜' };
+    await renderWithTheme(<PoemLines poem={withPunct} color="#000" />, { db: dbVerticalSpace() });
+    await waitFor(() => expect(screen.getByTestId('poem-vertical')).toBeTruthy());
+    // 「，」换成空格，竖排里一个空格 = 一整格空位，跟字一样高
+    expect(screen.getByText('床\n前\n明\n月\n光\n\u3000\n疑\n是\n地\n上\n霜')).toBeTruthy();
   });
 
   it('默认横排：不出竖排容器', async () => {

@@ -6,7 +6,7 @@ import type { PunctKey } from './types';
  */
 export const PUNCT_OPTS: { key: PunctKey; label: string; hint: string }[] = [
   { key: 'keep', label: '保留标点', hint: '按语料原文排版，逗号句号都在' },
-  { key: 'space', label: '空白断句', hint: '标点换成空格，只留句读间隙（仅影响显示）' },
+  { key: 'space', label: '空白断句', hint: '标点换成空格，每个标点留一个空位（仅影响显示）' },
 ];
 
 export const DEFAULT_PUNCT: PunctKey = 'keep';
@@ -23,13 +23,14 @@ const PUNCT_RE =
   /[，。、；：？！…—–～·・,.;:?!'"“”‘’「」『』（）()《》〈〉【】〔〕\[\]{}<>\/\\|_*+=~^@#$%&\-]/g;
 
 /**
- * 隐藏标点：标点 → 空格，连续空格压成一个，去掉每行首尾空白，保留换行。
- * 换行是「原文一行」的边界，不能动，否则竖排的列数会变。
+ * 隐藏标点：一个标点换一个空格，**不合并**——「原来标点站的那格」要留成空位，
+ * 挤成一点或干脆删掉都会让句读黏住（「」『』『，。』这种连着的一串尤其明显）。
+ * 每行首尾的空白顺手去掉（行末标点不额外顶一格），换行必须保留：
+ * 换行是「原文一行」的边界，竖排的列数靠它算。
  */
 export function hidePunct(text: string): string {
   return text
     .replace(PUNCT_RE, ' ')
-    .replace(/[ \t]{2,}/g, ' ')
     .split('\n')
     .map((line) => line.trim())
     .join('\n');

@@ -48,9 +48,12 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
   **注意**：`row-reverse` 下 `scrollX=0` 是内容最左（也就是末句），所以横向溢出时
   必须 `scrollToEnd()`，否则长诗会从最后一列开始读（挂载 + `onContentSizeChange` 里各调一次，
   用户开始拖动后就不再自动跳）。
-- 标点：`src/lib/punct.ts` 的 `hidePunct()` 把标点换成**空格**（不是删掉，否则两句黏在一起），
-  连续空白压成一个、去掉行首尾空格，但**保留换行**——竖排的列数按行算，动换行会把版式搞乱。
-  只在 `PoemLines` / `PoemRow` 渲染时套，复制与朗读仍是原文标点。
+- 标点：`src/lib/punct.ts` 的 `hidePunct()` 把**每个**标点换成**一个空格**（不是删掉，否则两句
+  黏在一起），**不合并**连续空格——「」，这种连着的一串要各留一位，压掉就又黏回去了；
+  只去掉行首尾空格，**保留换行**——竖排的列数按行算，动换行会把版式搞乱。
+- 竖排没有「空格宽度」这回事：`toColumnText()`（`src/lib/typography.ts`）把行内空白换成
+  全角空格 `\u3000`，空位才跟字一样占整格；否则 `hidePunct` 换来的空格在竖列里会消失。
+  标点只在 `PoemLines` / `PoemRow` 渲染时套，复制与朗读仍是原文标点。
 - 朗读语速在 `src/lib/tts.ts`，`expo-speech` 的 `rate` 是倍率（1.0 = 系统默认，中文偏快，
   所以「标准」= 0.9）。`PoemActions` 每次朗读现读设置，改完不用重启。
 - 朗读入口的显示条件在 `src/tts.ts` 的 `useTtsSupport()`：web 同步看 `speechSynthesis`，

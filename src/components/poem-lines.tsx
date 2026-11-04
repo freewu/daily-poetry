@@ -76,8 +76,8 @@ function VerticalLines({ poem, color, size, family }: { poem: Poem; color: strin
 export function PoemLines({ poem, color, fontSize, style, testID, vertical: forceVertical }: Props) {
   const { family, bodySize, vertical: prefVertical, punct } = useTypography();
   const vertical = forceVertical ?? prefVertical;
-  // 「空白断句」：标点换成空格。竖排时 toColumnText 会压掉空格，
-  // 于是竖列变成不带标点的连续字串——正是古籍的样子。
+  // 「空白断句」：标点换成空格。竖排时 toColumnText 把空格换成全角空位，
+  // 于是标点原本站的那一格在竖列里仍然空着。
   const shown = useMemo(
     () => (punct === 'space' ? { ...poem, content: hidePunct(poem.content) } : poem),
     [poem, punct],

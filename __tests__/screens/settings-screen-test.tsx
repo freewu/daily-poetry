@@ -165,7 +165,7 @@ describe('<SettingsScreen />', () => {
       expect(await asDb(db).getFirstAsync("SELECT value FROM meta WHERE key = 'settings_punct'"))
         .toEqual({ value: 'space' }),
     );
-    expect(screen.getByText('标点换成空格，只留句读间隙（仅影响显示）')).toBeTruthy();
+    expect(screen.getByText('标点换成空格，每个标点留一个空位（仅影响显示）')).toBeTruthy();
     expect(screen.getByText('床前明月光\n疑是地上霜\n举头望明月\n低头思故乡')).toBeTruthy();
 
     await fireEvent.press(screen.getByTestId('punct-keep'));

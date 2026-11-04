@@ -95,9 +95,13 @@ export function columnsOf(content: string): string[] {
     .filter((line) => line.length > 0);
 }
 
-/** 一列的字竖直堆叠：逐字换行（Array.from 保证代理对不被拆开） */
+/**
+ * 一列的字竖直堆叠：逐字换行（Array.from 保证代理对不被拆开）。
+ * 行内空白换成全角空格——竖排里没有「空格宽度」这回事，一个空位就得占一整格，
+ * 「空白断句」换来的空格才不会消失（见 hidePunct）。
+ */
 export function toColumnText(line: string): string {
-  return Array.from(line.replace(/\s+/g, '')).join('\n');
+  return Array.from(line.trim().replace(/\s/g, '\u3000')).join('\n');
 }
 
 /** 按档位缩放一个字号，最小 11，避免小字看不清 */
