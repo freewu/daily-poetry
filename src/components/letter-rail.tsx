@@ -12,7 +12,7 @@ interface Props {
 }
 
 /**
- * A–Z 快速索引条：贴在列表左侧，点一下跳到对应分组。
+ * A–Z 快速索引条：贴在列表右侧（右手拇指够得着，也不压住作者名），点一下跳到对应分组。
  * 字母表按实际存在的分组生成，凑不满 26 个也不会留空档。
  */
 export function LetterRail({ letters, active, onPick }: Props) {
@@ -29,7 +29,7 @@ export function LetterRail({ letters, active, onPick }: Props) {
             accessibilityRole="button"
             accessibilityLabel={`跳到 ${letterLabel(letter)}`}
             onPress={() => onPick(letter)}
-            hitSlop={6}
+            hitSlop={{ top: 2, bottom: 2, left: 10, right: 10 }}
             style={styles.slot}>
             <Text
               style={[
@@ -48,12 +48,12 @@ export function LetterRail({ letters, active, onPick }: Props) {
 
 const styles = StyleSheet.create({
   rail: {
-    width: 26,
-    paddingLeft: 4,
+    width: 24,
+    paddingRight: 6,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  slot: { height: 15, justifyContent: 'center', alignItems: 'center' },
+  slot: { height: 16, justifyContent: 'center', alignItems: 'center' },
   letter: { fontSize: 10, fontWeight: '600', letterSpacing: 0 },
-  on: { fontSize: 11, fontWeight: '800' },
+  on: { fontSize: 12, fontWeight: '800' },
 });

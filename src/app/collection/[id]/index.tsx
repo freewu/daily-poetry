@@ -31,9 +31,13 @@ import { useTypography } from '@/typography';
 
 const VIEWABILITY = { itemVisiblePercentThreshold: 20 };
 
+/** 重试上限：跳不过去时按平均行高先滚一脚，等列表把这块量出来再精确跳 */
+const MAX_SCROLL_RETRY = 3;
+const RETRY_DELAY = 80;
+
 /**
- * 集子 → 作者统计：按姓首字母分组（左侧 A–Z 直达），每组里按全拼排，
- * 名字后面是收录作品数；点名字进该作者的作品列表，右上角保留「全部诗词」。
+ * 集子 → 作者统计：按姓首字母分组（右侧 A–Z 直达），每组里按全拼排，
+ * 名字后面是收录作品数；点名字进该作者的作品列表，头部保留「全部诗词」。
  */
 export default function CollectionAuthorsScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -49,6 +53,9 @@ export default function CollectionAuthorsScreen() {
   const [active, setActive] = useState<string | undefined>(undefined);
 
   const listRef = useRef<SectionListType<AuthorStat, AuthorSection>>(null);
+  /** 正在跳的分组；`onScrollToIndexFailed` 靠它知道该重试哪一段 */
+  const pending = useRef<number | null>(null);
+  const retries = useRef(0);
 
   useEffect(() => {
     const coll = id ?? '';
@@ -76,21 +83,52 @@ export default function CollectionAuthorsScreen() {
     };
   }, [db, id]);
 
-  const jumpTo = useCallback((letter: string) => {
-    const index = sections.findIndex((s) => s.initial === letter);
-    if (index < 0) return;
-    setActive(letter);
+  const scrollToSection = useCallback((sectionIndex: number, animated: boolean) => {
     try {
       listRef.current?.scrollToLocation({
-        sectionIndex: index,
+        sectionIndex,
         itemIndex: 0,
         viewPosition: 0,
-        animated: true,
+        animated,
       });
     } catch {
-      // 列表还没量好尺寸（冷启动那一下），滚动失败无所谓，别把页面带崩
+      // 列表还没挂上（冷启动那一下），跳不动就先算了，别把页面带崩
     }
-  }, [sections]);
+  }, []);
+
+  const jumpTo = useCallback(
+    (letter: string) => {
+      const index = sections.findIndex((s) => s.initial === letter);
+      if (index < 0) return;
+      setActive(letter);
+      pending.current = index;
+      retries.current = 0;
+      scrollToSection(index, true);
+    },
+    [sections, scrollToSection],
+  );
+
+  /**
+   * 列表是虚拟化的：没量过的那一段 `scrollToLocation` 会失败（RN 不会自己兜底），
+   * 所以先按平均行高把目标滚进渲染窗口，再让它自己精确跳一次。
+   */
+  const onScrollToIndexFailed = useCallback(
+    (info: { index: number; averageItemLength?: number }) => {
+      const y = Math.max(0, (info.averageItemLength ?? 0) * info.index);
+      try {
+        listRef.current?.getScrollResponder()?.scrollTo({ y, animated: false });
+      } catch {
+        // 拿不到底层 ScrollView 就算了，下面的重试还会再试
+      }
+      const target = pending.current;
+      if (target == null || retries.current >= MAX_SCROLL_RETRY) return;
+      retries.current += 1;
+      setTimeout(() => {
+        if (pending.current === target) scrollToSection(target, true);
+      }, RETRY_DELAY);
+    },
+    [scrollToSection],
+  );
 
   // SectionList 要求这个回调用常量引用（不然每次渲染都会重挂监听）；
   // setActive 本身稳定，所以 useCallback 空依赖就够了
@@ -115,11 +153,6 @@ export default function CollectionAuthorsScreen() {
         <Text style={[styles.missing, { color: colors.faint }]}>未找到该选集</Text>
       ) : (
         <View style={styles.body}>
-          <LetterRail
-            letters={sections.map((s) => s.initial)}
-            active={active}
-            onPick={jumpTo}
-          />
           <SectionList
             ref={listRef}
             testID="author-list"
@@ -129,6 +162,7 @@ export default function CollectionAuthorsScreen() {
             style={styles.list}
             contentContainerStyle={styles.content}
             onViewableItemsChanged={onViewable}
+            onScrollToIndexFailed={onScrollToIndexFailed}
             viewabilityConfig={VIEWABILITY}
             ListHeaderComponent={
               <View style={styles.head}>
@@ -172,13 +206,14 @@ export default function CollectionAuthorsScreen() {
                   {authorLabel(item, script)}
                 </Text>
                 <Text style={[styles.count, { color: colors.sub }]}>{item.count} 首</Text>
-                <Ionicons name="chevron-forward" size={15} color={colors.faint} />
               </Pressable>
             )}
             ListEmptyComponent={
               <Text style={[styles.missing, { color: colors.faint }]}>这个选集里还没有作者</Text>
             }
           />
+          {/* 索引条贴右边，右手拇指够得着，也不挡作者名 */}
+          <LetterRail letters={sections.map((s) => s.initial)} active={active} onPick={jumpTo} />
         </View>
       )}
     </View>
@@ -188,7 +223,7 @@ export default function CollectionAuthorsScreen() {
 const styles = StyleSheet.create({
   body: { flex: 1, flexDirection: 'row' },
   list: { flex: 1 },
-  content: { paddingBottom: 30, paddingRight: 12 },
+  content: { paddingBottom: 30, paddingLeft: 6, paddingRight: 4 },
   head: {
     flexDirection: 'row',
     alignItems: 'center',
