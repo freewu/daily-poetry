@@ -47,7 +47,8 @@
           "savePhotosPermission": "允许「每日诗词」把诗词卡片保存到相册",
           "granularPermissions": []
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "experiments": {
       "reactCompiler": true

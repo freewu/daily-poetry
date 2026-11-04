@@ -21,7 +21,7 @@ function utteranceOf(poem: Poem): string {
   return text.trim();
 }
 
-/** 底部操作栏：收藏 / 朗读 / 复制 / 存图 */
+/** 底部操作栏：收藏 / 朗读 / 复制 / 分享（卡片） */
 export function PoemActions({ poem: raw, onCard }: { poem: Poem; onCard?: () => void }) {
   const db = useSQLiteContext();
   const { colors } = useTheme();
@@ -152,15 +152,15 @@ export function PoemActions({ poem: raw, onCard }: { poem: Poem; onCard?: () => 
       {onCard ? (
         <Pressable
           testID="act-card"
-          accessibilityLabel="生成卡片"
+          accessibilityLabel="保存并分享诗词卡片"
           onPress={onCard}
           style={({ pressed }) => [
             styles.btn,
             { backgroundColor: colors.card, borderColor: colors.line, borderWidth: 1 },
             pressed && styles.pressed,
           ]}>
-          <Ionicons name="image-outline" size={19} color={colors.text} />
-          <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600' }}>存图</Text>
+          <Ionicons name="share-outline" size={19} color={colors.text} />
+          <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600' }}>分享</Text>
         </Pressable>
       ) : null}
     </View>

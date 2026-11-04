@@ -1,5 +1,6 @@
 import { File, Paths } from 'expo-file-system';
 import { Album, Asset, requestPermissionsAsync } from 'expo-media-library';
+import * as Sharing from 'expo-sharing';
 
 import { CARD_ALBUM } from './card';
 
@@ -72,5 +73,23 @@ export async function saveImageToLibrary(uri: string, opts: SaveOptions = {}): P
     return 'saved';
   } catch {
     return 'failed';
+  }
+}
+
+/**
+ * 调系统分享面板把卡片发出去。相册已经存好了，这里失败（web 没有分享能力 /
+ * 用户取消 / 目标 App 报错）都不该影响「已保存」这个结果，所以只返回 boolean。
+ */
+export async function shareImage(uri: string, opts: { title?: string } = {}): Promise<boolean> {
+  try {
+    if (!(await Sharing.isAvailableAsync())) return false;
+    await Sharing.shareAsync(uri, {
+      mimeType: 'image/png',
+      UTI: 'public.png',
+      dialogTitle: opts.title ?? '分享诗词卡片',
+    });
+    return true;
+  } catch {
+    return false;
   }
 }

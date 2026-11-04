@@ -17,7 +17,7 @@ import { captureRef } from 'react-native-view-shot';
 import { ScreenBar } from '@/components/screen-bar';
 import { ShareCard } from '@/components/share-card';
 import { cardFileName } from '@/lib/card';
-import { saveImageToLibrary } from '@/lib/card-save';
+import { saveImageToLibrary, shareImage } from '@/lib/card-save';
 import { getPoem } from '@/lib/db';
 import type { Poem } from '@/lib/types';
 import { useTheme } from '@/theme';
@@ -31,7 +31,7 @@ const HINTS: Record<Exclude<Phase, 'idle' | 'saving'>, string> = {
 };
 
 /**
- * 诗词卡片：把一首诗排成一张笺纸，截图后存进相册。
+ * 诗词卡片：把一首诗排成一张笺纸，截图存进相册，然后弹系统分享面板。
  * 带 ?date= 时是「每日一诗」，底部会印上那天的日期。
  */
 export default function CardScreen() {
@@ -79,6 +79,8 @@ export default function CardScreen() {
       // iOS 必须先授权；Android 10+ 写 MediaStore 不用权限，失败再要
       const result = await saveImageToLibrary(uri, { askFirst: Platform.OS === 'ios', name });
       setPhase(result);
+      // 存好就接着分享（「保存并分享」）；设备没有分享能力的话只保存
+      if (result === 'saved') await shareImage(uri, { title: name });
     } catch {
       setPhase('failed');
     }
@@ -86,7 +88,7 @@ export default function CardScreen() {
 
   const cardWidth = Math.min(width - 48, 420);
   const busy = phase === 'saving';
-  const label = busy ? '正在保存…' : phase === 'saved' ? '已保存到相册' : '保存到相册';
+  const label = busy ? '正在保存…' : phase === 'saved' ? '已保存' : '保存并分享';
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -122,7 +124,7 @@ export default function CardScreen() {
         <View style={{ paddingHorizontal: 20, paddingBottom: Math.max(insets.bottom, 12) }}>
           <Pressable
             testID="card-save"
-            accessibilityLabel="保存到相册"
+            accessibilityLabel="保存到相册并分享"
             disabled={busy}
             onPress={onSave}
             style={({ pressed }) => [
@@ -131,7 +133,7 @@ export default function CardScreen() {
               (pressed || busy) && styles.pressed,
             ]}>
             <Ionicons
-              name={phase === 'saved' ? 'checkmark-circle' : 'download-outline'}
+              name={phase === 'saved' ? 'checkmark-circle' : 'share-outline'}
               size={19}
               color={colors.onAccent}
             />

@@ -28,9 +28,9 @@
   长诗列数超出屏幕时可横向拖动，从最右的第一列读起；列表行仍是横排，方便扫读。
 - **标点可隐**：保留原文标点 / 换成空格（空白断句）两档。仿古版式下不点标点，
   但直接删会让句子黏成一串，所以改成句读间隙；只影响显示，复制与朗读仍带原文标点。
-- **诗词卡片**：一键把诗排成一张笺纸（题目 / 作者 / 正文 / 出处 / 日期戳），
-  截图后存进相册的「每日诗词」文件夹，可直接分享；卡片固定横排、不跟夜间模式，
-  导出的图在哪儿都好看。
+- **诗词卡片 / 分享**：一键把诗排成一张笺纸（题目 / 作者 / 正文 / 出处 / 日期戳），
+  存进相册「每日诗词」后直接弹系统分享面板，发微信 / 存云盘都行；卡片固定横排、
+  不跟夜间模式，导出的图在哪儿都好看。
 - **纸墨主题**：宣纸底、朱砂印、楷体图标；浅色 / 深色 / 跟随系统。
 
 ## 技术栈
@@ -41,7 +41,7 @@
 | 存储 | `expo-sqlite`（SQLiteProvider + assetSource 内置库） |
 | 农历 | `lunar-javascript`（节气 / 节日 / 干支换算） |
 | 朗读 | `expo-speech`（系统 TTS） |
-| 卡片 | `react-native-view-shot`（截图）+ `expo-media-library`（存相册） |
+| 卡片 | `react-native-view-shot`（截图）+ `expo-media-library`（存相册）+ `expo-sharing`（系统分享） |
 | 构建 | Node ≥22 `node:sqlite`（`DatabaseSync`）、OpenCC-js、Python/Pillow（图标） |
 | 工作流 | `just` |
 
@@ -160,9 +160,9 @@ just test-cov        # 生成 coverage/lcov.info
 `assets/poetry.db`（构建产物结构校验）、`theme`（跟随系统 / 持久化）、
 `typography`（字族 / 字号 / 排版 / 语速档位）、`punct`（标点隐显的空白处理）、
 `tts`（语音合成可用性 / 语速档位）、
-`card`（文件名 / 日期戳 / 存相册时的权限编排），
+`card`（文件名 / 日期戳 / 存相册的权限编排 / 分享降级），
 以及路由骨架（入口重定向、根布局、底栏）与六个屏幕、诗文 / 操作栏 / 卡片组件。
-当前：21 套件 / 205 用例，语句覆盖 ~94%、行覆盖 ~97%。
+当前：21 套件 / 210 用例，语句覆盖 ~94%、行覆盖 ~97%。
 
 **② E2E（Maestro）** —— 真机或模拟器上的冒烟流程，断言用的是组件 `testID`：
 
@@ -204,7 +204,7 @@ Windows 的 adb server（见 `tool/android-env.sh`）。缺 adb 时 `just androi
 - [x] 正文字体 / 字号可调（系统字体 / 宋体 / 楷体，四档字号）
 - [x] 横排 / 竖排（自右向左，仿古籍）
 - [x] 标点可隐：空白断句（设置 → 标点）
-- [x] 诗词卡片：截图存相册（`react-native-view-shot` + `expo-media-library`）
+- [x] 诗词卡片：截图存相册 + 系统分享（`react-native-view-shot` + `expo-media-library` + `expo-sharing`）
 - [ ] 注音译注 —— chinese-poetry 语料不含译注；需要额外引入注音（如 pinyin-pro）与
       白话译注数据源后再做
 - [x] EAS 云构建配置（`eas.json` + 应用标识就绪，登录 EAS 账号即可出包）

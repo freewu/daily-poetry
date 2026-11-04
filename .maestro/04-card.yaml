@@ -1,7 +1,7 @@
-# 卡片：今日诗篇 → 存图 → 卡片页应有笺纸与「保存到相册」
+# 卡片：今日诗篇 → 分享 → 卡片页应有笺纸与「保存并分享」
 #
-# 只走到截图之前：写入相册是真的副作用（会在设备/模拟器里留下图片），
-# 权限弹窗在不同系统版本上也不一样，冒烟只验路由与渲染。
+# 只走到截图之前：写入相册、弹系统分享面板都是真副作用（会留图片、
+# 盖住 App），权限弹窗在各系统版本上也不同，冒烟只验路由与渲染。
 appId: com.bluefrog.dailypoetry
 name: 诗词卡片
 ---
@@ -12,7 +12,7 @@ name: 诗词卡片
       id: 'today-poem'
     timeout: 45000
 
-# 底部操作栏的「存图」
+# 底部操作栏的「分享」
 - tapOn:
     id: 'act-card'
 
@@ -20,7 +20,7 @@ name: 诗词卡片
     visible:
       id: 'share-card'
     timeout: 15000
-- assertVisible: '保存到相册'
+- assertVisible: '保存并分享'
 - assertVisible: '每日一诗'
 - takeScreenshot: card
 

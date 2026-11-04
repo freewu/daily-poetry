@@ -22,6 +22,7 @@ jest.mock('expo-media-library', () => ({
   requestPermissionsAsync: jest.fn(),
 }));
 
+const g = globalThis as any;
 const mockShot = jest.requireMock('react-native-view-shot') as { captureRef: jest.Mock };
 const mockMl = jest.requireMock('expo-media-library') as {
   Album: { get: jest.Mock; create: jest.Mock };
@@ -52,7 +53,7 @@ describe('<CardScreen />', () => {
     expect(screen.getByTestId('card-save')).toBeTruthy();
   });
 
-  it('点「保存到相册」：截图 → 存相册 → 提示已保存', async () => {
+  it('点「保存并分享」：截图 → 存相册 → 弹系统分享面板', async () => {
     await renderWithTheme(<CardScreen />, { db: seeded() });
     await waitFor(() => expect(screen.getByTestId('card-save')).toBeTruthy());
 
@@ -65,6 +66,22 @@ describe('<CardScreen />', () => {
       expect.objectContaining({ format: 'png', result: 'tmpfile', fileName: '每日一诗-静夜思' }),
     );
     expect(mockMl.Asset.create).toHaveBeenCalledWith('file:///cache/card.png', { id: 'album' });
+    expect(g.__SHARING__.shareAsync).toHaveBeenCalledWith(
+      'file:///cache/card.png',
+      expect.objectContaining({ mimeType: 'image/png', dialogTitle: '每日一诗-静夜思' }),
+    );
+  });
+
+  it('设备没有分享能力时只存相册，不弹面板', async () => {
+    g.__SHARING__.isAvailableAsync.mockResolvedValueOnce(false);
+    await renderWithTheme(<CardScreen />, { db: seeded() });
+    await waitFor(() => expect(screen.getByTestId('card-save')).toBeTruthy());
+
+    await fireEvent.press(screen.getByTestId('card-save'));
+
+    await waitFor(() => expect(screen.getByText('已保存到相册「每日诗词」')).toBeTruthy());
+    expect(mockMl.Asset.create).toHaveBeenCalled();
+    expect(g.__SHARING__.shareAsync).not.toHaveBeenCalled();
   });
 
   it('带 date 参数时文件名带日期、卡片印日期戳', async () => {
@@ -92,6 +109,8 @@ describe('<CardScreen />', () => {
 
     await waitFor(() => expect(screen.getByTestId('card-result')).toBeTruthy());
     expect(screen.getByText('没有相册权限，去系统设置里允许后再试')).toBeTruthy();
+    // 没存成，自然也不该分享
+    expect(g.__SHARING__.shareAsync).not.toHaveBeenCalled();
   });
 
   it('截图失败时给提示，不会崩', async () => {

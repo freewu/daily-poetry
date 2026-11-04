@@ -23,9 +23,10 @@ jest.mock('expo-file-system', () => {
 });
 
 import { cardFileName, cardStamp, CARD_ALBUM } from '@/lib/card';
-import { saveImageToLibrary } from '@/lib/card-save';
+import { saveImageToLibrary, shareImage } from '@/lib/card-save';
 
 // 工厂在 require 时才跑，所以 mock 里拿不到外面定义的常量，取出来用
+const g = globalThis as any;
 const mockMl = jest.requireMock('expo-media-library') as {
   Album: { get: jest.Mock; create: jest.Mock };
   Asset: { create: jest.Mock };
@@ -138,5 +139,37 @@ describe('saveImageToLibrary', () => {
     mockMl.Asset.create.mockRejectedValue(new Error('boom'));
     expect(await saveImageToLibrary(uri, { askFirst: true, name })).toBe('failed');
     expect(mockMl.requestPermissionsAsync).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('shareImage', () => {
+  const uri = 'file:///cache/每日一诗-静夜思.png';
+
+  it('能分享时交给系统面板，PNG + 中文标题', async () => {
+    expect(await shareImage(uri, { title: '每日一诗-静夜思' })).toBe(true);
+    expect(g.__SHARING__.shareAsync).toHaveBeenCalledWith(uri, {
+      mimeType: 'image/png',
+      UTI: 'public.png',
+      dialogTitle: '每日一诗-静夜思',
+    });
+  });
+
+  it('没传标题就用默认的分享面板标题', async () => {
+    await shareImage(uri);
+    expect(g.__SHARING__.shareAsync).toHaveBeenCalledWith(
+      uri,
+      expect.objectContaining({ dialogTitle: '分享诗词卡片' }),
+    );
+  });
+
+  it('设备不支持分享（web / 没有可分享的 App）→ false，不调面板', async () => {
+    g.__SHARING__.isAvailableAsync.mockResolvedValueOnce(false);
+    expect(await shareImage(uri)).toBe(false);
+    expect(g.__SHARING__.shareAsync).not.toHaveBeenCalled();
+  });
+
+  it('分享面板报错也不抛（相册里已经存好了）', async () => {
+    g.__SHARING__.shareAsync.mockRejectedValueOnce(new Error('nope'));
+    expect(await shareImage(uri)).toBe(false);
   });
 });

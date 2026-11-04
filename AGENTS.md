@@ -59,7 +59,7 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
   查询本身失败一律当作**支持**——查不到就藏功能比留个按钮更糟；有声音但不是中文也算支持
   （那是引擎语言包问题，不该由 App 替用户判断）。
 
-# 诗词卡片（截图 → 相册）
+# 诗词卡片（截图 → 相册 → 分享）
 
 - `src/app/card/[id].tsx`：`?id=` 取诗，可选 `?date=`（每日一诗那天，印在底部）；
   `captureRef(viewRef)`（`react-native-view-shot`）截外层 `View`，**必须** `collapsable={false}`，
@@ -70,5 +70,8 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
 - 权限：Android 10+ 往 MediaStore 插图片不需要权限，默认直接写、失败才要一次；
   iOS 必须先授权（调用方传 `askFirst`）。`app.json` 里的 `photosPermission` /
   `savePhotosPermission` 是 iOS 的用途文案。
+- `src/lib/card-save.ts` 的 `shareImage()`：存成之后调 `expo-sharing` 弹系统面板
+  （`mimeType: image/png` + `UTI: public.png`），返回 boolean —— 分享失败 / web 不支持
+  **不影响「已保存」**，只决定要不要提示。`isAvailableAsync()` 为假时静默跳过。
 - 卡片配色与字号写死在 `src/components/share-card.tsx`，不跟主题、不跟阅读字号：
   导出的图是给别人看的，版面要稳定。

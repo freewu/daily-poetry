@@ -97,6 +97,19 @@ jest.mock('expo-speech', () => ({
   getAvailableVoicesAsync: () => (globalThis as any).__SPEECH__.getAvailableVoicesAsync(),
 }));
 
+// ---------------------------------------------------------------- expo-sharing
+// 默认这台设备能弹分享面板；想验「分享不可用」的用例把 isAvailableAsync 改成 false。
+const sharing = {
+  isAvailableAsync: jest.fn(async () => true),
+  shareAsync: jest.fn(async () => {}),
+};
+g.__SHARING__ = sharing;
+jest.mock('expo-sharing', () => ({
+  isAvailableAsync: () => (globalThis as any).__SHARING__.isAvailableAsync(),
+  shareAsync: (url: string, options?: unknown) =>
+    (globalThis as any).__SHARING__.shareAsync(url, options),
+}));
+
 // ---------------------------------------------------------------- expo-clipboard
 const clipboard = { setStringAsync: jest.fn(async () => true) };
 g.__CLIPBOARD__ = clipboard;
