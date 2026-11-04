@@ -95,8 +95,8 @@ describeDb('assets/poetry.db（随包数据）', () => {
   });
 
   it('选集名 / 体裁也有繁体', async () => {
-    // 标准库（just db）与全量库（just db-full）收录的选集不一样，
-    // 所以逐行校验「每一行都写了繁体」，再点名一个两边都有的选集。
+    // 全量库（just db-full）比标准库多几部杂项，所以逐行校验「每一行都写了繁体」，
+    // 再点名几个两种库都该有的选集。
     const rows = await db.getAllAsync<{ id: string; name: string; name_tw: string; kind_tw: string }>(
       'SELECT id, name, name_tw, kind_tw FROM collections',
     );
@@ -109,9 +109,17 @@ describeDb('assets/poetry.db（随包数据）', () => {
       kind_tw: '詩',
     });
 
-    // 全宋词 / 元曲只在全量库里，标准库不该硬要求
-    const ci = rows.find((r) => r.id === 'ci');
-    if (ci) expect(ci).toMatchObject({ name: '全宋词', name_tw: '全宋詞', kind_tw: '詞' });
+    // 全宋词 / 元曲 属于主体语料（just db 就该在），别再退化成「有就校验」
+    expect(rows.find((r) => r.id === 'ci')).toMatchObject({
+      name: '全宋词',
+      name_tw: '全宋詞',
+      kind_tw: '詞',
+    });
+    expect(rows.find((r) => r.id === 'qu')).toMatchObject({
+      name: '元曲',
+      name_tw: '元曲',
+      kind_tw: '曲',
+    });
   });
 
   it('每日池非空，且一整年轮换不重复、不漏日', async () => {

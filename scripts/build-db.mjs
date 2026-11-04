@@ -59,9 +59,9 @@ function variants(x) {
 /**
  * 库结构版本：改动表结构时 +1，App 端据此判断是否需要替换随包数据库。
  * 只加了新语料、结构没动也要 +1 —— 否则装过旧版的设备会一直用旧库，
- * 新版 App 里看不到新加的集子（3 = 加纳兰性德 / 曹操）。
+ * 新版 App 里看不到新加的集子（3 = 加纳兰性德 / 曹操；4 = 标准库并入全宋词 / 元曲）。
  */
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 /** 每日精选池：始终只用这些精选集 */
 const DAILY_COLLECTIONS = new Set([

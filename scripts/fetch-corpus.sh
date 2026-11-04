@@ -11,8 +11,11 @@ MODE="${1:-standard}"
 DEST="$ROOT/.data/chinese-poetry"
 URL="https://github.com/chinese-poetry/chinese-poetry.git"
 
-STD_DIRS="蒙学 诗经 楚辞 五代诗词 纳兰性德 曹操诗集"
-FULL_DIRS="$STD_DIRS 宋词 元曲 幽梦影 论语 四书五经"
+# 宋词（ci.song.*.json，约 16MB）与元曲（yuanqu.json，约 4MB）算主体语料：
+# `scripts/build-db.mjs` 的主体育法里一直有它们，只放在 full 里会让 `just db`
+# 静默少掉两万多首（见 89507dd 之后的修正）。
+STD_DIRS="蒙学 诗经 楚辞 五代诗词 纳兰性德 曹操诗集 宋词 元曲"
+FULL_DIRS="$STD_DIRS 幽梦影 论语 四书五经"
 
 if [ "$MODE" = "full" ]; then
   DIRS="$FULL_DIRS"
@@ -33,6 +36,15 @@ cd "$DEST"
 # sparse-checkout 会对「工作区里存在但不在 cone 内」的文件（下面手工取的
 # 全唐诗）刷一堆 warning，成功时把 stderr 丢掉，失败再原样报出来。
 if ! out=$(git sparse-checkout set $DIRS 2>&1); then
+  echo "$out"
+  exit 1
+fi
+
+# 关键：`sparse-checkout set` 在「模式没变」时是**空操作**——工作区里被删掉 /
+# 从没取下来的文件不会补回来。于是「先 `just data`（没有宋词元曲）后来
+# `just data-full`」这种升级路径上，宋词 / 元曲就永远取不到（build-db 只会
+# 静默地跳它们）。再拿 checkout 把 cone 里的目录兜一遍，只补缺失的文件。
+if ! out=$(git checkout HEAD -- $DIRS 2>&1); then
   echo "$out"
   exit 1
 fi

@@ -15,19 +15,21 @@ init: deps data db assets
 deps:
     npm install
 
-# 下载主体语料（全唐诗 / 诗经 / 楚辞 / 五代诗词 / 纳兰性德 / 曹操 / 唐诗三百首 / 千家诗）
+# 下载主体语料（全唐诗 / 诗经 / 楚辞 / 五代诗词 / 纳兰性德 / 曹操 / 全宋词 / 元曲 / 唐诗三百首 / 千家诗）
+# 判“已存在”时点名抽查几块语料：只看目录会在旧语料上一直 skip，
+# 于是 build-db 静默地「缺哪块跳哪块」（宋词 / 元曲就是这么“没”的）。
 data:
-    test -d .data/chinese-poetry && echo "语料已存在，跳过下载" || bash scripts/fetch-corpus.sh standard
+    test -f .data/chinese-poetry/宋词/ci.song.0.json && test -f .data/chinese-poetry/元曲/yuanqu.json && test -f .data/chinese-poetry/全唐诗/poet.tang.0.json && echo "语料已存在，跳过下载" || bash scripts/fetch-corpus.sh standard
 
-# 下载全部语料（再含全宋词 / 元曲 / 古文观止 / 幽梦影 / 论语 / 四书 / 蒙学）
+# 下载全部语料（再含古文观止 / 幽梦影 / 论语 / 四书 / 蒙学）
 data-full:
     bash scripts/fetch-corpus.sh full
 
-# 构建 SQLite 数据库 → assets/poetry.db（约 9 万首，简繁双写，约 56MB）
+# 构建 SQLite 数据库 → assets/poetry.db（约 9.1 万首，简繁双写，约 58MB）
 db: deps data
     node scripts/build-db.mjs
 
-# 构建完整语料库（再加杂项，体积约 60MB）
+# 构建完整语料库（再加杂项，约 9.2 万首）
 db-full: deps data-full
     node scripts/build-db.mjs --full
 
