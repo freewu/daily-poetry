@@ -1,8 +1,7 @@
-#!/usr/bin/env python3
 """
 make-assets.py — 生成品牌图标 / 启动图 / 底栏图标
-依赖: Pillow；楷体字形来自 Windows 的 华文楷体 (STKAITI.TTF)；
-底栏图形来自 @expo/vector-icons 内置 Ionicons.ttf。
+依赖: 只要 Pillow。图标上的印章来自根目录 logo.jpg（抠掉纸底、保留印泥原色），
+想换图就替换 logo.jpg 再 `just assets`；底栏图形来自 @expo/vector-icons 内置的 Ionicons.ttf。
 """
 import json
 import os
@@ -11,7 +10,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 IMG = os.path.join(ROOT, "assets", "images")
-KAITI = "/mnt/c/Windows/Fonts/STKAITI.TTF"
+LOGO = os.path.join(ROOT, "logo.jpg")
 IONIC_TTF = os.path.join(
     ROOT,
     "node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf",
@@ -24,66 +23,94 @@ IONIC_MAP = os.path.join(
 # 朱砂 / 米纸 / 墨
 ACCENT = (169, 50, 38, 255)
 PAPER = (244, 237, 218, 255)
-CREAM = (247, 240, 224, 255)
 BLACK = (0, 0, 0, 255)
 
-
-def kaiti(size):
-    return ImageFont.truetype(KAITI, size)
-
-
-def center_text(img, font, text, color, size, dy=0):
-    d = ImageDraw.Draw(img)
-    b = font.getbbox(text)
-    w, h = b[2] - b[0], b[3] - b[1]
-    x = (img.width - w) / 2 - b[0]
-    y = (img.height - h) / 2 - b[1] + dy
-    d.text((x, y), text, font=font, fill=color)
-    return img
+def _ink_mask(im):
+    """印泥像素：够深且偏红（纸纹、投影的零星暗点会被排除）"""
+    rgb = im.load()
+    out = []
+    for y in range(0, im.height, 2):
+        for x in range(0, im.width, 2):
+            r, g, b = rgb[x, y]
+            if (r * 299 + g * 587 + b * 114) // 1000 < 190 and r - b > 40:
+                out.append((x, y))
+    return out
 
 
-def seal(img, glyph, seal_size, glyph_size, accent=ACCENT, cream=CREAM, dy=0):
-    """在 img 中央画一枚朱砂印章 + 楷体字"""
-    d = ImageDraw.Draw(img)
-    x0 = (img.width - seal_size) / 2
-    y0 = (img.height - seal_size) / 2 + dy
-    d.rounded_rectangle((x0, y0, x0 + seal_size, y0 + seal_size), radius=seal_size * 0.16, fill=accent)
-    center_text(img, kaiti(glyph_size), glyph, cream, glyph_size)
+def logo_seal(pad=0.05):
+    """
+    从 logo.jpg 里抠出印章：纸底（L≈230）→ 透明，印泥（L≤190）→ 不透明，
+    中间 32 级做软过渡，于是纸纹噪点不会留下灰点、笔画边缘也不会毛刺。
+    返回裁到印章外框（略留白）的 RGBA，尺寸随原图。
+    """
+    if not os.path.exists(LOGO):
+        raise SystemExit(f"缺少 {LOGO}：图标需要它来出印章")
+    im = Image.open(LOGO).convert("RGB")
+    lum = im.convert("L")
+    alpha = lum.point(lambda v: 255 if v <= 190 else (0 if v >= 222 else round((222 - v) * 255 / 32)))
+
+    # 外框只看印泥的列 / 行分布：柱子/行里印泥像素太少的方向不算（投影、脏点）
+    cols = [0] * im.width
+    rows = [0] * im.height
+    for x, y in _ink_mask(im):
+        cols[x] += 1
+        rows[y] += 1
+    edge = lambda c: [i for i, v in enumerate(c) if v > 10]  # noqa: E731
+    xs, ys = edge(cols), edge(rows)
+    x0, x1, y0, y1 = xs[0], xs[-1] + 1, ys[0], ys[-1] + 1
+    side = round(max(x1 - x0, y1 - y0) * (1 + pad * 2))
+    cx, cy = (x0 + x1) // 2, (y0 + y1) // 2
+    box = (cx - side // 2, cy - side // 2, cx + side // 2, cy + side // 2)
+
+    # 透明处也要填印泥色：缩放时边缘才不会朝纸色漂（透明底上会留一圈白光）
+    dark = [im.getpixel((x, y)) for x, y in _ink_mask(im)]
+    ink = tuple(round(sum(c[i] for c in dark) / len(dark)) for i in range(3))
+    seal_rgb = im.convert("RGBA")
+    flat = Image.new("RGBA", im.size, ink + (0,))
+    flat.paste(seal_rgb, (0, 0), alpha)
+    flat.putalpha(alpha)
+    return flat.crop(box)
 
 
-def icon_seal(canvas, seal_ratio, glyph_ratio, bg=None):
-    """纸底 + 印章（应用图标风格）"""
-    img = Image.new("RGBA", (canvas, canvas), bg or PAPER)
-    seal(img, "诗", int(canvas * seal_ratio), int(canvas * glyph_ratio))
+def save(img, name):
+    """
+    图标主体就是「印泥 + 透明」两色，但原图带纸纹，直接存 RGBA PNG 每张要 400–500KB。
+    量化到 256 色（带 alpha）后体积掉到 1/5，肉眼看不出差别 —— 别改回真彩。
+    """
+    img.convert("RGBA").quantize(
+        colors=256, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.NONE
+    ).save(os.path.join(IMG, name), optimize=True)
+    print(name)
+
+
+def logo_layer(canvas, ratio, bg=None, tint=None):
+    """印章按 ratio（占画布长边的比例）居中贴到 canvas 上；tint=白色可做单色版"""
+    mark = logo_seal()
+    target = int(canvas * ratio)
+    k = target / max(mark.size)
+    mark = mark.resize((max(1, round(mark.width * k)), max(1, round(mark.height * k))), Image.LANCZOS)
+    if tint:
+        white = Image.new("RGBA", mark.size, tint + (0,))
+        white.putalpha(mark.getchannel("A"))
+        mark = white
+    img = Image.new("RGBA", (canvas, canvas), bg or (0, 0, 0, 0))
+    img.alpha_composite(mark, ((canvas - mark.width) // 2, (canvas - mark.height) // 2))
     return img
 
 
 def make_icon():
-    img = icon_seal(1024, 0.60, 0.40)
-    img.save(os.path.join(IMG, "icon.png"))
-    print("icon.png")
+    save(logo_layer(1024, 0.60, bg=PAPER), "icon.png")
 
-    # adaptive foreground（透明底，印章居中安全区内 66%）
-    fg = Image.new("RGBA", (1024, 1024), (0, 0, 0, 0))
-    seal(fg, "诗", 600, 400)
-    fg.save(os.path.join(IMG, "android-icon-foreground.png"))
-    # monochrome：单色字形
-    mono = Image.new("RGBA", (1024, 1024), (0, 0, 0, 0))
-    center_text(mono, kaiti(520), "诗", (255, 255, 255, 255), 520)
-    mono.save(os.path.join(IMG, "android-icon-monochrome.png"))
-    print("android-icon-*.png")
+    # adaptive foreground：透明底，印章落在 66% 安全区内
+    save(logo_layer(1024, 0.59), "android-icon-foreground.png")
+    # monochrome：Android 13 主题图标，系统只取 alpha
+    save(logo_layer(1024, 0.59, tint=(255, 255, 255)), "android-icon-monochrome.png")
 
-    # favicon：红底白字，小尺寸清晰
-    fav = Image.new("RGBA", (192, 192), ACCENT)
-    center_text(fav, kaiti(130), "诗", CREAM, 130)
-    fav.save(os.path.join(IMG, "favicon.png"))
-    print("favicon.png")
+    # favicon：朱砂底白印章，小尺寸也好认
+    save(logo_layer(192, 0.68, bg=ACCENT, tint=(255, 255, 255)), "favicon.png")
 
-    # splash：透明底印章
-    sp = Image.new("RGBA", (1024, 1024), (0, 0, 0, 0))
-    seal(sp, "诗", 640, 440)
-    sp.save(os.path.join(IMG, "splash-icon.png"))
-    print("splash-icon.png")
+    # splash：透明底印章（浅色 / 深色背景都由 app.json 指定）
+    save(logo_layer(1024, 0.62), "splash-icon.png")
 
 
 def make_tab_icons():

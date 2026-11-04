@@ -37,7 +37,7 @@ db-full: deps data-full
 dbcheck:
     node scripts/build-db.mjs --check
 
-# 重新生成品牌图标 / 启动图 / 底栏图标
+# 重新生成品牌图标 / 启动图 / 底栏图标（印章取自根目录 logo.jpg，换图后跑一遍）
 assets:
     python3 scripts/make-assets.py
 

@@ -205,3 +205,20 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
 - 统计页的量：全唐诗 3650 位作者（`quantangshi`）、全宋词 884 个词牌（最多的是浣溪沙 817 首），
   唐诗三百首 75 位，诗经 305 首全是「佚名」→ 只有一个「其他」分组。
   作者作品数之和必须等于集子总首数（测试盯着这条）。
+
+# 图标 / 启动图（`just assets`）
+
+- 全部由 `scripts/make-assets.py`（Pillow）生成，产物在 `assets/images/`：`icon.png`、
+  `android-icon-{foreground,monochrome}.png`、`splash-icon.png`、`favicon.png`、`tab/*.png`。
+  换图标 = 替换根目录 `logo.jpg` 再 `just assets`，别再手改 PNG。
+- 印章是从 `logo.jpg` **抠出来的**：纸底（亮度 ≥222）转透明，印泥（≤190）不透明，
+  中间 32 级软过渡 —— 纸纹噪点不会留灰点、笔画边缘也不毛刺。外框只看「够深且偏红」
+  的列 / 行分布（各取 >10 个印泥像素），投影和脏点撑不大框；crop 后再留 5% 白。
+  **透明像素要填印泥色**，否则缩放时边缘朝纸色漂，透明底上会留一圈白光。
+- 版式沿用老口径：`icon.png` 纸底（`#F4EDDA`）+ 印章占长边 60%，`android-icon-foreground`
+  透明底 59%（落在 66% 安全区内），`splash-icon` 62%，`favicon` 朱砂底 + 白色印章 68%，
+  `monochrome` 是白色剪影（Android 13 主题图标只取 alpha）。
+- 存图前**量化到 256 色**（`save()`）：原图带纸纹，真彩 RGBA 每张 400–500KB，
+  量化后整套 332KB 且肉眼看不出差别。别改回真彩。
+- `logo.jpg` 是**源图**，得跟着仓库走（`just assets` 依赖它）；`tab/*.png` 仍从
+  `@expo/vector-icons` 的 Ionicons.ttf 渲染，跟 `(tabs)/_layout.tsx` 里的图标名对得上。
