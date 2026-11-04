@@ -204,6 +204,47 @@ describeDb('assets/poetry.db（随包数据）', () => {
     }
   });
 
+  it('纳兰性德 / 曹操 两部新集子都在，且进了每日池', async () => {
+    const rows = await db.getAllAsync<{ id: string; count: number; daily: number }>(
+      "SELECT id, count, daily FROM collections WHERE id IN ('nalan','caocao') ORDER BY id",
+    );
+    // daily 是「算不算精选集」的标志位，不是首数
+    expect(rows).toEqual([
+      { id: 'caocao', count: 26, daily: 1 },
+      { id: 'nalan', count: 258, daily: 1 },
+    ]);
+    expect(await db.getFirstAsync<{ n: number }>("SELECT COUNT(*) n FROM poems WHERE collection = 'nalan' AND daily = 0")).toEqual({ n: 0 });
+  });
+
+  it('纳兰 / 曹操是简体源，繁体列由 OpenCC 转写（不是照抄简体）', async () => {
+    const ci = await db.getFirstAsync<Poem>(
+      "SELECT * FROM poems WHERE collection = 'nalan' AND title = '长相思·山一程'",
+    );
+    expect(ci?.content_tw).toContain('榆關');
+    expect(ci?.title_tw).toContain('長相思');
+    expect(ci?.content).toContain('榆关');
+
+    // 曹操集里「於铄贤圣」的「於」不能把整首误判成繁体源（曾经踩过：繁体列存成了简体）
+    const cao = await db.getFirstAsync<Poem>(
+      "SELECT * FROM poems WHERE collection = 'caocao' AND title = '度关山'",
+    );
+    expect(cao?.content).toContain('于铄贤圣');
+    expect(cao?.content_tw).toContain('於鑠賢聖');
+    expect(cao?.author_tw).toBe('曹操');
+    expect(cao?.dynasty).toBe('东汉');
+  });
+
+  it('纳兰那首缺题目的词用首句补了题目（不留空标题）', async () => {
+    const empty = await db.getFirstAsync<{ n: number }>(
+      "SELECT COUNT(*) n FROM poems WHERE collection IN ('nalan','caocao') AND (TRIM(title) = '' OR TRIM(content) = '')",
+    );
+    expect(empty).toEqual({ n: 0 });
+    const noTitle = await db.getFirstAsync<Poem>(
+      "SELECT * FROM poems WHERE collection = 'nalan' AND content LIKE '朔风吹古柳%'",
+    );
+    expect(noTitle?.title).toBe('朔风吹古柳');
+  });
+
   it('作者统计：数量对得上选集，名家的首字母也对', async () => {
     const tang = await authorsOfCollection(asDb(db), 'tangshi');
     const count = await db.getFirstAsync<{ n: number }>(

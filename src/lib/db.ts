@@ -8,10 +8,10 @@ export const DB_NAME = 'poetry.db';
 
 /**
  * 随包数据库的结构版本，与 scripts/build-db.mjs 的 SCHEMA_VERSION 对应。
- * 不一致时（老版本安装、旧库缺繁体列）启动会换用随包新库，收藏/足迹按
- * 「题目 + 作者 + 首句」重新对上（见 lib/db-bootstrap.ts）。
+ * 不一致时（老版本安装、旧库缺繁体列、只多了新语料）启动会换用随包新库，
+ * 收藏/足迹按「题目 + 作者 + 首句」重新对上（见 lib/db-bootstrap.ts）。
  */
-export const DB_SCHEMA_VERSION = 2;
+export const DB_SCHEMA_VERSION = 3;
 
 // ---------------------------------------------------------------- 设置 KV
 export async function getSetting(db: SQLiteDatabase, key: string): Promise<string | null> {

@@ -20,13 +20,17 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
 
 # 数据与简繁
 
-- 语料在 `.data/chinese-poetry`（`just data`），库产物 `assets/poetry.db`（`just db`，不入库）。
+- 语料在 `.data/chinese-poetry`（`just data`；`data-full` 再多取宋词 / 元曲 / 古文等），
+  库产物 `assets/poetry.db`（`just db`，不入库）。标准模式下九部集子共 59279 首
+  （全唐诗 57599 + 唐诗三百首 320 + 千家诗 214 + 诗经 305 + 楚辞 65 + 花间集 447 + 南唐词 45
+  + 纳兰性德词 258 + 曹操诗集 26），每日池 1680 首。
   全唐诗 目录里混着全宋诗，`scripts/fetch-corpus.sh` 只按需取 `poet.tang.*.json` + `唐诗补录.json`。
 - 简繁双写：`*_tw` 列存繁體（繁体语料原样保留、简体源用 OpenCC `cn→tw`），
   `content/title/...` 存简体。App 端 `src/lib/script.ts` 的 `localizePoem()` 只做字段挑选，
   不引运行时转换库；检索同时 LIKE 简体列与繁体列。
 - 改表结构必须同时改：`scripts/build-db.mjs` 的 `SCHEMA_VERSION`、`src/lib/db.ts` 的
   `DB_SCHEMA_VERSION`、`__tests__/helpers/memory-db.ts` 的 `SCHEMA`。
+  **只加语料、结构没动也要把 `SCHEMA_VERSION` +1**：换库只认这个号，不升号老设备永远用旧库。
   版本不一致时 `src/lib/db-bootstrap.ts` 会在启动时覆盖随包库，并按「题目 + 作者 + 首句」把收藏 / 足迹写回。
   覆盖会整份替换 `meta` 表，所以新增偏好设置时**必须**加进 `KEPT_SETTINGS` 白名单，
   否则换库会把用户设置重置（现有：`settings_theme / settings_push / settings_daily_gap /
@@ -46,7 +50,7 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
   按题目检索，题目无命中再退到正文；命中集合按 `日期 + 节日 id` 的种子随机取一首
   （同一天稳定，来年换一首）。`ORDER BY daily DESC` 让精选池优先，冷门节气靠全库兜底；
   全库也没有才回退平日轮换（`pickPoemForDate` 的 `occasion: false`）。
-- 24 个节气里大半在 1396 首精选池中零命中（立夏 0/2、小满 0/1…），所以应景检索**不能再**限定
+- 24 个节气里大半在 1680 首精选池中零命中（立夏 0/2、小满 0/1…），所以应景检索**不能再**限定
   `daily = 1`，否则等于没做。
 - 挑诗器按「库实例 + 档位」缓存在 `WeakMap` 里（一次会话只建一次，逐日推到今天约 8ms）；
   测试里换 db 实例会重建，别把 20 多万次的循环写进断言。
@@ -123,9 +127,14 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
   - 「佚名」「无名氏」「无名」「不详」在 `ANON_NAMES` 里，**统一进 `#`（其他）**，
     否则会按拼音排进 Y / W 冒充真作者；没署名（空串）同样进 `#`，显示为「佚名」。
   - 组间 A→Z 且 `#` 最后（`compareLetters`），组内按全拼再按名字；空串 sortKey 用 `\uffff` 垫底。
-- 左侧字母条 `src/components/letter-rail.tsx` 只渲染**实际存在**的字母（分组就是字母表），
+- 字母条 `src/components/letter-rail.tsx` 贴在**右侧**（拇指够得着、也不压作者名），
+  只渲染**实际存在**的字母（分组就是字母表），
   `SectionList` 的 `onViewableItemsChanged` 用 `useCallback([])`（RN 要求常量引用，
-  而 `react-hooks/refs` 规则禁止渲染期读 `ref.current`）；`scrollToLocation` 外面必须 try/catch，
-  冷启动那一下列表还没量好尺寸，会抛 `scrollToIndex` 相关异常。
+  而 `react-hooks/refs` 规则禁止渲染期读 `ref.current`）；`scrollToLocation` 外面必须 try/catch。
+- **点字母不生效的坑**：`SectionList` 是虚拟化的，没量过的分段 `scrollToLocation` 会失败
+  ——没有 `getItemLayout` 又没给 `onScrollToIndexFailed` 时，RN 只打一行 warning 就静默不动
+  （看起来就是「点了没反应」，高亮却换了）。现在的做法：`onScrollToIndexFailed` 里先按
+  `averageItemLength * index` 用 `getScrollResponder().scrollTo()` 粗滚一脚，再隔 80ms 精确重试，
+  最多 3 次（`pending` / `retries` 两个 ref 记着跳的是哪一段）。要改这块记得别把这两个 ref 删了。
 - 统计页的量：全唐诗 3650 位作者（`quantangshi`），唐诗三百首 75 位，
   诗经 305 首全是「佚名」→ 只有一个「其他」分组。作者作品数之和必须等于集子总首数（测试盯着这条）。

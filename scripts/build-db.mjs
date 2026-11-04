@@ -3,8 +3,8 @@
  * build-db.mjs — 把 chinese-poetry 语料导入 SQLite（assets/poetry.db）
  *
  * 用法:
- *   node scripts/build-db.mjs                # 主体语料：唐诗三百首/千家诗/全唐诗/诗经/楚辞/五代诗词/全宋词/元曲
- *   node scripts/build-db.mjs --full         # 再加杂项：古文观止/纳兰/曹操/幽梦影/论语/四书/蒙学
+ *   node scripts/build-db.mjs                # 主体语料：唐诗三百首/千家诗/全唐诗/诗经/楚辞/五代诗词/全宋词/元曲/纳兰/曹操
+ *   node scripts/build-db.mjs --full         # 再加杂项：古文观止/幽梦影/论语/四书/蒙学
  *   node scripts/build-db.mjs --data <dir>   # 指定语料目录（默认 .data/chinese-poetry）
  *   node scripts/build-db.mjs --out <file>   # 指定输出文件（默认 assets/poetry.db）
  *   node scripts/build-db.mjs --check        # 只校验已有 DB，不重建
@@ -43,16 +43,25 @@ const s = (x) => (typeof x === 'string' ? x.trim() : '');
  * - cn：统一转成大陆简体（检索、默认显示都用它）
  * - tw：源文已是繁体就原样保留（保真），否则用 OpenCC cn→tw 转一份
  * 这样两种字体都是“无损”的，App 端不需要任何转换库。
+ *
+ * 「源文是不是繁体」得看 `toTw(src)` 会不会改动它，不能拿 `cn === src` 判断：
+ * 曹操诗集是简体，但里面「於铄贤圣」的「於」会被 t→cn 转成「于」，那样
+ * `cn !== src` 就会误判成繁体源，整首的 `content_tw` 直接存成简体。
  */
 function variants(x) {
   const src = s(x);
   if (!src) return ['', ''];
   const cn = toCn(src);
-  return [cn, cn === src ? toTw(cn) : src];
+  const tw = toTw(src);
+  return [cn, tw === src ? src : tw];
 }
 
-/** 库结构版本：改动表结构时 +1，App 端据此判断是否需要替换随包数据库 */
-const SCHEMA_VERSION = 2;
+/**
+ * 库结构版本：改动表结构时 +1，App 端据此判断是否需要替换随包数据库。
+ * 只加了新语料、结构没动也要 +1 —— 否则装过旧版的设备会一直用旧库，
+ * 新版 App 里看不到新加的集子（3 = 加纳兰性德 / 曹操）。
+ */
+const SCHEMA_VERSION = 3;
 
 /** 每日精选池：始终只用这些精选集 */
 const DAILY_COLLECTIONS = new Set([
@@ -62,6 +71,8 @@ const DAILY_COLLECTIONS = new Set([
   'chuci',
   'huajianji',
   'nantang',
+  'nalan',
+  'caocao',
 ]);
 
 // ---------------------------------------------------------------- 语料适配
@@ -255,6 +266,15 @@ function parseGuwen() {
   return out;
 }
 
+/** 语料里偶尔有缺题目的（纳兰第 227 首）——按老规矩拿首句当题目 */
+function titleFromLines(title, lines) {
+  const given = s(title);
+  if (given) return given;
+  const head = s(lines[0] ?? '');
+  const firstClause = head.split(/[，。？！、；：,.?!]/)[0] ?? head;
+  return firstClause.slice(0, 12);
+}
+
 /** 纳兰性德: [{title, para, author}] */
 function parseNalan() {
   const arr = loadJson('纳兰性德/纳兰性德诗集.json');
@@ -264,7 +284,8 @@ function parseNalan() {
     if (!Array.isArray(lines) || !lines.length) continue;
     out.push({
       coll: 'nalan', name: '纳兰性德词', kind: '词', dynasty: '清',
-      author: s(it.author || '纳兰性德'), title: s(it.title || ''), subtitle: '', lines: lines.map(s),
+      author: s(it.author || '纳兰性德'), title: titleFromLines(it.title, lines), subtitle: '',
+      lines: lines.map(s),
     });
   }
   return out;
@@ -278,7 +299,8 @@ function parseCaocao() {
     if (!Array.isArray(it.paragraphs) || !it.paragraphs.length) continue;
     out.push({
       coll: 'caocao', name: '曹操诗集', kind: '诗', dynasty: '东汉',
-      author: '曹操', title: s(it.title || ''), subtitle: '', lines: it.paragraphs.map(s),
+      author: '曹操', title: titleFromLines(it.title, it.paragraphs), subtitle: '',
+      lines: it.paragraphs.map(s),
     });
   }
   return out;
@@ -370,10 +392,10 @@ const PARSERS = (full) => [
   [parseNantang, 'nantang'],
   [parseCiSong, 'ci'],
   [parseYuanqu, 'qu'],
+  [parseNalan, 'nalan'],
+  [parseCaocao, 'caocao'],
   ...(full ? [
     [parseGuwen, 'guwen'],
-    [parseNalan, 'nalan'],
-    [parseCaocao, 'caocao'],
     [parseYoumengying, 'youmengying'],
     [() => parseClassic('论语/lunyu.json', 'lunyu', '论语', '孔子及弟子', '春秋'), 'lunyu'],
     [() => parseClassic('四书五经/daxue.json', 'daxue', '大学', '曾参', '春秋'), 'daxue'],

@@ -15,11 +15,11 @@ init: deps data db assets
 deps:
     npm install
 
-# 下载主体语料（全唐诗 / 全宋词 / 元曲 / 诗经 / 楚辞 / 五代诗词 / 唐诗三百首 / 千家诗）
+# 下载主体语料（全唐诗 / 诗经 / 楚辞 / 五代诗词 / 纳兰性德 / 曹操 / 唐诗三百首 / 千家诗）
 data:
     test -d .data/chinese-poetry && echo "语料已存在，跳过下载" || bash scripts/fetch-corpus.sh standard
 
-# 下载全部语料（再含古文观止 / 纳兰 / 曹操 / 幽梦影 / 论语 / 四书 / 蒙学）
+# 下载全部语料（再含全宋词 / 元曲 / 古文观止 / 幽梦影 / 论语 / 四书 / 蒙学）
 data-full:
     bash scripts/fetch-corpus.sh full
 

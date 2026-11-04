@@ -11,8 +11,8 @@ MODE="${1:-standard}"
 DEST="$ROOT/.data/chinese-poetry"
 URL="https://github.com/chinese-poetry/chinese-poetry.git"
 
-STD_DIRS="蒙学 诗经 楚辞 五代诗词"
-FULL_DIRS="$STD_DIRS 宋词 元曲 纳兰性德 曹操诗集 幽梦影 论语 四书五经"
+STD_DIRS="蒙学 诗经 楚辞 五代诗词 纳兰性德 曹操诗集"
+FULL_DIRS="$STD_DIRS 宋词 元曲 幽梦影 论语 四书五经"
 
 if [ "$MODE" = "full" ]; then
   DIRS="$FULL_DIRS"
