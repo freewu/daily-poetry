@@ -20,17 +20,25 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
 
 # 数据与简繁
 
-- 语料在 `.data/chinese-poetry`（`just data`；`data-full` 再多取宋词 / 元曲 / 古文等），
-  库产物 `assets/poetry.db`（`just db`，不入库）。标准模式下九部集子共 59279 首
-  （全唐诗 57599 + 唐诗三百首 320 + 千家诗 214 + 诗经 305 + 楚辞 65 + 花间集 447 + 南唐词 45
-  + 纳兰性德词 258 + 曹操诗集 26），每日池 1680 首。
+- 语料在 `.data/chinese-poetry`（`just data`；`data-full` 再多取古文观止 / 幽梦影 / 论语 / 四书 / 蒙学），
+  库产物 `assets/poetry.db`（`just db`，不入库）。标准模式下十一部集子共 91234 首
+  （全唐诗 57599 + 全宋词 21049 + 元曲 10906 + 唐诗三百首 320 + 千家诗 214 + 诗经 305
+  + 楚辞 65 + 花间集 447 + 南唐词 45 + 纳兰性德词 258 + 曹操诗集 26），每日池 1680 首。
+  全宋词 / 元曲 属于主体语料，**不能**只放在 `FULL_DIRS` 里：`scripts/build-db.mjs` 的主体育法
+  一直包含它们，语料缺失时只会「缺哪块跳哪块」地静默少两万多首。
   全唐诗 目录里混着全宋诗，`scripts/fetch-corpus.sh` 只按需取 `poet.tang.*.json` + `唐诗补录.json`。
+- **坑**：`git sparse-checkout set` 在「模式没变」时是空操作——工作区里被删掉的文件
+  不会补回来，「先 `just data`（旧版没宋词）+ 后 `just data-full`」就永远取不到那两块。
+  所以脚本在 set 之后又跑一遍 `git checkout HEAD -- $DIRS` 兜底；`just data` 的
+  「已存在就跳过」也点名抽查 `宋词/ci.song.0.json`、`元曲/yuanqu.json`、`全唐诗/poet.tang.0.json`
+  而不是只看 `.data/chinese-poetry` 目录。
 - 简繁双写：`*_tw` 列存繁體（繁体语料原样保留、简体源用 OpenCC `cn→tw`），
   `content/title/...` 存简体。App 端 `src/lib/script.ts` 的 `localizePoem()` 只做字段挑选，
   不引运行时转换库；检索同时 LIKE 简体列与繁体列。
 - 改表结构必须同时改：`scripts/build-db.mjs` 的 `SCHEMA_VERSION`、`src/lib/db.ts` 的
   `DB_SCHEMA_VERSION`、`__tests__/helpers/memory-db.ts` 的 `SCHEMA`。
   **只加语料、结构没动也要把 `SCHEMA_VERSION` +1**：换库只认这个号，不升号老设备永远用旧库。
+  （4 = 标准库并入全宋词 / 元曲。）
   版本不一致时 `src/lib/db-bootstrap.ts` 会在启动时覆盖随包库，并按「题目 + 作者 + 首句」把收藏 / 足迹写回。
   覆盖会整份替换 `meta` 表，所以新增偏好设置时**必须**加进 `KEPT_SETTINGS` 白名单，
   否则换库会把用户设置重置（现有：`settings_theme / settings_push / settings_daily_gap /
@@ -115,26 +123,57 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
 - 卡片配色与字号写死在 `src/components/share-card.tsx`，不跟主题、不跟阅读字号：
   导出的图是给别人看的，版面要稳定。
 
-# 作者统计（集子 → 作者 → 作品）
+# 集子（诗词列表 / 作者统计 / 词牌）
 
-- 路由改成「目录 + 文件」：`src/app/collection/[id]/index.tsx`（作者统计，也就是点集子的落点）、
-  `src/app/collection/[id]/poems.tsx`（全部诗词，右上「全部诗词」进）、
-  `src/app/author/[name].tsx`（某位作者在这个集子里的作品，参数 `name` / `coll` / `tw`）。
-  `[id].tsx` 和 `[id]/index.tsx` 不能共存，改结构时别再写回单文件。
+- 路由：`src/app/collection/[id]/index.tsx` 是**集子的落点页 —— 全部诗词**（`poems.tsx` 已并入，
+  别再建回单页），顶栏右侧两个 `BarLink`：「按作者」→ `collection/[id]/authors.tsx`，
+  词集才有的「按词牌」→ `collection/[id]/cipai/index.tsx`；
+  `collection/[id]/cipai/[name].tsx` 是某个词牌的作品，`author/[name].tsx` 是某位作者的作品
+  （参数 `name` / `coll` / `tw` / `id`）。
+  `[id].tsx` 和 `[id]/index.tsx` 不能共存（`cipai.tsx` 与 `cipai/[name].tsx` 同理，所以词牌统计页是
+  `cipai/index.tsx`），改结构时别再写回单文件；新增子页要同步 `_layout.tsx` 的
+  `Stack.Screen name="collection/[id]/xxx"`。
+  两个统计页的「全部诗词」走 `useBackOr()`（`src/components/bar-link.tsx`）：能返回就返回，
+  深链直接进来（没有上一页）才 push 列表页。
+- **作者表 / 词牌表是同一个组件**：`src/components/indexed-list.tsx` 的 `IndexedList`
+  （分组标题 + 行 + 右侧字母条 + `getItemLayout`）。作者和词牌都是「首字母分组、组内数量多的在前、
+  名字后面跟收录数、点进去看作品」，展示形式一旦分两份写就必然长歪。
+  它只收 `{ name, nameTw?, count }[]` 按首字母分好组的数据 + 三个回调（`labelOf` / `testIDOf` / `onPick`），
+  行的渲染、行高、跳转全在里面。
+- **词牌**（`src/lib/cipai.ts`）：库里没有这一列，现算。
+  - 副题里有词牌就用副题（花间集是「卷N·词牌」要剥卷次），否则看题目：
+    **`·`（U+00B7）取前段**（『长相思·山一程』），**`・`（U+30FB）取后段**
+    ——全宋词 2377 首写的是「别名・正名」（『酹江月・念奴娇』『凤栖梧・蝶恋花』），
+    按别名各算一词牌会抖出 1409 个名字，认正名后归并成 884 个。两个字符长得很像，别合并处理。
+  - 全宋词的词牌**就在题目里**（`ci.song.*.json` 只有 rhythmic，建库时写进了 title），
+    花间集 / 南唐词的副题才是 rhythmic。所以别改成只读 `subtitle`，那会让 2 万首全宋词变哑巴。
+  - 只有 `kind === '词'` 的集子出词牌页（元曲是曲牌，没做），诗集进去直说「没有词牌」。
+  - 词牌统计、分词牌取作品都是**内存**算的（整集本来就一次装载，全宋词 2.1 万首）。
+    `poemsOfCipai()`（`src/lib/db.ts`）先用 `title/subtitle LIKE '%词牌%'` 抄个超集，
+    再用 `cipaiOf()` **精确比对**删掉误伤 —— 「念奴娇」的 LIKE 超集 608 首里就有 1 首不是它。
+  - 排序复用 `groupAuthors()`（词牌统计的产物形状跟 `AuthorStat` 一模一样），没另写一套分组。
 - 首字母 / 排序全在 `src/lib/authors.ts`，用 `pinyin-pro` 现算（不落库、不加列、不改 schema）：
   - `pinyin(name, { surname: 'all' })` 才能把 曾 / 单 / 仇 / 查 / 乐 按姓氏读；
     仍有个别（如「尉迟恭」的尉）按常用音读，属于可接受的误差。
   - 「佚名」「无名氏」「无名」「不详」在 `ANON_NAMES` 里，**统一进 `#`（其他）**，
     否则会按拼音排进 Y / W 冒充真作者；没署名（空串）同样进 `#`，显示为「佚名」。
-  - 组间 A→Z 且 `#` 最后（`compareLetters`），组内按全拼再按名字；空串 sortKey 用 `\uffff` 垫底。
-- 字母条 `src/components/letter-rail.tsx` 贴在**右侧**（拇指够得着、也不压作者名），
+  - 组间 A→Z 且 `#` 最后（`compareLetters`）；**组内先比作品数（降序）**，同数再按全拼、
+    再按名字；空串 sortKey 用 `\uffff` 垫底。作品数是这本集子里的收录数
+    （`COUNT(*) GROUP BY author`），不是诗人一生的总量。
+- 字母条 `src/components/letter-rail.tsx` 贴在**右侧**（拇指够得着、也不压名字），
   只渲染**实际存在**的字母（分组就是字母表），
   `SectionList` 的 `onViewableItemsChanged` 用 `useCallback([])`（RN 要求常量引用，
   而 `react-hooks/refs` 规则禁止渲染期读 `ref.current`）；`scrollToLocation` 外面必须 try/catch。
 - **点字母不生效的坑**：`SectionList` 是虚拟化的，没量过的分段 `scrollToLocation` 会失败
-  ——没有 `getItemLayout` 又没给 `onScrollToIndexFailed` 时，RN 只打一行 warning 就静默不动
-  （看起来就是「点了没反应」，高亮却换了）。现在的做法：`onScrollToIndexFailed` 里先按
-  `averageItemLength * index` 用 `getScrollResponder().scrollTo()` 粗滚一脚，再隔 80ms 精确重试，
-  最多 3 次（`pending` / `retries` 两个 ref 记着跳的是哪一段）。要改这块记得别把这两个 ref 删了。
-- 统计页的量：全唐诗 3650 位作者（`quantangshi`），唐诗三百首 75 位，
-  诗经 305 首全是「佚名」→ 只有一个「其他」分组。作者作品数之和必须等于集子总首数（测试盯着这条）。
+  ——没有 `getItemLayout` 又没给 `onScrollToIndexFailed` 时，RN 只打一行 warning 就静默不动；
+  就算给了 `onScrollToIndexFailed`，它也只能拿 `_averageCellLength`（已量过的那几十格的平均值）
+  去估位置，而「标题 26px / 作者行 44px」混在一起的平均值乘以全唐诗那 3700 个扁平下标，
+  误差是**几百行**（表现：高亮换了，列表停在别的字母）。
+  现在的做法是**直接给精确坐标**：`src/lib/section-layout.ts` 的 `makeSectionLayout()`
+  按「每组 = 1 标题 + n 行 + 1 空尾部」算前缀和，`IndexedList` 把行 / 分组标题的**高度写死**
+  （`ROW_PAD + 行高(字号×1.4)`、`HEAD_H = 26`），列表头部高度靠 `onLayout` 量一次当起点；
+  于是 `scrollToLocation` 一次到位，`onScrollToIndexFailed` / 粗滚重试那套全删掉了。
+  **改行高必须同时改 `getItemLayout` 的口径**，否则跳转就会歪（`sectionsHeight()` 是它的总和）。
+- 统计页的量：全唐诗 3650 位作者（`quantangshi`）、全宋词 884 个词牌（最多的是浣溪沙 817 首），
+  唐诗三百首 75 位，诗经 305 首全是「佚名」→ 只有一个「其他」分组。
+  作者作品数之和必须等于集子总首数（测试盯着这条）。

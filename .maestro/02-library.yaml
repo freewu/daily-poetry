@@ -1,4 +1,4 @@
-# 诗词库：选集卡片 → 作者统计（A–Z 索引）→ 作者作品 → 全文检索 → 诗词详情
+# 诗词库：选集卡片 → 全部诗词 / 词牌检索 → 作者统计（A–Z 索引）→ 作者作品 → 全文检索 → 诗词详情
 appId: com.bluefrog.dailypoetry
 name: 诗词库检索
 ---
@@ -6,9 +6,19 @@ name: 诗词库检索
 - tapOn: '诗词库'
 - assertVisible: '经典与全藏 · 支持全文检索'
 
-# 选集卡片 → 作者统计：左侧 A–Z，作者后面跟收录数量
+# 选集卡片 → 落点就是这本集子的全部诗词
 - tapOn:
     id: 'collection-tang'
+- extendedWaitUntil:
+    visible: '诗 · 共 .* 首'
+    timeout: 15000
+- assertVisible:
+    id: 'collection-poems'
+- takeScreenshot: collection
+
+# 右上「按作者」进作者统计：右侧 A–Z，作者后面跟收录数量
+- tapOn:
+    id: 'collection-authors-link'
 - extendedWaitUntil:
     visible: '.* 位作者 · 共 .* 首'
     timeout: 15000
@@ -16,21 +26,59 @@ name: 诗词库检索
     id: 'letter-rail'
 - takeScreenshot: collection-authors
 
-# 「全部诗词」还是能看整个集子（在列表头部，先点它）
+# 「全部诗词」回到集子的诗词列表
 - tapOn:
     id: 'collection-all-poems'
-- assertVisible: '诗 · 共 .* 首'
-- takeScreenshot: collection
+- assertVisible:
+    id: 'collection-poems'
 - tapOn:
     id: 'screen-back'
 
-# 点字母跳到分组，再点作者进他的作品列表
+# 词集：按词牌统计（跟作者统计同一个样子，全宋词 884 个词牌）
+- tapOn:
+    id: 'collection-ci'
+- extendedWaitUntil:
+    visible:
+      id: 'collection-poems'
+    timeout: 20000
+- tapOn:
+    id: 'collection-cipai-link'
+- extendedWaitUntil:
+    visible: '.* 个词牌 · 共 .* 首'
+    timeout: 20000
+- assertVisible:
+    id: 'letter-rail'
+- takeScreenshot: cipai-index
+- tapOn:
+    id: 'letter-H'
+- tapOn:
+    id: 'cipai-浣溪沙'
+- assertVisible: '.* · 共 .* 首'
+- takeScreenshot: cipai-poems
+- tapOn:
+    id: 'screen-back'
+- tapOn:
+    id: 'screen-back'
+- tapOn:
+    id: 'screen-back'
+
+# 再进作者统计：点字母跳到分组，点作者进他的作品列表
+- tapOn:
+    id: 'collection-tang'
+- tapOn:
+    id: 'collection-authors-link'
+- extendedWaitUntil:
+    visible:
+      id: 'letter-rail'
+    timeout: 15000
 - tapOn:
     id: 'letter-L'
 - tapOn:
     id: 'author-.*'
 - assertVisible: '.* · 共 .* 首'
 - takeScreenshot: author-poems
+- tapOn:
+    id: 'screen-back'
 - tapOn:
     id: 'screen-back'
 - tapOn:
