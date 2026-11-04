@@ -80,16 +80,21 @@ jest.mock('expo-splash-screen', () => ({
 jest.mock('expo-status-bar', () => ({ StatusBar: () => null }));
 
 // ---------------------------------------------------------------- expo-speech
+// 默认这台「设备」装有中文语音；想验「没有语音合成」的用例把 voices 置空，
+// 用完记得在 afterEach 里改回来（见 __tests__/tts-support-test.tsx）。
 const speech = {
   speak: jest.fn(),
   stop: jest.fn(),
   isSpeakingAsync: jest.fn(async () => false),
+  voices: [{ identifier: 'zh-cn', name: '中文（中国）', quality: 1, language: 'zh-CN' }],
+  getAvailableVoicesAsync: jest.fn(async () => (globalThis as any).__SPEECH__.voices),
 };
 g.__SPEECH__ = speech;
 jest.mock('expo-speech', () => ({
   speak: (...args: any[]) => (globalThis as any).__SPEECH__.speak(...args),
   stop: () => (globalThis as any).__SPEECH__.stop(),
   isSpeakingAsync: () => (globalThis as any).__SPEECH__.isSpeakingAsync(),
+  getAvailableVoicesAsync: () => (globalThis as any).__SPEECH__.getAvailableVoicesAsync(),
 }));
 
 // ---------------------------------------------------------------- expo-clipboard

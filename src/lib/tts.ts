@@ -29,3 +29,18 @@ export function rateOf(key: RateKey): number {
 
 /** 试听用的句子（也用于设置页预览） */
 export const SPEECH_SAMPLE = '床前明月光，疑是地上霜。';
+
+/**
+ * 系统里一个语音都没有 → 这台机器朗读不了：Android 没装 / 没启用 TTS 引擎、
+ * 浏览器没有语音合成。只要有声音就算支持（哪怕不是中文——那是引擎语言包的问题，
+ * 把入口藏掉会让用户连试都没法试）。
+ */
+export function canSpeak(voices: readonly unknown[] | null | undefined): boolean {
+  return Array.isArray(voices) && voices.length > 0;
+}
+
+/** Web 上得同时有 SpeechSynthesis 和 SpeechSynthesisUtterance 才能朗读 */
+export function hasWebSpeech(scope: unknown = globalThis): boolean {
+  const g = scope as Partial<{ speechSynthesis: unknown; SpeechSynthesisUtterance: unknown }> | null;
+  return Boolean(g?.speechSynthesis && g?.SpeechSynthesisUtterance);
+}

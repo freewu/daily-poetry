@@ -20,6 +20,12 @@ const poem: Poem = {
 };
 
 const g = globalThis as any;
+const HAD_VOICES = g.__SPEECH__.voices;
+
+afterEach(() => {
+  // 模拟「没有 TTS 引擎」的用例会把 voices 置空，用完改回来
+  g.__SPEECH__.voices = HAD_VOICES;
+});
 
 describe('<PoemActions />', () => {
   it('未收藏时显示「收藏」，点一下写库并变成「已收藏」', async () => {
@@ -112,5 +118,15 @@ describe('<PoemActions />', () => {
   it('没传 onCard 就不显示「存图」', async () => {
     await renderWithTheme(<PoemActions poem={poem} />);
     expect(screen.queryByTestId('act-card')).toBeNull();
+  });
+
+  it('系统没有语音合成时不出「朗读」，其它按钮照旧', async () => {
+    g.__SPEECH__.voices = [];
+    await renderWithTheme(<PoemActions poem={poem} />);
+
+    await waitFor(() => expect(screen.queryByTestId('act-speak')).toBeNull());
+    expect(screen.getByTestId('act-favorite')).toBeTruthy();
+    expect(screen.getByTestId('act-copy')).toBeTruthy();
+    expect(g.__SPEECH__.getAvailableVoicesAsync).toHaveBeenCalled();
   });
 });

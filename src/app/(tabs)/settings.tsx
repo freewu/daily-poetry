@@ -32,6 +32,7 @@ import type {
 } from '@/lib/types';
 import { useScript } from '@/script';
 import { useTheme } from '@/theme';
+import { useTtsSupport } from '@/tts';
 import { useTypography } from '@/typography';
 
 const MODES: { key: ThemeMode; label: string }[] = [
@@ -64,6 +65,8 @@ export default function SettingsScreen() {
   const { colors, mode, setMode } = useTheme();
   const { script, setScript } = useScript();
   const { font, size, layout, punct, scale, setFont, setSize, setLayout, setPunct } = useTypography();
+  // 没有语音合成的机器上整段「朗读」都不显示（语速 / 试听一起收）
+  const tts = useTtsSupport();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -197,28 +200,30 @@ export default function SettingsScreen() {
           </View>
         </Section>
 
-        <Section label="朗读">
-          <SubLabel text="语速" />
-          <Segment
-            testIDPrefix="rate"
-            options={RATE_OPTS}
-            value={rate}
-            onChange={(k: RateKey) => {
-              setRate(k);
-              setSetting(db, 'settings_tts_rate', k).catch(() => {});
-            }}
-            hint={RATE_OPTS.find((o) => o.key === rate)?.hint}
-          />
-          <Row
-            testID="rate-preview"
-            label="试听"
-            value={SPEECH_SAMPLE}
-            onPress={() => {
-              Speech.stop();
-              Speech.speak(SPEECH_SAMPLE, { language: 'zh-CN', rate: rateOf(rate) });
-            }}
-          />
-        </Section>
+        {tts ? (
+          <Section label="朗读">
+            <SubLabel text="语速" />
+            <Segment
+              testIDPrefix="rate"
+              options={RATE_OPTS}
+              value={rate}
+              onChange={(k: RateKey) => {
+                setRate(k);
+                setSetting(db, 'settings_tts_rate', k).catch(() => {});
+              }}
+              hint={RATE_OPTS.find((o) => o.key === rate)?.hint}
+            />
+            <Row
+              testID="rate-preview"
+              label="试听"
+              value={SPEECH_SAMPLE}
+              onPress={() => {
+                Speech.stop();
+                Speech.speak(SPEECH_SAMPLE, { language: 'zh-CN', rate: rateOf(rate) });
+              }}
+            />
+          </Section>
+        ) : null}
 
         <Section label="外观">
           <Segment testIDPrefix="theme" options={MODES} value={mode} onChange={setMode} />

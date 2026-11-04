@@ -53,6 +53,11 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
   只在 `PoemLines` / `PoemRow` 渲染时套，复制与朗读仍是原文标点。
 - 朗读语速在 `src/lib/tts.ts`，`expo-speech` 的 `rate` 是倍率（1.0 = 系统默认，中文偏快，
   所以「标准」= 0.9）。`PoemActions` 每次朗读现读设置，改完不用重启。
+- 朗读入口的显示条件在 `src/tts.ts` 的 `useTtsSupport()`：web 同步看 `speechSynthesis`，
+  原生 `getAvailableVoicesAsync()` 空数组（没装 / 没启用 TTS 引擎）就收起。没有语音合成时
+  `PoemActions` 不画「朗读」，设置页整段「朗读」（语速 + 试听）也不画。
+  查询本身失败一律当作**支持**——查不到就藏功能比留个按钮更糟；有声音但不是中文也算支持
+  （那是引擎语言包问题，不该由 App 替用户判断）。
 
 # 诗词卡片（截图 → 相册）
 

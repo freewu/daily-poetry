@@ -12,6 +12,7 @@ import { DEFAULT_RATE_KEY, isRateKey, rateOf } from '@/lib/tts';
 import type { Poem } from '@/lib/types';
 import { useScript } from '@/script';
 import { useTheme } from '@/theme';
+import { useTtsSupport } from '@/tts';
 
 /** 朗读文本：题目、作者与正文拼成一段，句读规整 */
 function utteranceOf(poem: Poem): string {
@@ -27,6 +28,8 @@ export function PoemActions({ poem: raw, onCard }: { poem: Poem; onCard?: () => 
   const { script } = useScript();
   // 朗读 / 复制也跟着简繁走
   const poem = localizePoem(raw, script);
+  // 这台机器没有语音合成时不显示「朗读」（见 src/tts.ts）
+  const tts = useTtsSupport();
   const [fav, setFav] = useState(false);
   const [copied, setCopied] = useState(false);
   const [speaking, setSpeaking] = useState(false);
@@ -104,26 +107,28 @@ export function PoemActions({ poem: raw, onCard }: { poem: Poem; onCard?: () => 
         </Text>
       </Pressable>
 
-      <Pressable
-        testID="act-speak"
-        accessibilityLabel={speaking ? '停止朗读' : '朗读'}
-        onPress={onSpeak}
-        style={({ pressed }) => [
-          styles.btn,
-          speaking
-            ? { backgroundColor: colors.accent }
-            : { backgroundColor: colors.card, borderColor: colors.line, borderWidth: 1 },
-          pressed && styles.pressed,
-        ]}>
-        <Ionicons
-          name={speaking ? 'stop-circle' : 'volume-high-outline'}
-          size={19}
-          color={speaking ? colors.onAccent : colors.text}
-        />
-        <Text style={{ color: speaking ? colors.onAccent : colors.text, fontSize: 15, fontWeight: '600' }}>
-          {speaking ? '停止' : '朗读'}
-        </Text>
-      </Pressable>
+      {tts ? (
+        <Pressable
+          testID="act-speak"
+          accessibilityLabel={speaking ? '停止朗读' : '朗读'}
+          onPress={onSpeak}
+          style={({ pressed }) => [
+            styles.btn,
+            speaking
+              ? { backgroundColor: colors.accent }
+              : { backgroundColor: colors.card, borderColor: colors.line, borderWidth: 1 },
+            pressed && styles.pressed,
+          ]}>
+          <Ionicons
+            name={speaking ? 'stop-circle' : 'volume-high-outline'}
+            size={19}
+            color={speaking ? colors.onAccent : colors.text}
+          />
+          <Text style={{ color: speaking ? colors.onAccent : colors.text, fontSize: 15, fontWeight: '600' }}>
+            {speaking ? '停止' : '朗读'}
+          </Text>
+        </Pressable>
+      ) : null}
 
       <Pressable
         testID="act-copy"

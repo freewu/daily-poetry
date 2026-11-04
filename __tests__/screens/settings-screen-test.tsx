@@ -6,6 +6,12 @@ import SettingsScreen from '@/app/(tabs)/settings';
 import { asDb, renderWithTheme, screen, seedPoems, useMemoryDb } from '../helpers/test-utils';
 
 const g = globalThis as any;
+const HAD_VOICES = g.__SPEECH__.voices;
+
+afterEach(() => {
+  // 模拟「没有 TTS 引擎」的用例会把 voices 置空，用完改回来
+  g.__SPEECH__.voices = HAD_VOICES;
+});
 
 /** 预览正文的样式（PoemLines 传的是数组，flatten 一下好断言） */
 function previewStyle(): TextStyle {
@@ -179,6 +185,17 @@ describe('<SettingsScreen />', () => {
     await waitFor(() => expect(screen.getByText('正文字号 24，适合小屏长读')).toBeTruthy());
     expect(screen.getByText('0.7× 语速，一句一句听得清')).toBeTruthy();
     expect(previewStyle().fontFamily).toBe('serif');
+  });
+
+  it('系统没有语音合成时整段「朗读」都不显示（语速 / 试听一起收）', async () => {
+    g.__SPEECH__.voices = [];
+    await renderWithTheme(<SettingsScreen />, { db: await seed() });
+    await waitFor(() => expect(screen.getByTestId('theme-dark')).toBeTruthy());
+
+    // 「朗读」标题、语速档位、试听全部不出现
+    expect(screen.queryByText('朗读')).toBeNull();
+    expect(screen.queryByTestId('rate-normal')).toBeNull();
+    expect(screen.queryByTestId('rate-preview')).toBeNull();
   });
 
   it('切换主题并落库', async () => {
