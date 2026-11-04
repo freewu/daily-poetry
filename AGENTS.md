@@ -29,8 +29,27 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
   `DB_SCHEMA_VERSION`、`__tests__/helpers/memory-db.ts` 的 `SCHEMA`。
   版本不一致时 `src/lib/db-bootstrap.ts` 会在启动时覆盖随包库，并按「题目 + 作者 + 首句」把收藏 / 足迹写回。
   覆盖会整份替换 `meta` 表，所以新增偏好设置时**必须**加进 `KEPT_SETTINGS` 白名单，
-  否则换库会把用户设置重置（现有：`settings_theme / settings_push / settings_script /
-  settings_font / settings_font_size / settings_layout / settings_punct / settings_tts_rate`）。
+  否则换库会把用户设置重置（现有：`settings_theme / settings_push / settings_daily_gap /
+  settings_script / settings_font / settings_font_size / settings_layout / settings_punct /
+  settings_tts_rate`）。
+
+# 每日推送（作者冷却 / 应景）
+
+- 平日挑诗在 `src/lib/daily.ts`（纯函数，可单测）：以 1960-01-01 为起点逐日往前推，
+  每天用 `dayNumber` 做种子的 mulberry32 抽**一位作者**，跳过最近 N 天出现过的，
+  再从该作者的诗里抽一首 —— 「N 天内不重复作者」是构造出来的，不是抽完再筛。
+  因此同一天在任何设备上都是同一首；作者数少于 N 时按作者数退化成轮流；
+  没署名的诗统一算一位「佚名」（冷却身份只在挑选器内部用，不展示）。
+- `settings_daily_gap`（`0|3|7|14|30`，默认 `7`）只影响平日轮换；档位表是 `GAP_OPTS`，
+  设置页「每日推送 → 作者间隔」用 `Segment` 渲染，未命中值走 `gapKeyOf()` 退回默认。
+- 应景（`poemForOccasion`）：拿节日 / 节气名（`occasion.label` + `keywords` 别名）在**全库**
+  按题目检索，题目无命中再退到正文；命中集合按 `日期 + 节日 id` 的种子随机取一首
+  （同一天稳定，来年换一首）。`ORDER BY daily DESC` 让精选池优先，冷门节气靠全库兜底；
+  全库也没有才回退平日轮换（`pickPoemForDate` 的 `occasion: false`）。
+- 24 个节气里大半在 1396 首精选池中零命中（立夏 0/2、小满 0/1…），所以应景检索**不能再**限定
+  `daily = 1`，否则等于没做。
+- 挑诗器按「库实例 + 档位」缓存在 `WeakMap` 里（一次会话只建一次，逐日推到今天约 8ms）；
+  测试里换 db 实例会重建，别把 20 多万次的循环写进断言。
 
 # 阅读设置（字体 / 字号 / 排版 / 标点 / 语速）
 

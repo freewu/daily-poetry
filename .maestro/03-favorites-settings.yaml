@@ -81,6 +81,15 @@ name: 收藏与设置
 - tapOn:
     id: 'push-occasion'
 - assertVisible: '恰逢节日 / 节气当天，先推应景之作'
+
+# 作者间隔：默认 7 天，改成 30 天
+- scrollUntilVisible:
+    element:
+      id: 'gap-30'
+    direction: DOWN
+- tapOn:
+    id: 'gap-30'
+- assertVisible: '一个月内不重复同一位作者'
 - assertVisible: '1 首' # 收藏数仍为 1
 - takeScreenshot: settings-light
 

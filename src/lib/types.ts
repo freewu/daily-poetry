@@ -59,6 +59,12 @@ export type Layout = 'horizontal' | 'vertical';
 /** 标点显示：保留原文标点 / 标点换成空格（空白断句） */
 export type PunctKey = 'keep' | 'space';
 
+/** 每日一诗的作者冷却：多少天内不重复同一位作者（0 = 不限） */
+export type DailyGap = 0 | 3 | 7 | 14 | 30;
+
+/** 作者冷却在设置里的档位键（存进 meta 的字符串） */
+export type GapKey = '0' | '3' | '7' | '14' | '30';
+
 /** 应景日（传统节日 / 二十四节气）及其检索词 */
 export interface Occasion {
   id: string;

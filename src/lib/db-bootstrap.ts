@@ -45,6 +45,7 @@ export const KEPT_SETTINGS = [
   'settings_layout',
   'settings_punct',
   'settings_tts_rate',
+  'settings_daily_gap',
 ] as const;
 
 /** 抄出旧库里的收藏、足迹与偏好设置 */

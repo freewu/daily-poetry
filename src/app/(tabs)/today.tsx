@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PoemActions } from '@/components/poem-actions';
 import { PoemCard } from '@/components/poem-card';
+import { gapOf } from '@/lib/daily';
 import {
   getSetting,
   pickPoemForDate,
@@ -33,13 +34,16 @@ export default function TodayScreen() {
     useCallback(() => {
       let alive = true;
       (async () => {
-        const sp = (await getSetting(db, 'settings_push')) ?? 'classic';
+        const [sp, sg] = await Promise.all([
+          getSetting(db, 'settings_push'),
+          getSetting(db, 'settings_daily_gap'),
+        ]);
         const push: PushPref = sp === 'occasion' ? 'occasion' : 'classic';
         const di = dayInfo(date);
         if (!alive) return;
         setInfo(di);
         const occ = push === 'occasion' ? occasionFor(di) : null;
-        const pick = await pickPoemForDate(db, date, occ);
+        const pick = await pickPoemForDate(db, date, occ, gapOf(sg));
         if (!alive || !pick.poem) return;
         setPoem(pick.poem);
         rememberDay(db, date, pick.poem.id).catch(() => {});

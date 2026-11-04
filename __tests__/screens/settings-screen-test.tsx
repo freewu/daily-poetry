@@ -55,6 +55,45 @@ describe('<SettingsScreen />', () => {
     expect(screen.getByText('恰逢节日 / 节气当天，先推应景之作')).toBeTruthy();
   });
 
+  it('作者间隔默认 7 天，改了会落库', async () => {
+    const db = await seed();
+    await renderWithTheme(<SettingsScreen />, { db });
+    await waitFor(() => expect(screen.getByText('作者间隔')).toBeTruthy());
+    expect(screen.getByText('7 天内不重复同一位作者（默认）')).toBeTruthy();
+
+    await fireEvent.press(screen.getByTestId('gap-30'));
+    await waitFor(async () =>
+      expect(
+        await asDb(db).getFirstAsync("SELECT value FROM meta WHERE key = 'settings_daily_gap'"),
+      ).toEqual({ value: '30' }),
+    );
+    expect(screen.getByText('一个月内不重复同一位作者')).toBeTruthy();
+
+    await fireEvent.press(screen.getByTestId('gap-0'));
+    await waitFor(async () =>
+      expect(
+        await asDb(db).getFirstAsync("SELECT value FROM meta WHERE key = 'settings_daily_gap'"),
+      ).toEqual({ value: '0' }),
+    );
+    expect(screen.getByText('只管每天换一首，不限制作者')).toBeTruthy();
+  });
+
+  it('已存的作者间隔会被读出来（脏值退回默认 7 天）', async () => {
+    const db = await seed();
+    await asDb(db).runAsync(
+      "INSERT INTO meta (key, value) VALUES ('settings_daily_gap','14')",
+    );
+    await renderWithTheme(<SettingsScreen />, { db });
+    await waitFor(() => expect(screen.getByText('两周内不重复同一位作者')).toBeTruthy());
+
+    const db2 = await seed();
+    await asDb(db2).runAsync(
+      "INSERT INTO meta (key, value) VALUES ('settings_daily_gap','whatever')",
+    );
+    await renderWithTheme(<SettingsScreen />, { db: db2 });
+    await waitFor(() => expect(screen.getByText('7 天内不重复同一位作者（默认）')).toBeTruthy());
+  });
+
   it('切换正文字体并落库', async () => {
     const db = await seed();
     await renderWithTheme(<SettingsScreen />, { db });

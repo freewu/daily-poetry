@@ -15,12 +15,14 @@ import {
   setSetting,
 } from '@/lib/db';
 import { PoemLines } from '@/components/poem-lines';
+import { DEFAULT_GAP_KEY, GAP_OPTS, gapKeyOf } from '@/lib/daily';
 import { PUNCT_OPTS } from '@/lib/punct';
 import { SCRIPT_OPTS } from '@/lib/script';
 import { DEFAULT_RATE_KEY, isRateKey, RATE_OPTS, rateOf, SPEECH_SAMPLE } from '@/lib/tts';
 import { fontOptions, LAYOUT_OPTS, scaled, SIZE_OPTS } from '@/lib/typography';
 import type {
   FontKey,
+  GapKey,
   Layout,
   Poem,
   PunctKey,
@@ -42,7 +44,7 @@ const MODES: { key: ThemeMode; label: string }[] = [
 ];
 
 const PUSH_OPTS: { key: PushPref; label: string; hint: string }[] = [
-  { key: 'classic', label: '经典轮换', hint: '在 1396 首经典池中按日期轮换' },
+  { key: 'classic', label: '经典轮换', hint: '在精选池中按日期挑一首，作者按下方间隔轮换' },
   { key: 'occasion', label: '应景优先', hint: '恰逢节日 / 节气当天，先推应景之作' },
 ];
 
@@ -73,6 +75,7 @@ export default function SettingsScreen() {
   const [favCount, setFavCount] = useState(0);
   const [days, setDays] = useState(0);
   const [push, setPush] = useState<PushPref>('classic');
+  const [gap, setGap] = useState<GapKey>(DEFAULT_GAP_KEY);
   const [rate, setRate] = useState<RateKey>(DEFAULT_RATE_KEY);
   const [meta, setMeta] = useState<{ dataset: string; poems: string; built: string }>({
     dataset: '',
@@ -91,12 +94,14 @@ export default function SettingsScreen() {
         getSetting(db, 'built_at'),
         getSetting(db, 'settings_push'),
         getSetting(db, 'settings_tts_rate'),
+        getSetting(db, 'settings_daily_gap'),
       ])
-        .then(([f, d, ds, pc, ba, sp, sr]) => {
+        .then(([f, d, ds, pc, ba, sp, sr, sg]) => {
           if (!alive) return;
           setFavCount(f);
           setDays(d);
           setPush(sp === 'occasion' ? 'occasion' : 'classic');
+          setGap(gapKeyOf(sg));
           setRate(isRateKey(sr) ? sr : DEFAULT_RATE_KEY);
           setMeta({
             dataset: ds ?? '',
@@ -146,6 +151,17 @@ export default function SettingsScreen() {
               setSetting(db, 'settings_push', k).catch(() => {});
             }}
             hint={PUSH_OPTS.find((o) => o.key === push)?.hint}
+          />
+          <SubLabel text="作者间隔" />
+          <Segment
+            testIDPrefix="gap"
+            options={GAP_OPTS}
+            value={gap}
+            onChange={(k: GapKey) => {
+              setGap(k);
+              setSetting(db, 'settings_daily_gap', k).catch(() => {});
+            }}
+            hint={GAP_OPTS.find((o) => o.key === gap)?.hint}
           />
         </Section>
 

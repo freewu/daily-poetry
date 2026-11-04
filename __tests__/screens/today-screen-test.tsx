@@ -1,7 +1,7 @@
 import { fireEvent, waitFor } from '@testing-library/react-native';
 
 import TodayScreen from '@/app/(tabs)/today';
-import { dayNumber, prettyDate, shiftDayStr, todayStr, weekdayOf } from '@/lib/db';
+import { poemForDay, prettyDate, shiftDayStr, todayStr, weekdayOf } from '@/lib/db';
 
 import { asDb, renderWithTheme, screen, seedPoems, useMemoryDb } from '../helpers/test-utils';
 
@@ -11,9 +11,9 @@ const POOL = [
   { id: 3, title: '登鹳雀楼', author: '王之涣', content: '白日依山尽\n黄河入海流' },
 ];
 
-/** 与 lib/db 的确定性算法保持一致：offset = dayNumber % 池大小 */
-function expectedTitle(date: string) {
-  return POOL[dayNumber(date) % POOL.length].title;
+/** 当天该是哪首：直接问 db 层，省得在测试里复刻一遍挑选算法 */
+async function expectedTitle(db: ReturnType<typeof seed>, date: string) {
+  return (await poemForDay(asDb(db), date))!.title;
 }
 
 function seed() {
@@ -24,11 +24,12 @@ function seed() {
 
 describe('<TodayScreen />', () => {
   it('按日期取到当天那首诗，并显示公历 / 农历', async () => {
-    await renderWithTheme(<TodayScreen />, { db: seed() });
+    const db = seed();
+    await renderWithTheme(<TodayScreen />, { db });
     const today = todayStr();
 
     await waitFor(() => expect(screen.getByTestId('today-poem')).toBeTruthy());
-    expect(screen.getByText(expectedTitle(today))).toBeTruthy();
+    expect(screen.getByText(await expectedTitle(db, today))).toBeTruthy();
     expect(screen.getByText('每日一诗')).toBeTruthy();
     expect(
       screen.getByText(`${prettyDate(today)} · ${weekdayOf(today)}`),
@@ -47,24 +48,48 @@ describe('<TodayScreen />', () => {
   });
 
   it('前一天 / 后一天切换日期；未来不可前进', async () => {
-    await renderWithTheme(<TodayScreen />, { db: seed() });
+    const db = seed();
+    await renderWithTheme(<TodayScreen />, { db });
     const today = todayStr();
     await waitFor(() => expect(screen.getByTestId('today-poem')).toBeTruthy());
 
     await fireEvent.press(screen.getByTestId('day-prev'));
     const yesterday = shiftDayStr(today, -1);
-    await waitFor(() =>
-      expect(screen.getByText(expectedTitle(yesterday))).toBeTruthy(),
-    );
+    const prevTitle = await expectedTitle(db, yesterday);
+    await waitFor(() => expect(screen.getByText(prevTitle)).toBeTruthy());
     expect(
       screen.getByText(`${prettyDate(yesterday)} · ${weekdayOf(yesterday)}`),
     ).toBeTruthy();
 
     // 「后一天」回到今天
     await fireEvent.press(screen.getByTestId('day-next'));
-    await waitFor(() =>
-      expect(screen.getByText(expectedTitle(today))).toBeTruthy(),
+    const todayTitle = await expectedTitle(db, today);
+    await waitFor(() => expect(screen.getByText(todayTitle)).toBeTruthy());
+  });
+
+  it('设置里的作者间隔会被用上（不是死守 7 天）', async () => {
+    const db = useMemoryDb();
+    seedPoems(
+      db,
+      Array.from({ length: 8 }, (_, i) => ({
+        id: i + 1,
+        title: `日课其${i + 1}`,
+        author: ['李白', '杜甫', '王维', '孟浩然', '苏轼', '李清照', '陶渊明', '白居易'][i],
+        content: '一句\n二句',
+      })),
     );
+    await asDb(db).runAsync(
+      "INSERT INTO meta (key, value) VALUES ('settings_daily_gap','30')",
+    );
+
+    await renderWithTheme(<TodayScreen />, { db });
+    const today = todayStr();
+    const wanted = (await poemForDay(asDb(db), today, 30))!.title;
+    const ifIgnored = (await poemForDay(asDb(db), today, 7))!.title;
+
+    await waitFor(() => expect(screen.getByTestId('today-poem')).toBeTruthy());
+    expect(screen.getByText(wanted)).toBeTruthy();
+    if (wanted !== ifIgnored) expect(screen.queryByText(ifIgnored)).toBeNull();
   });
 
   it('应景优先：中秋当天推应景诗并打上标签', async () => {
@@ -100,7 +125,7 @@ describe('<TodayScreen />', () => {
     jest.useFakeTimers({ now: new Date('2024-09-17T09:00:00') });
     try {
       await renderWithTheme(<TodayScreen />, { db });
-      const expected = pool[dayNumber('2024-09-17') % pool.length].title;
+      const expected = (await poemForDay(asDb(db), '2024-09-17'))!.title;
 
       await waitFor(() => expect(screen.getByTestId('today-poem')).toBeTruthy());
       expect(screen.getByText(expected)).toBeTruthy();

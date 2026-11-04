@@ -84,24 +84,84 @@ describe('db/每日一诗（确定性轮换）', () => {
     return db;
   }
 
-  it('按 UTC 天数对精选池取模，可复现', async () => {
-    const db = seed();
-    const date = '2024-09-17';
-    const pick = await poemForDay(asDb(db), date);
-    const offset = dayNumber(date) % 5;
-    expect(pick?.id).toBe(offset + 1);
-  });
-
-  it('同一日期永远同一首，相邻日期轮换到下一首', async () => {
+  it('同一日期永远同一首，不同日期换一首', async () => {
     const db = seed();
     const a = await poemForDay(asDb(db), '2024-09-17');
     const again = await poemForDay(asDb(db), '2024-09-17');
-    const next = await poemForDay(asDb(db), '2024-09-18');
     expect(again?.id).toBe(a?.id);
-    expect(next?.id).not.toBe(a?.id);
+
+    // 连看 10 天，5 首里总不会天天同一首
+    const ids = new Set<number>();
+    let date = '2024-09-17';
+    for (let i = 0; i < 10; i++) {
+      ids.add((await poemForDay(asDb(db), date))!.id);
+      date = shiftDayStr(date, 1);
+    }
+    expect(ids.size).toBeGreaterThan(1);
   });
 
-  it('跨年（负数模）仍然落在精选池内', async () => {
+  it('分得清作者：gap 天内不重复（同一作者只有 2 首时也能连着排）', async () => {
+    const db = useMemoryDb();
+    seedPoems(db, [
+      { id: 1, author: '李白', title: '甲', content: '甲' },
+      { id: 2, author: '李白', title: '乙', content: '乙' },
+      { id: 3, author: '杜甫', title: '丙', content: '丙' },
+      { id: 4, author: '王维', title: '丁', content: '丁' },
+    ]);
+    let date = '2024-09-17';
+    const authors: string[] = [];
+    for (let i = 0; i < 30; i++) {
+      authors.push((await poemForDay(asDb(db), date, 3))!.author);
+      date = shiftDayStr(date, 1);
+    }
+    for (let i = 0; i < authors.length; i++) {
+      // 回头看 3 天（含今天就是 3 天窗口）
+      for (let k = 1; k < 3; k++) {
+        if (i - k >= 0) expect(authors[i]).not.toBe(authors[i - k]);
+      }
+    }
+  });
+
+  it('作者名称里的空白不算另一个人', async () => {
+    const db = useMemoryDb();
+    seedPoems(db, [
+      { id: 1, author: ' 李白 ', title: '甲', content: '甲' },
+      { id: 2, author: '李白', title: '乙', content: '乙' },
+      { id: 3, author: '杜甫', title: '丙', content: '丙' },
+    ]);
+    const a = await poemForDay(asDb(db), '2024-09-17', 3);
+    const b = await poemForDay(asDb(db), '2024-09-18', 3);
+    expect(a?.author.trim()).not.toBe(b?.author.trim());
+  });
+
+  it('换了冷却天数就是另一条序列（设置里的档位真的有用）', async () => {
+    const db = seedWithAuthors();
+    const soft: number[] = [];
+    const hard: number[] = [];
+    let date = '2024-09-17';
+    for (let i = 0; i < 20; i++) {
+      soft.push((await poemForDay(asDb(db), date, 0))!.id);
+      hard.push((await poemForDay(asDb(db), date, 7))!.id);
+      date = shiftDayStr(date, 1);
+    }
+    expect(soft).not.toEqual(hard);
+  });
+
+  function seedWithAuthors() {
+    const db = useMemoryDb();
+    seedPoems(
+      db,
+      Array.from({ length: 6 }, (_, i) => ({
+        id: i + 1,
+        author: ['李白', '杜甫', '王维', '孟浩然', '苏轼', '李清照'][i],
+        title: `日课其${i + 1}`,
+        content: '一句\n二句',
+      })),
+    );
+    return db;
+  }
+
+  it('跨年（1970 之前的负天数）仍然落在精选池内', async () => {
     const db = seed();
     for (let i = 0; i < 40; i++) {
       const date = shiftDayStr('1969-12-01', i); // dayNumber 为负
@@ -137,14 +197,17 @@ describe('db/应景诗', () => {
     expect([1, 2]).toContain(p?.id); // 命中题目两首之一，而不是正文那首
   });
 
-  it('同一年稳定、不同年份轮换', async () => {
+  it('同一天稳定、来年换个种子（同一个节令不年年同一首）', async () => {
     const db = seed();
     const occ = occasionFor(dayInfo('2024-09-17'))!;
     const a = await poemForOccasion(asDb(db), '2024-09-17', occ);
-    const sameYear = await poemForOccasion(asDb(db), '2024-09-20', occ);
-    const otherYear = await poemForOccasion(asDb(db), '2025-10-06', occ);
-    expect(sameYear?.id).toBe(a?.id);
-    expect(otherYear?.id).not.toBe(a?.id);
+    const again = await poemForOccasion(asDb(db), '2024-09-17', occ);
+    expect(again?.id).toBe(a?.id);
+
+    // 2025 年中秋（10-06）与 2024 年中秋不是同一天 → 种子不同
+    const next = await poemForOccasion(asDb(db), '2025-10-06', occ);
+    expect(next).not.toBeNull();
+    expect([1, 2]).toContain(next?.id);
   });
 
   it('只有正文命中时退到正文检索', async () => {

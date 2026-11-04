@@ -118,32 +118,49 @@ describeDb('assets/poetry.db（随包数据）', () => {
     const size = pool?.n ?? 0;
     expect(size).toBeGreaterThan(1000);
 
-    const seen = new Set<number>();
+    // 一整年：每天都有诗，且 7 天内不出现同一作者（默认冷却档）
+    const authors: string[] = [];
+    const ids = new Set<number>();
     let date = '2024-01-01';
-    for (let i = 0; i < size; i++) {
+    for (let i = 0; i < 365; i++) {
       const p = await poemForDay(asDb(db), date);
       expect(p).not.toBeNull();
       if (!p) return;
       expect(p.daily).toBe(1);
-      seen.add(p.id);
+      authors.push(p.author);
+      ids.add(p.id);
       date = shiftDayStr(date, 1);
     }
-    // 一个完整周期恰好覆盖整个精选池
-    expect(seen.size).toBe(size);
+    for (let i = 0; i < authors.length; i++) {
+      for (let k = 1; k < 7 && i - k >= 0; k++) {
+        expect(authors[i]).not.toBe(authors[i - k]);
+      }
+    }
+    // 一年下来不是只在几位诗人里打转
+    expect(ids.size).toBeGreaterThan(200);
   });
 
   it('同一日期取到同一首（可复现）', async () => {
     const date = '2024-09-17';
-    const poolRow = await db.getFirstAsync<{ n: number }>(
-      'SELECT COUNT(*) n FROM poems WHERE daily = 1',
-    );
-    const size = poolRow?.n ?? 1;
     const a = await poemForDay(asDb(db), date);
-    const expected = await db.getFirstAsync<Poem>(
-      'SELECT * FROM poems WHERE daily = 1 ORDER BY id LIMIT 1 OFFSET ?',
-      (((dayNumber(date) % size) + size) % size),
-    );
-    expect(a?.id).toBe(expected?.id);
+    const again = await poemForDay(asDb(db), date);
+    expect(a?.id).toBe(again?.id);
+  });
+
+  it('30 天档在真实语料里也拉得开', async () => {
+    const authors: string[] = [];
+    let date = '2024-01-01';
+    for (let i = 0; i < 60; i++) {
+      const p = await poemForDay(asDb(db), date, 30);
+      expect(p?.daily).toBe(1);
+      authors.push(p!.author);
+      date = shiftDayStr(date, 1);
+    }
+    for (let i = 0; i < authors.length; i++) {
+      for (let k = 1; k < 30 && i - k >= 0; k++) {
+        expect(authors[i]).not.toBe(authors[i - k]);
+      }
+    }
   });
 
   it('中秋 / 重阳 能在真实语料里命中应景诗（题目或正文含关键词）', async () => {
@@ -160,15 +177,28 @@ describeDb('assets/poetry.db（随包数据）', () => {
     }
   });
 
-  it('语料里没有对应诗时（如端午）退到经典轮换而不是空白', async () => {
-    // 精选六集里没有出现「端午 / 端阳 / 重午 / 竞渡」的诗句，属于已知数据缺口
+  it('端午：精选池里没有，也能用节日名在全库里找到', async () => {
     const occ = occasionFor(dayInfo('2024-06-10'))!;
     expect(occ.id).toBe('fest-duanwu');
-    expect(await poemForOccasion(asDb(db), '2024-06-10', occ)).toBeNull();
+    const p = await poemForOccasion(asDb(db), '2024-06-10', occ);
+    expect(p).not.toBeNull();
+    expect(`${p!.title}${p!.content}`).toContain('端午');
 
     const pick = await pickPoemForDate(asDb(db), '2024-06-10', occ);
-    expect(pick.occasion).toBe(false);
-    expect(pick.poem?.daily).toBe(1);
+    expect(pick.occasion).toBe(true);
+    expect(pick.poem?.id).toBe(p?.id);
+  });
+
+  it('每个节气都能应景（24 个节气在全库里都有诗）', async () => {
+    // 立春 / 惊蛰 / 小满 这类冷门节气精选池里一首都没有，靠全库兜底
+    const days = ['2024-02-04', '2024-03-05', '2024-05-20', '2024-12-21'];
+    for (const date of days) {
+      const occ = occasionFor(dayInfo(date));
+      expect(occ?.kind).toBe('term');
+      const p = await poemForOccasion(asDb(db), date, occ!);
+      expect(p).not.toBeNull();
+      expect(`${p!.title}${p!.content}`).toContain(occ!.label);
+    }
   });
 
   it('全文检索能搜到名篇', async () => {

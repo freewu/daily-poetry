@@ -1,6 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-import type { CollectionMeta, Occasion, Poem } from './types';
+import { createDailyPicker, DEFAULT_GAP, offsetFor, type DailyPicker } from './daily';
+import type { CollectionMeta, DailyGap, Occasion, Poem } from './types';
 
 export const DB_NAME = 'poetry.db';
 
@@ -97,28 +98,43 @@ export async function searchPoems(db: SQLiteDatabase, q: string, limit = 100): P
 }
 
 // ---------------------------------------------------------------- 每日一诗（确定性轮换）
-async function dailyCount(db: SQLiteDatabase): Promise<number> {
-  const r = await db.getFirstAsync<{ n: number }>('SELECT COUNT(*) n FROM poems WHERE daily = 1');
-  return r?.n ?? 0;
+/** 挑诗器按「库实例 + 冷却天数」缓存：一次 App 生命周期里只建一次 */
+const pickers = new WeakMap<SQLiteDatabase, Map<number, DailyPicker>>();
+
+async function pickerFor(db: SQLiteDatabase, gap: DailyGap): Promise<DailyPicker> {
+  let byGap = pickers.get(db);
+  if (!byGap) {
+    byGap = new Map();
+    pickers.set(db, byGap);
+  }
+  const hit = byGap.get(gap);
+  if (hit) return hit;
+  const rows = await db.getAllAsync<{ id: number; author: string }>(
+    'SELECT id, author FROM poems WHERE daily = 1 ORDER BY id',
+  );
+  const picker = createDailyPicker(rows, gap);
+  byGap.set(gap, picker);
+  return picker;
 }
 
-export async function poemForDay(db: SQLiteDatabase, dateStr: string): Promise<Poem | null> {
-  const pool = await dailyCount(db);
-  if (!pool) return null;
-  const n = dayNumber(dateStr);
-  const offset = ((n % pool) + pool) % pool;
-  return (
-    (await db.getFirstAsync<Poem>(
-      'SELECT * FROM poems WHERE daily = 1 ORDER BY id LIMIT 1 OFFSET ?',
-      offset,
-    )) ?? null
-  );
+/** 经典池里按日期取一首：同一日期永远同一首，`gap` 天内不重复同一位作者 */
+export async function poemForDay(
+  db: SQLiteDatabase,
+  dateStr: string,
+  gap: DailyGap = DEFAULT_GAP,
+): Promise<Poem | null> {
+  const picker = await pickerFor(db, gap);
+  const id = picker.idFor(dayNumber(dateStr));
+  return id == null ? null : getPoem(db, id);
 }
 
 // ---------------------------------------------------------------- 应景（节日 / 节气）
 /**
- * 两段式检索：先在题目中找明确“主题作”（如《中秋月》《九月九日忆山东兄弟》）；
- * 题目无命中时再退到正文。命中按“年”轮换：同年同一节令/节日稳定，次年换一首。
+ * 用节日 / 节气的名字检索相关诗（如立秋、清明、中秋），命中里**随机一首**：
+ * 种子里带日期，所以同一天永远同一首，明年同一个节令换别首。
+ * 两段式：先在题目里找明确“主题作”，题目无命中再退到正文。
+ * 精选池（daily = 1）优先——池里有就用经典的，池里没有再用全库，
+ * 否则 24 个节气里大半在池子里查无此人，应景等于没做。
  */
 async function occasionTier(
   db: SQLiteDatabase,
@@ -126,21 +142,21 @@ async function occasionTier(
   occ: Occasion,
   col: 'title' | 'content',
 ): Promise<Poem | null> {
+  // 节日名本身也算检索词（春节、元宵节…），再并上各节日自己的别名
+  const terms = [occ.label, ...occ.keywords.filter((k) => k !== occ.label)];
   // 检索词均为汉字（无 % / _ 通配符冲突），无需转义
-  const conds = occ.keywords.map(() => `${col} LIKE ?`).join(' OR ');
-  const params = occ.keywords.map((t) => `%${t}%`);
+  const conds = terms.map(() => `${col} LIKE ?`).join(' OR ');
+  const params = terms.map((t) => `%${t}%`);
   const c = await db.getFirstAsync<{ n: number }>(
-    `SELECT COUNT(*) n FROM poems WHERE daily = 1 AND (${conds})`,
+    `SELECT COUNT(*) n FROM poems WHERE ${conds}`,
     ...params,
   );
   const n = c?.n ?? 0;
   if (!n) return null;
-  // 以“年”为单位的偏移：同一节令/节日，次年轮换到下一首
-  const years = Math.floor(dayNumber(dateStr) / 365.2425);
-  const offset = years % n;
+  const offset = offsetFor(`${dateStr}|${occ.id}|${col}`, n);
   return (
     (await db.getFirstAsync<Poem>(
-      `SELECT * FROM poems WHERE daily = 1 AND (${conds}) ORDER BY id LIMIT 1 OFFSET ?`,
+      `SELECT * FROM poems WHERE ${conds} ORDER BY daily DESC, id LIMIT 1 OFFSET ?`,
       ...params,
       offset,
     )) ?? null
@@ -168,12 +184,14 @@ export async function pickPoemForDate(
   db: SQLiteDatabase,
   dateStr: string,
   occ: Occasion | null,
+  gap: DailyGap = DEFAULT_GAP,
 ): Promise<DayPick> {
   if (occ) {
     const themed = await poemForOccasion(db, dateStr, occ);
+    // 查不到这个节日 / 节气的诗，就走平日的作者冷却轮换
     if (themed) return { poem: themed, occasion: true };
   }
-  return { poem: await poemForDay(db, dateStr), occasion: false };
+  return { poem: await poemForDay(db, dateStr, gap), occasion: false };
 }
 
 export async function rememberDay(db: SQLiteDatabase, dateStr: string, poemId: number): Promise<void> {
