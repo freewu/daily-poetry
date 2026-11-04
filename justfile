@@ -92,7 +92,14 @@ envcheck:
 start:
     npx expo start
 
+# 重生成原生工程（android/ ios/ 都是 prebuild 产物，不入库）
+# 改图标 / 启动图 / app.json 原生配置后必跑，再 just android
+native-reset:
+    rm -rf android ios
+    npx expo prebuild --clean
+
 # 在 Android 模拟器/真机启动（原生 Debug 构建 + Metro）
+# 注意：android/ 已存在时 expo run 不会重跑 prebuild，图标 / 启动图改了要 just native-reset
 android: check
     npx expo run:android
 

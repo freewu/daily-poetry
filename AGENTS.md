@@ -242,8 +242,13 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
 # 图标 / 启动图（`just assets`）
 
 - 全部由 `scripts/make-assets.py`（Pillow）生成，产物在 `assets/images/`：`icon.png`、
-  `android-icon-{foreground,monochrome}.png`、`splash-icon.png`、`favicon.png`、`tab/*.png`。
-  换图标 = 替换根目录 `logo.png` 再 `just assets`，别再手改 PNG。
+  `android-icon-{foreground,monochrome}.png`、`splash-icon.png`、`splash-icon-dark.png`、
+  `favicon.png`、`tab/*.png`。换图标 = 替换根目录 `logo.png` 再 `just assets`，别再手改 PNG。
+- **换完图标必须 `just native-reset`（= `rm -rf android ios` + `expo prebuild --clean`）再装机**：
+  `android/` 是 prebuild 产物（`.gitignore` 里），`expo run:android` 在它已存在时**不会**重跑
+  prebuild，`res/mipmap-*/ic_launcher*.webp`、`drawable-*/splashscreen_logo.png` 全是旧的
+  —— 表现就是「素材明明换了，装出来还是老图标」。app.json 的 `icon` / `adaptiveIcon` /
+  `expo-splash-screen` 改动同理。
 - 印章是从 `logo.png` **抠出来的**。阈值不写死：纸底亮度按 **P60** 现量（源图亮一点暗一点
   都不用改代码），纸底 −26 以下算纸、再往下 36 级过渡、−62 以下是纯印泥。26 级余量是**必须**的：
   少了纸纹噪点会透出来，深色启动图上就是一层红灰（`splash-icon` 四角 alpha>10 现在是 0%）。
