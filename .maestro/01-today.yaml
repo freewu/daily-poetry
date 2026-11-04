@@ -1,4 +1,4 @@
-# 今日：开屏 → 等到今日诗篇 → 翻到前一天 → 再翻回来
+# 今日：开屏 → 等到今日诗篇 → 翻到前一天 → 再翻回来 → 右滑 / 左滑各翻一次
 #
 # 前提：设备上已装好 Debug 包（just android-install），Metro 在 8081 上跑着
 # （just start），并且 adb 能看到设备（just android-doctor）。
@@ -35,3 +35,23 @@ name: 今日一诗
       id: 'today-poem'
     timeout: 15000
 - assertVisible: '每日一诗'
+
+# 左右滑动也要能翻日：右滑回前一天，再左滑回今天
+- swipe:
+    from:
+      id: 'today-swipe'
+    direction: RIGHT
+- extendedWaitUntil:
+    visible:
+      id: 'today-poem'
+    timeout: 15000
+- takeScreenshot: swiped-yesterday
+- swipe:
+    from:
+      id: 'today-swipe'
+    direction: LEFT
+- extendedWaitUntil:
+    visible:
+      id: 'today-poem'
+    timeout: 15000
+- assertVisible: '左右滑动.*'

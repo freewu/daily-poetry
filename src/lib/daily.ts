@@ -1,3 +1,4 @@
+import { rng } from './random';
 import type { DailyGap, GapKey } from './types';
 
 /**
@@ -48,17 +49,6 @@ export interface DailyPoem {
  */
 const ANCHOR = Math.floor(Date.UTC(1960, 0, 1) / 86400000);
 
-/** mulberry32：同一种子永远同一串数，不引依赖 */
-function rng(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 /** 字符串 → 32 位种子（FNV-1a）：给「日期 + 节日」这类键用 */
 export function hashString(s: string): number {

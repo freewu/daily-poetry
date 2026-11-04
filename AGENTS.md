@@ -62,6 +62,18 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
   `daily = 1`，否则等于没做。
 - 挑诗器按「库实例 + 档位」缓存在 `WeakMap` 里（一次会话只建一次，逐日推到今天约 8ms）；
   测试里换 db 实例会重建，别把 20 多万次的循环写进断言。
+- 首页翻日（`src/app/(tabs)/today.tsx`）：顶栏箭头 + **左右滑动**两条路改的是同一个
+  `date` state。滑动用 `PanResponder` 包在 ScrollView 外面（`testID="today-swipe"`），
+  判定在 `src/lib/swipe.ts`：`claimsSwipe()` 只在横向明显大于竖向（`|dy|*1.5 < |dx|`）时
+  接管手势 —— 竖向的必须留给 ScrollView，否则上下滚诗会被吃掉；`swipeStep()` 松手时
+  才用 56px 的真门槛，右滑 = 前一天、左滑 = 后一天。`next()` 的守门（不越过今天）写在
+  `setDate` 的 updater 里，这样 `prev`/`next`/`PanResponder` 都是稳定引用，不用每帧重建。
+- 测滑动的坑有两层，`__tests__/screens/today-screen-test.tsx` 的 `swipe()` 注释里写了：
+  ① RNTL 派发事件前会**无参**调 `onStartShouldSetResponder` / `onMoveShouldSetResponder`
+  探路，PanResponder 对无参调用一律 false → `fireEvent(view, 'responderGrant')` 被静默丢弃，
+  只能直接调 View 上的 `onResponderGrant/Move/Release`；② `gestureState.dx` 是 PanResponder
+  自己从 `event.touchHistory` 累计的，测试得喂 `touchBank` + 递增的 `mostRecentTimeStamp`，
+  并且 `act` 要 `await`，否则后续用例会一起挂。
 
 # 阅读设置（字体 / 字号 / 排版 / 标点 / 语速）
 

@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PoemActions } from '@/components/poem-actions';
@@ -18,6 +18,7 @@ import {
   weekdayOf,
 } from '@/lib/db';
 import { dayInfo, occasionFor, type DayInfo } from '@/lib/lunar';
+import { claimsSwipe, swipeStep } from '@/lib/swipe';
 import type { Poem, PushPref } from '@/lib/types';
 import { useTheme } from '@/theme';
 
@@ -55,10 +56,24 @@ export default function TodayScreen() {
   );
 
   const isFuture = date >= todayStr();
-  const prev = () => setDate((d) => shiftDayStr(d, -1));
-  const next = () => {
-    if (!isFuture) setDate((d) => shiftDayStr(d, 1));
-  };
+  // 函数式更新 + 空依赖：「不越过今天」的守门放进 updater，
+  // 于是 prev / next 是稳定引用，PanResponder 不用每次渲染重建
+  const prev = useCallback(() => setDate((d) => shiftDayStr(d, -1)), []);
+  const next = useCallback(() => setDate((d) => (d >= todayStr() ? d : shiftDayStr(d, 1))), []);
+  const move = useCallback((step: -1 | 1) => (step < 0 ? prev() : next()), [prev, next]);
+
+  // 左右滑动翻日：只接管明显横向的手势，竖向留给 ScrollView（见 lib/swipe.ts）
+  const pan = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_e, g) => claimsSwipe(g.dx, g.dy),
+        onPanResponderRelease: (_e, g) => {
+          const step = swipeStep(g.dx, g.dy);
+          if (step) move(step);
+        },
+      }),
+    [move],
+  );
 
   const tags: { label: string; sub: string }[] = [];
   if (info) {
@@ -96,29 +111,35 @@ export default function TodayScreen() {
         </View>
       </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scroll}>
-        {tags.length > 0 ? (
-          <View style={styles.tags}>
-            {tags.map((t) => (
-              <View key={t.sub + t.label} style={[styles.tag, { backgroundColor: colors.soft }]}>
-                <Text style={[styles.tagText, { color: colors.softText }]}>
-                  {t.label} · {t.sub}
-                </Text>
-              </View>
-            ))}
-          </View>
-        ) : null}
+      <View testID="today-swipe" style={{ flex: 1 }} {...pan.panHandlers}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scroll}>
+          {tags.length > 0 ? (
+            <View style={styles.tags}>
+              {tags.map((t) => (
+                <View key={t.sub + t.label} style={[styles.tag, { backgroundColor: colors.soft }]}>
+                  <Text style={[styles.tagText, { color: colors.softText }]}>
+                    {t.label} · {t.sub}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
 
-        {poem ? (
-          <PoemCard poem={poem} testID="today-poem" />
-        ) : (
-          <Text testID="today-loading" style={[styles.loading, { color: colors.sub }]}>
-            正在挑拣今日诗篇…
+          {poem ? (
+            <PoemCard poem={poem} testID="today-poem" />
+          ) : (
+            <Text testID="today-loading" style={[styles.loading, { color: colors.sub }]}>
+              正在挑拣今日诗篇…
+            </Text>
+          )}
+
+          <Text testID="today-swipe-hint" style={[styles.hint, { color: colors.faint }]}>
+            左右滑动 · 看上一天 / 下一天
           </Text>
-        )}
-      </ScrollView>
+        </ScrollView>
+      </View>
 
       {poem ? (
         <View style={{ paddingBottom: Math.max(insets.bottom, 8) }}>
@@ -197,4 +218,5 @@ const styles = StyleSheet.create({
   tagText: { fontSize: 12, fontWeight: '600', letterSpacing: 0.5 },
   scroll: { paddingHorizontal: 20, paddingBottom: 20 },
   loading: { textAlign: 'center', marginTop: 90, fontSize: 15 },
+  hint: { marginTop: 18, textAlign: 'center', fontSize: 11, letterSpacing: 1 },
 });
