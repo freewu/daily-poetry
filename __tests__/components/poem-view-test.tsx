@@ -109,14 +109,15 @@ describe('字体与字号', () => {
     expect(screen.getByText(poem.content).props.style.fontFamily).toBeUndefined();
   });
 
-  it('宋体 + 特大：正文 27 号、衬线族、行距按比例放大', async () => {
+  it('宋体 + 特大：正文收到上限 24 号、衬线族、行距按比例放大', async () => {
+    // 老库里 'xl' 换算出来是 27.3，比新上限 24 大，clampBody 会收到 24
     await renderWithTheme(<PoemLines poem={poem} color="#000" />, {
       db: dbWithType('song', 'xl'),
     });
     await waitFor(() =>
-      expect(screen.getByText(poem.content)).toHaveStyle({ fontSize: 27, fontFamily: 'serif' }),
+      expect(screen.getByText(poem.content)).toHaveStyle({ fontSize: 24, fontFamily: 'serif' }),
     );
-    expect(screen.getByText(poem.content)).toHaveStyle({ lineHeight: Math.round(27 * 1.85) });
+    expect(screen.getByText(poem.content)).toHaveStyle({ lineHeight: Math.round(24 * 1.85) });
   });
 
   it('卡片题目与作者跟着缩放，正文用同一字族', async () => {

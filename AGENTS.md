@@ -70,8 +70,11 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
   `'21'` 这种）、`settings_layout`（`horizontal|vertical`）、`settings_punct`（`keep|space`）、
   `settings_tts_rate`（`slow|normal|fast`）。
 - 字号是**滑块**（`src/components/font-size-slider.tsx`，`@react-native-community/slider`），
-  16–34 号、步长 1。老库里的四档键还有救：`bodySizeOf()`（`src/lib/typography.ts`）认
-  `sm|md|lg|xl` 并按 `LEGACY_SIZE_SCALE` × 21 换算成 px，写回去就自动升级成数字。
+  **10–24 号**、步长 1。老库里的四档键还有救：`bodySizeOf()`（`src/lib/typography.ts`）认
+  `sm|md|lg|xl` 并按 `LEGACY_SIZE_SCALE` × 21 换算成 px，写回去就自动升级成数字
+  （`xl` 换算出来 27.3，会被新上限 clamp 成 24）。
+  `scaled()` 的下限是 **9** —— 必须比正文字号下限 10 小，否则缩到 10 号时行内小字
+  （首句 13 号 × 10/21）反而比正文还大。
   **拖动只改界面、松手（`onSlidingComplete`）才落库**，否则一次拖动写几十遍 meta；
   页面用 `draftSize ?? bodySize` 显示，commit 时先清 draft 再 `setBodySize()`。
 - 字族表在 `src/lib/typography.ts`，`AppTypographyProvider`（`src/typography.tsx`）

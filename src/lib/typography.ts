@@ -50,11 +50,11 @@ export function familyOf(key: FontKey): string | undefined {
 export const BASE_FONT_SIZE = 21;
 
 /**
- * 字号现在是一根滑块：直接存正文 px（16–34，步长 1）。
+ * 字号现在是一根滑块：直接存正文 px（10–24，步长 1）。
  * 老版本存的是 sm|md|lg|xl 四档，读到就按下面的倍率换算过来，不丢设置。
  */
-export const MIN_BODY = 16;
-export const MAX_BODY = 34;
+export const MIN_BODY = 10;
+export const MAX_BODY = 24;
 export const BODY_STEP = 1;
 export const DEFAULT_BODY = BASE_FONT_SIZE;
 
@@ -84,9 +84,9 @@ export function bodySizeOf(v: string | null | undefined): number {
 /** 滑块下方那句话：按当前字号说人话 */
 export function bodyHint(n: number): string {
   const size = clampBody(n);
-  if (size <= 18) return `正文 ${size} 号，信息密度最高`;
-  if (size <= 22) return `正文 ${size} 号，日常阅读最舒服`;
-  if (size <= 28) return `正文 ${size} 号，适合小屏长读`;
+  if (size <= 13) return `正文 ${size} 号，一屏放得下最多字`;
+  if (size <= 17) return `正文 ${size} 号，信息密度高，扫读快`;
+  if (size <= 21) return `正文 ${size} 号，日常阅读最舒服`;
   return `正文 ${size} 号，适合长辈阅读`;
 }
 
@@ -131,7 +131,10 @@ export function toColumnText(line: string): string {
   return Array.from(line.trim().replace(/\s/g, '\u3000')).join('\n');
 }
 
-/** 按档位缩放一个字号，最小 11，避免小字看不清 */
+/**
+ * 按档位缩放一个字号，最小 9：字号下限是 10，缩放后的行内小字（首句 13 号那种）
+ * 不能反而比正文还大 —— 下限卡在 11 就会这样（13 × 10/21 = 6.2 → 11 > 10）。
+ */
 export function scaled(size: number, scale: number): number {
-  return Math.max(11, Math.round(size * scale));
+  return Math.max(9, Math.round(size * scale));
 }

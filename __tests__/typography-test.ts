@@ -43,24 +43,25 @@ describe('字族', () => {
 });
 
 describe('字号（滑块，存 px）', () => {
-  it('范围 16–34，默认 21', () => {
-    expect([MIN_BODY, MAX_BODY, DEFAULT_BODY]).toEqual([16, 34, 21]);
+  it('范围 10–24，默认 21', () => {
+    expect([MIN_BODY, MAX_BODY, DEFAULT_BODY]).toEqual([10, 24, 21]);
     expect(DEFAULT_BODY).toBe(BASE_FONT_SIZE);
   });
 
   it('clampBody 收在范围内并取整，NaN 回默认', () => {
     expect(clampBody(21)).toBe(21);
-    expect(clampBody(15.9)).toBe(16);
-    expect(clampBody(40)).toBe(34);
+    expect(clampBody(9.9)).toBe(10);
+    expect(clampBody(40)).toBe(24);
     expect(clampBody(22.4)).toBe(22);
     expect(clampBody(NaN)).toBe(DEFAULT_BODY);
   });
 
   it('读库：新值就是 px 数字，老的四档键换算过来', () => {
-    expect(bodySizeOf('28')).toBe(28);
+    expect(bodySizeOf('16')).toBe(16);
     expect(bodySizeOf(' 24 ')).toBe(24);
+    expect(bodySizeOf('28')).toBe(MAX_BODY); // 超出新上限就收到 24
     expect(bodySizeOf('lg')).toBe(24); // 21 × 1.15
-    expect(bodySizeOf('xl')).toBe(27); // 21 × 1.3
+    expect(bodySizeOf('xl')).toBe(MAX_BODY); // 21 × 1.3 = 27.3，收到 24
     expect(bodySizeOf('sm')).toBe(clampBody(21 * LEGACY_SIZE_SCALE.sm));
     expect(bodySizeOf(null)).toBe(DEFAULT_BODY);
     expect(bodySizeOf('')).toBe(DEFAULT_BODY);
@@ -70,20 +71,21 @@ describe('字号（滑块，存 px）', () => {
 
   it('倍率按 21 号基准算，其余文字等比缩放', () => {
     expect(scaleOfBody(21)).toBe(1);
-    expect(scaleOfBody(42)).toBeCloseTo(MAX_BODY / BASE_FONT_SIZE); // 先 clamp 到 34，再算
-    expect(scaleOfBody(29)).toBeCloseTo(29 / 21);
-    expect(scaled(BASE_FONT_SIZE, scaleOfBody(27))).toBe(27);
+    expect(scaleOfBody(42)).toBeCloseTo(MAX_BODY / BASE_FONT_SIZE); // 先 clamp 到 24，再算
+    expect(scaleOfBody(18)).toBeCloseTo(18 / 21);
+    expect(scaled(BASE_FONT_SIZE, scaleOfBody(24))).toBe(24);
   });
 
-  it('再小的字号也不会低于 11', () => {
-    expect(scaled(10, 0.5)).toBe(11);
+  it('再小的字号也不会低于 9（下限要比正文字号 10 小，否则行内小字反超正文）', () => {
+    expect(scaled(10, 0.5)).toBe(9);
+    expect(scaled(13, 10 / 21)).toBeLessThan(MIN_BODY);
   });
 
   it('滑块下面那句话按档位变', () => {
-    expect(bodyHint(16)).toContain('信息密度最高');
+    expect(bodyHint(11)).toContain('最多字');
+    expect(bodyHint(16)).toContain('信息密度高');
     expect(bodyHint(21)).toContain('日常阅读');
-    expect(bodyHint(25)).toContain('小屏长读');
-    expect(bodyHint(32)).toContain('长辈');
+    expect(bodyHint(24)).toContain('长辈');
   });
 });
 

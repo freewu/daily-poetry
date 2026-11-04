@@ -164,33 +164,33 @@ describe('<SettingsScreen />', () => {
 
     // 拖动中：只有预览跟着变，库里还是空的
     await act(async () => {
-      screen.getByTestId('font-size-slider').props.onValueChange(28);
+      screen.getByTestId('font-size-slider').props.onValueChange(24);
     });
-    expect(previewStyle().fontSize).toBe(Math.round((19 * 28) / 21));
-    expect(screen.getByTestId('font-size-slider-value').props.children).toBe(28);
+    expect(previewStyle().fontSize).toBe(Math.round((19 * 24) / 21));
+    expect(screen.getByTestId('font-size-slider-value').props.children).toBe(24);
     expect(
       await asDb(db).getFirstAsync("SELECT value FROM meta WHERE key = 'settings_font_size'"),
     ).toBeNull();
 
     // 松手才写库（一次拖动不至于写几十遍）
     await act(async () => {
-      screen.getByTestId('font-size-slider').props.onSlidingComplete(28);
+      screen.getByTestId('font-size-slider').props.onSlidingComplete(24);
     });
     await waitFor(async () =>
       expect(
         await asDb(db).getFirstAsync("SELECT value FROM meta WHERE key = 'settings_font_size'"),
-      ).toEqual({ value: '28' }),
+      ).toEqual({ value: '24' }),
     );
-    expect(screen.getByText('正文 28 号，适合小屏长读')).toBeTruthy();
+    expect(screen.getByText('正文 24 号，适合长辈阅读')).toBeTruthy();
 
-    // 滑到最小也能用，且不会越界
+    // 越界的值收在 24，不会存进库里
     await act(async () => {
       screen.getByTestId('font-size-slider').props.onSlidingComplete(99);
     });
     await waitFor(async () =>
       expect(
         await asDb(db).getFirstAsync("SELECT value FROM meta WHERE key = 'settings_font_size'"),
-      ).toEqual({ value: '34' }),
+      ).toEqual({ value: '24' }),
     );
   });
 
@@ -248,7 +248,7 @@ describe('<SettingsScreen />', () => {
     await waitFor(() =>
       expect(screen.getByTestId('font-size-slider-value').props.children).toBe(24),
     );
-    expect(screen.getByText('正文 24 号，适合小屏长读')).toBeTruthy();
+    expect(screen.getByText('正文 24 号，适合长辈阅读')).toBeTruthy();
     expect(screen.getByText('0.7× 语速，一句一句听得清')).toBeTruthy();
     expect(previewStyle().fontFamily).toBe('serif');
   });
