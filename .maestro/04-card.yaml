@@ -1,4 +1,4 @@
-# 卡片：今日诗篇 → 分享 → 卡片页应有笺纸与「保存并分享」
+# 卡片：今日诗篇 → 分享 → 卡片页应有笺纸、「保存并分享」与版式开关
 #
 # 只走到截图之前：写入相册、弹系统分享面板都是真副作用（会留图片、
 # 盖住 App），权限弹窗在各系统版本上也不同，冒烟只验路由与渲染。
@@ -23,6 +23,19 @@ name: 诗词卡片
 - assertVisible: '保存并分享'
 - assertVisible: '每日一诗'
 - takeScreenshot: card
+
+# 卡片页现场调版式：用字 / 标点都能切（只影响这张卡片）
+# 每首都可能有繁体列缺失（回退简体），这里只验开关点得动、卡片还在
+- tapOn:
+    id: 'card-script-tw'
+- assertVisible: '每日一诗'
+- tapOn:
+    id: 'card-punct-space'
+- takeScreenshot: card-options
+- tapOn:
+    id: 'card-script-cn'
+- tapOn:
+    id: 'card-punct-keep'
 
 # 返回首页，不该留在卡片页
 - back

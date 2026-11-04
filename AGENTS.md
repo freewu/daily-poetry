@@ -54,12 +54,17 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
 # 阅读设置（字体 / 字号 / 排版 / 标点 / 语速）
 
 - 全部持久化在 `meta` 表的 `settings_*` KV 里，没有 AsyncStorage：
-  `settings_font`（`system|song|kai`）、`settings_font_size`（`sm|md|lg|xl`）、
-  `settings_layout`（`horizontal|vertical`）、`settings_punct`（`keep|space`）、
+  `settings_font`（`system|song|kai`）、`settings_font_size`（**正文字号 px 字符串**，
+  `'21'` 这种）、`settings_layout`（`horizontal|vertical`）、`settings_punct`（`keep|space`）、
   `settings_tts_rate`（`slow|normal|fast`）。
-- 字族 / 字号档位表在 `src/lib/typography.ts`，`AppTypographyProvider`（`src/typography.tsx`）
-  读库并往下发 `family / scale / bodySize`；`PoemLines` 不传 `fontSize` 时用 `bodySize`
-  （21 × 倍率），行高固定 1.85 倍。
+- 字号是**滑块**（`src/components/font-size-slider.tsx`，`@react-native-community/slider`），
+  16–34 号、步长 1。老库里的四档键还有救：`bodySizeOf()`（`src/lib/typography.ts`）认
+  `sm|md|lg|xl` 并按 `LEGACY_SIZE_SCALE` × 21 换算成 px，写回去就自动升级成数字。
+  **拖动只改界面、松手（`onSlidingComplete`）才落库**，否则一次拖动写几十遍 meta；
+  页面用 `draftSize ?? bodySize` 显示，commit 时先清 draft 再 `setBodySize()`。
+- 字族表在 `src/lib/typography.ts`，`AppTypographyProvider`（`src/typography.tsx`）
+  读库并往下发 `family / bodySize / scale`（`scale = bodySize / 21`，`scaleOfBody()`）；
+  `PoemLines` 不传 `fontSize` 时直接用 `bodySize`（px），行高固定 1.85 倍。
 - 不打包字体：走系统 CJK 字族。Android `serif` 会落到 `NotoSerifCJK`（宋体感），
   没有楷体，所以 `fontOptions()` 在 Android 上过滤掉 `kai`；iOS 用 `Songti SC` / `Kaiti SC`。
 - 竖排：RN 没有 `writing-mode`，`PoemLines` 把正文按 `columnsOf()` 拆成列，
@@ -73,6 +78,14 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
 - 竖排没有「空格宽度」这回事：`toColumnText()`（`src/lib/typography.ts`）把行内空白换成
   全角空格 `\u3000`，空位才跟字一样占整格；否则 `hidePunct` 换来的空格在竖列里会消失。
   标点只在 `PoemLines` / `PoemRow` 渲染时套，复制与朗读仍是原文标点。
+- 卡片（`src/app/card/[id].tsx` + `src/components/share-card.tsx`）不跟阅读设置：
+  正文字号默认 `CARD_BODY = 18`，题目 / 作者按 1.4 / 0.72 倍等比走，排版固定横排。
+  卡片页底部的**字号滑块 / 用字（简繁）/ 标点（空·符）**是**局部 override**——
+  state 用 `null` 表示「还没动过，跟设置」，`override ?? 设置值` 得到实际值，
+  所以不用监听 provider 的异步加载，也**不会**把阅读设置写脏。
+  `ShareCard` / `PoemLines` 因此各多出 `bodySize` / `script` / `punct` 覆盖 props。
+- 分段选择器统一用 `src/components/segment.tsx` 的 `Segment`（`compact` 是卡片页那种
+  小号版），别再在页面里复制一份。
 - 朗读语速在 `src/lib/tts.ts`，`expo-speech` 的 `rate` 是倍率（1.0 = 系统默认，中文偏快，
   所以「标准」= 0.9）。`PoemActions` 每次朗读现读设置，改完不用重启。
 - 朗读入口的显示条件在 `src/tts.ts` 的 `useTtsSupport()`：web 同步看 `speechSynthesis`，

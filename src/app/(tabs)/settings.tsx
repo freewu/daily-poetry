@@ -14,12 +14,14 @@ import {
   historyDays,
   setSetting,
 } from '@/lib/db';
+import { FontSizeSlider } from '@/components/font-size-slider';
 import { PoemLines } from '@/components/poem-lines';
+import { Segment } from '@/components/segment';
 import { DEFAULT_GAP_KEY, GAP_OPTS, gapKeyOf } from '@/lib/daily';
 import { PUNCT_OPTS } from '@/lib/punct';
 import { SCRIPT_OPTS } from '@/lib/script';
 import { DEFAULT_RATE_KEY, isRateKey, RATE_OPTS, rateOf, SPEECH_SAMPLE } from '@/lib/tts';
-import { fontOptions, LAYOUT_OPTS, scaled, SIZE_OPTS } from '@/lib/typography';
+import { bodyHint, fontOptions, LAYOUT_OPTS, scaled, scaleOfBody } from '@/lib/typography';
 import type {
   FontKey,
   GapKey,
@@ -29,7 +31,6 @@ import type {
   PushPref,
   RateKey,
   Script,
-  SizeKey,
   ThemeMode,
 } from '@/lib/types';
 import { useScript } from '@/script';
@@ -66,7 +67,10 @@ export default function SettingsScreen() {
   const db = useSQLiteContext();
   const { colors, mode, setMode } = useTheme();
   const { script, setScript } = useScript();
-  const { font, size, layout, punct, scale, setFont, setSize, setLayout, setPunct } = useTypography();
+  const { font, bodySize, layout, punct, setFont, setBodySize, setLayout, setPunct } = useTypography();
+  // 拖动中的临时字号：松手才落库，预览跟着手指走
+  const [draftSize, setDraftSize] = useState<number | null>(null);
+  const shownSize = draftSize ?? bodySize;
   // 没有语音合成的机器上整段「朗读」都不显示（语速 / 试听一起收）
   const tts = useTtsSupport();
   const insets = useSafeAreaInsets();
@@ -182,14 +186,16 @@ export default function SettingsScreen() {
             onChange={(k: Layout) => setLayout(k)}
             hint={LAYOUT_OPTS.find((o) => o.key === layout)?.hint}
           />
-          <SubLabel text="字号" />
-          <Segment
-            testIDPrefix="size"
-            options={SIZE_OPTS}
-            value={size}
-            onChange={(k: SizeKey) => setSize(k)}
-            hint={SIZE_OPTS.find((o) => o.key === size)?.hint}
+          <SubLabel text={`字号 · ${shownSize}`} />
+          <FontSizeSlider
+            value={shownSize}
+            onChange={setDraftSize}
+            onCommit={(n) => {
+              setDraftSize(null);
+              setBodySize(n);
+            }}
           />
+          <Text style={[styles.hint, { color: colors.faint }]}>{bodyHint(shownSize)}</Text>
           <SubLabel text="标点" />
           <Segment
             testIDPrefix="punct"
@@ -211,7 +217,7 @@ export default function SettingsScreen() {
               testID="font-preview"
               poem={PREVIEW_POEM}
               color={colors.text}
-              fontSize={scaled(19, scale)}
+              fontSize={scaled(19, scaleOfBody(shownSize))}
             />
           </View>
         </Section>
@@ -292,54 +298,6 @@ function SubLabel({ text }: { text: string }) {
   return <Text style={[styles.subLabel, { color: colors.sub }]}>{text}</Text>;
 }
 
-/** 分段选择器：推送偏好 / 字体 / 字号 / 简繁 / 语速 / 主题共用，testID 为 `${testIDPrefix}-${key}` */
-function Segment<T extends string>({
-  testIDPrefix,
-  options,
-  value,
-  onChange,
-  hint,
-}: {
-  testIDPrefix: string;
-  options: { key: T; label: string }[];
-  value: T;
-  onChange: (key: T) => void;
-  hint?: string;
-}) {
-  const { colors } = useTheme();
-  return (
-    <>
-      <View style={styles.segment}>
-        {options.map((o) => {
-          const sel = value === o.key;
-          return (
-            <Pressable
-              key={o.key}
-              testID={`${testIDPrefix}-${o.key}`}
-              onPress={() => onChange(o.key)}
-              style={[
-                styles.segBtn,
-                sel
-                  ? { backgroundColor: colors.accent }
-                  : { borderColor: colors.line, borderWidth: 1 },
-              ]}>
-              <Text
-                style={{
-                  fontSize: 14,
-                  fontWeight: '600',
-                  color: sel ? colors.onAccent : colors.sub,
-                }}>
-                {o.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-      {hint ? <Text style={[styles.hint, { color: colors.faint }]}>{hint}</Text> : null}
-    </>
-  );
-}
-
 function Row({
   testID,  label,
   value,
@@ -392,14 +350,6 @@ const styles = StyleSheet.create({
   rowValue: { flex: 1, fontSize: 13, textAlign: 'right' },
   subLabel: { fontSize: 12, paddingHorizontal: 14, paddingTop: 12, letterSpacing: 1 },
   preview: { borderTopWidth: 1, paddingVertical: 16, paddingHorizontal: 14, marginTop: 4 },
-  segment: { flexDirection: 'row', gap: 8, padding: 10 },
   hint: { fontSize: 12, paddingHorizontal: 14, paddingTop: 0, paddingBottom: 12, lineHeight: 18 },
-  segBtn: {
-    flex: 1,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   about: { fontSize: 13, lineHeight: 22, padding: 16 },
 });

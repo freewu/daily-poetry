@@ -3,14 +3,20 @@ import { Platform } from 'react-native';
 
 import {
   BASE_FONT_SIZE,
+  bodyHint,
+  bodySizeOf,
+  clampBody,
   columnsOf,
+  DEFAULT_BODY,
   familyOf,
   fontOptions,
   isLayoutKey,
   LAYOUT_OPTS,
+  LEGACY_SIZE_SCALE,
+  MAX_BODY,
+  MIN_BODY,
   scaled,
-  scaleOf,
-  SIZE_OPTS,
+  scaleOfBody,
   toColumnText,
 } from '@/lib/typography';
 import { DEFAULT_RATE_KEY, isRateKey, rateOf, RATE_OPTS, SPEECH_SAMPLE } from '@/lib/tts';
@@ -36,29 +42,48 @@ describe('字族', () => {
   });
 });
 
-describe('字号', () => {
-  it('四档：小 / 标准 / 大 / 特大', () => {
-    expect(SIZE_OPTS.map((o) => o.key)).toEqual(['sm', 'md', 'lg', 'xl']);
+describe('字号（滑块，存 px）', () => {
+  it('范围 16–34，默认 21', () => {
+    expect([MIN_BODY, MAX_BODY, DEFAULT_BODY]).toEqual([16, 34, 21]);
+    expect(DEFAULT_BODY).toBe(BASE_FONT_SIZE);
   });
 
-  it('标准档是 1 倍，档位越大倍率越大', () => {
-    expect(scaleOf('md')).toBe(1);
-    const scales = SIZE_OPTS.map((o) => o.scale);
-    expect(scales).toEqual([...scales].sort((a, b) => a - b));
+  it('clampBody 收在范围内并取整，NaN 回默认', () => {
+    expect(clampBody(21)).toBe(21);
+    expect(clampBody(15.9)).toBe(16);
+    expect(clampBody(40)).toBe(34);
+    expect(clampBody(22.4)).toBe(22);
+    expect(clampBody(NaN)).toBe(DEFAULT_BODY);
   });
 
-  it('正文基准 21 号，缩放后取整', () => {
-    expect(BASE_FONT_SIZE).toBe(21);
-    expect(scaled(BASE_FONT_SIZE, scaleOf('md'))).toBe(21);
-    expect(scaled(BASE_FONT_SIZE, scaleOf('xl'))).toBe(27);
+  it('读库：新值就是 px 数字，老的四档键换算过来', () => {
+    expect(bodySizeOf('28')).toBe(28);
+    expect(bodySizeOf(' 24 ')).toBe(24);
+    expect(bodySizeOf('lg')).toBe(24); // 21 × 1.15
+    expect(bodySizeOf('xl')).toBe(27); // 21 × 1.3
+    expect(bodySizeOf('sm')).toBe(clampBody(21 * LEGACY_SIZE_SCALE.sm));
+    expect(bodySizeOf(null)).toBe(DEFAULT_BODY);
+    expect(bodySizeOf('')).toBe(DEFAULT_BODY);
+    expect(bodySizeOf('huge')).toBe(DEFAULT_BODY);
+    expect(bodySizeOf('999')).toBe(MAX_BODY);
+  });
+
+  it('倍率按 21 号基准算，其余文字等比缩放', () => {
+    expect(scaleOfBody(21)).toBe(1);
+    expect(scaleOfBody(42)).toBeCloseTo(MAX_BODY / BASE_FONT_SIZE); // 先 clamp 到 34，再算
+    expect(scaleOfBody(29)).toBeCloseTo(29 / 21);
+    expect(scaled(BASE_FONT_SIZE, scaleOfBody(27))).toBe(27);
   });
 
   it('再小的字号也不会低于 11', () => {
     expect(scaled(10, 0.5)).toBe(11);
   });
 
-  it('未知档位回退标准', () => {
-    expect(scaleOf('huge' as never)).toBe(1);
+  it('滑块下面那句话按档位变', () => {
+    expect(bodyHint(16)).toContain('信息密度最高');
+    expect(bodyHint(21)).toContain('日常阅读');
+    expect(bodyHint(25)).toContain('小屏长读');
+    expect(bodyHint(32)).toContain('长辈');
   });
 });
 

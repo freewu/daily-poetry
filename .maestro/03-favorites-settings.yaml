@@ -47,16 +47,21 @@ name: 收藏与设置
     id: 'layout-horizontal'
 - assertVisible: '自左向右横读，长句更好排'
 
-# 字体：宋体（衬线），再切特大字号，预览跟着变
+# 字体：宋体（衬线），再拖字号滑块（往右拉到最大、往左缩回），预览跟着变
 - tapOn:
     id: 'font-song'
 - assertVisible: '衬线体，横细竖粗、起收有顿，接近刻本'
-- tapOn:
-    id: 'size-xl'
-- assertVisible: '正文字号 27，适合长辈阅读'
+- swipe:
+    from:
+      id: 'font-size-slider'
+    direction: RIGHT
+- assertVisible: '正文 34 号，适合长辈阅读'
 - takeScreenshot: settings-font-xl
-- tapOn:
-    id: 'size-md'
+- swipe:
+    from:
+      id: 'font-size-slider'
+    direction: LEFT
+- assertVisible: '正文 16 号，信息密度最高'
 - tapOn:
     id: 'font-system'
 - assertVisible: '跟随系统字体（黑体 / 苹方），笔画均匀'

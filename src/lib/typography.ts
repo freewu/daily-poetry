@@ -46,26 +46,53 @@ export function familyOf(key: FontKey): string | undefined {
   return (ALL_FONTS.find((o) => o.key === key) ?? ALL_FONTS[0]).family;
 }
 
-/** 正文字号档位：倍率作用在 21 号基准上 */
-export interface SizeOpt {
-  key: SizeKey;
-  label: string;
-  scale: number;
-  hint: string;
-}
-
-export const SIZE_OPTS: SizeOpt[] = [
-  { key: 'sm', label: '小', scale: 0.9, hint: '正文字号 19，信息密度最高' },
-  { key: 'md', label: '标准', scale: 1, hint: '正文字号 21，默认' },
-  { key: 'lg', label: '大', scale: 1.15, hint: '正文字号 24，适合小屏长读' },
-  { key: 'xl', label: '特大', scale: 1.3, hint: '正文字号 27，适合长辈阅读' },
-];
-
 /** 正文基准字号（未缩放） */
 export const BASE_FONT_SIZE = 21;
 
-export function scaleOf(key: SizeKey): number {
-  return (SIZE_OPTS.find((o) => o.key === key) ?? SIZE_OPTS[1]).scale;
+/**
+ * 字号现在是一根滑块：直接存正文 px（16–34，步长 1）。
+ * 老版本存的是 sm|md|lg|xl 四档，读到就按下面的倍率换算过来，不丢设置。
+ */
+export const MIN_BODY = 16;
+export const MAX_BODY = 34;
+export const BODY_STEP = 1;
+export const DEFAULT_BODY = BASE_FONT_SIZE;
+
+/** 老版四档 → 倍率（只用于读旧库里的值） */
+export const LEGACY_SIZE_SCALE: Record<SizeKey, number> = {
+  sm: 0.9,
+  md: 1,
+  lg: 1.15,
+  xl: 1.3,
+};
+
+export function clampBody(n: number): number {
+  if (!Number.isFinite(n)) return DEFAULT_BODY;
+  return Math.min(MAX_BODY, Math.max(MIN_BODY, Math.round(n)));
+}
+
+/** meta 里的 settings_font_size → 正文 px：新值就是数字，老值是四档键 */
+export function bodySizeOf(v: string | null | undefined): number {
+  const raw = (v ?? '').trim();
+  if (!raw) return DEFAULT_BODY;
+  const n = Number(raw);
+  if (Number.isFinite(n) && n > 0) return clampBody(n);
+  const legacy = LEGACY_SIZE_SCALE[raw as SizeKey];
+  return legacy ? clampBody(BASE_FONT_SIZE * legacy) : DEFAULT_BODY;
+}
+
+/** 滑块下方那句话：按当前字号说人话 */
+export function bodyHint(n: number): string {
+  const size = clampBody(n);
+  if (size <= 18) return `正文 ${size} 号，信息密度最高`;
+  if (size <= 22) return `正文 ${size} 号，日常阅读最舒服`;
+  if (size <= 28) return `正文 ${size} 号，适合小屏长读`;
+  return `正文 ${size} 号，适合长辈阅读`;
+}
+
+/** 字号倍率：列表行 / 题目等其余文字按它等比缩放 */
+export function scaleOfBody(body: number): number {
+  return clampBody(body) / BASE_FONT_SIZE;
 }
 
 /** 排版档位：横排 / 竖排 */

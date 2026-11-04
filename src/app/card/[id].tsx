@@ -14,13 +14,17 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { captureRef } from 'react-native-view-shot';
 
+import { FontSizeSlider } from '@/components/font-size-slider';
 import { ScreenBar } from '@/components/screen-bar';
-import { ShareCard } from '@/components/share-card';
+import { Segment } from '@/components/segment';
+import { CARD_BODY, ShareCard } from '@/components/share-card';
 import { cardFileName } from '@/lib/card';
 import { saveImageToLibrary, shareImage } from '@/lib/card-save';
 import { getPoem } from '@/lib/db';
-import type { Poem } from '@/lib/types';
+import type { Poem, PunctKey, Script } from '@/lib/types';
+import { useScript } from '@/script';
 import { useTheme } from '@/theme';
+import { useTypography } from '@/typography';
 
 type Phase = 'idle' | 'saving' | 'saved' | 'denied' | 'failed';
 
@@ -30,9 +34,23 @@ const HINTS: Record<Exclude<Phase, 'idle' | 'saving'>, string> = {
   failed: '保存失败，请再试一次',
 };
 
+/** 卡片页的「空 / 符」：标签短一点，一排塞得下 */
+const PUNCT_SHORT: { key: PunctKey; label: string }[] = [
+  { key: 'keep', label: '符' },
+  { key: 'space', label: '空' },
+];
+
+const SCRIPT_SHORT: { key: Script; label: string }[] = [
+  { key: 'cn', label: '简' },
+  { key: 'tw', label: '繁' },
+];
+
 /**
  * 诗词卡片：把一首诗排成一张笺纸，截图存进相册，然后弹系统分享面板。
  * 带 ?date= 时是「每日一诗」，底部会印上那天的日期。
+ *
+ * 卡片上的字号 / 简繁 / 标点可以在这里现场调（默认跟着设置与卡片版式走），
+ * 只影响这一次导出，不会把阅读设置改掉。
  */
 export default function CardScreen() {
   const params = useLocalSearchParams<{ id?: string; date?: string }>();
@@ -41,10 +59,21 @@ export default function CardScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
 
+  const { punct: prefPunct } = useTypography();
+  const { script: prefScript } = useScript();
+
   const [poem, setPoem] = useState<Poem | null>(null);
   const [missing, setMissing] = useState(false);
   const [phase, setPhase] = useState<Phase>('idle');
+  // null = 还没动过 → 用默认值（卡片字号固定 18，简繁 / 标点跟设置）
+  const [size, setSize] = useState<number | null>(null);
+  const [script, setScript] = useState<Script | null>(null);
+  const [punct, setPunct] = useState<PunctKey | null>(null);
   const shot = useRef<View>(null);
+
+  const cardSize = size ?? CARD_BODY;
+  const cardScript = script ?? prefScript;
+  const cardPunct = punct ?? prefPunct;
 
   const date = params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date) ? params.date : undefined;
 
@@ -100,7 +129,15 @@ export default function CardScreen() {
         {poem ? (
           // collapsable={false}：避免 Android 把外层 View 拍平导致截不到
           <View ref={shot} collapsable={false} testID="card-shot">
-            <ShareCard poem={poem} date={date} width={cardWidth} testID="share-card" />
+            <ShareCard
+              poem={poem}
+              date={date}
+              width={cardWidth}
+              bodySize={cardSize}
+              script={cardScript}
+              punct={cardPunct}
+              testID="share-card"
+            />
           </View>
         ) : missing ? (
           <Text style={[styles.hint, { color: colors.faint }]}>未找到这首诗词</Text>
@@ -119,6 +156,45 @@ export default function CardScreen() {
           </Text>
         ) : null}
       </ScrollView>
+
+      {poem ? (
+        <View
+          style={[
+            styles.panel,
+            { borderTopColor: colors.line, backgroundColor: colors.bg },
+          ]}>
+          <View style={styles.panelRow}>
+            <Text style={[styles.panelLabel, { color: colors.sub }]}>字号</Text>
+            <FontSizeSlider
+              testID="card-size"
+              value={cardSize}
+              onChange={(n) => setSize(n)}
+            />
+          </View>
+          <View style={styles.panelRow}>
+            <Text style={[styles.panelLabel, { color: colors.sub }]}>用字</Text>
+            <View style={styles.grow}>
+              <Segment
+                compact
+                testIDPrefix="card-script"
+                options={SCRIPT_SHORT}
+                value={cardScript}
+                onChange={(k: Script) => setScript(k)}
+              />
+            </View>
+            <Text style={[styles.panelLabel, { color: colors.sub }]}>标点</Text>
+            <View style={styles.grow}>
+              <Segment
+                compact
+                testIDPrefix="card-punct"
+                options={PUNCT_SHORT}
+                value={cardPunct}
+                onChange={(k: PunctKey) => setPunct(k)}
+              />
+            </View>
+          </View>
+        </View>
+      ) : null}
 
       {poem ? (
         <View style={{ paddingHorizontal: 20, paddingBottom: Math.max(insets.bottom, 12) }}>
@@ -147,6 +223,10 @@ export default function CardScreen() {
 
 const styles = StyleSheet.create({
   scroll: { padding: 24, paddingBottom: 32, alignItems: 'center' },
+  panel: { borderTopWidth: 1, paddingTop: 4, paddingBottom: 10, gap: 2 },
+  panelRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20 },
+  panelLabel: { fontSize: 12, letterSpacing: 1 },
+  grow: { flex: 1 },
   hint: { marginTop: 90, fontSize: 14 },
   result: { marginTop: 16, fontSize: 13, textAlign: 'center' },
   save: {

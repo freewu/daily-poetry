@@ -1,4 +1,4 @@
-import { fireEvent, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, waitFor } from '@testing-library/react-native';
 import { Alert, StyleSheet, type TextStyle } from 'react-native';
 
 import SettingsScreen from '@/app/(tabs)/settings';
@@ -155,20 +155,43 @@ describe('<SettingsScreen />', () => {
     );
   });
 
-  it('切换字号并落库，预览跟着放大', async () => {
+  it('字号改成滑块：拖动看预览，松手才落库', async () => {
     const db = await seed();
     await renderWithTheme(<SettingsScreen />, { db });
-    await waitFor(() => expect(screen.getByTestId('size-xl')).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId('font-size-slider')).toBeTruthy());
+    expect(screen.getByTestId('font-size-slider-value').props.children).toBe(21);
     expect(previewStyle().fontSize).toBe(19);
 
-    await fireEvent.press(screen.getByTestId('size-xl'));
+    // 拖动中：只有预览跟着变，库里还是空的
+    await act(async () => {
+      screen.getByTestId('font-size-slider').props.onValueChange(28);
+    });
+    expect(previewStyle().fontSize).toBe(Math.round((19 * 28) / 21));
+    expect(screen.getByTestId('font-size-slider-value').props.children).toBe(28);
+    expect(
+      await asDb(db).getFirstAsync("SELECT value FROM meta WHERE key = 'settings_font_size'"),
+    ).toBeNull();
+
+    // 松手才写库（一次拖动不至于写几十遍）
+    await act(async () => {
+      screen.getByTestId('font-size-slider').props.onSlidingComplete(28);
+    });
     await waitFor(async () =>
       expect(
         await asDb(db).getFirstAsync("SELECT value FROM meta WHERE key = 'settings_font_size'"),
-      ).toEqual({ value: 'xl' }),
+      ).toEqual({ value: '28' }),
     );
-    expect(previewStyle().fontSize).toBe(Math.round(19 * 1.3));
-    expect(screen.getByText('正文字号 27，适合长辈阅读')).toBeTruthy();
+    expect(screen.getByText('正文 28 号，适合小屏长读')).toBeTruthy();
+
+    // 滑到最小也能用，且不会越界
+    await act(async () => {
+      screen.getByTestId('font-size-slider').props.onSlidingComplete(99);
+    });
+    await waitFor(async () =>
+      expect(
+        await asDb(db).getFirstAsync("SELECT value FROM meta WHERE key = 'settings_font_size'"),
+      ).toEqual({ value: '34' }),
+    );
   });
 
   it('切换朗读语速并落库，「试听」用新语速朗读', async () => {
@@ -221,7 +244,11 @@ describe('<SettingsScreen />', () => {
       "INSERT INTO meta (key, value) VALUES ('settings_font','song'), ('settings_font_size','lg'), ('settings_tts_rate','slow')",
     );
     await renderWithTheme(<SettingsScreen />, { db });
-    await waitFor(() => expect(screen.getByText('正文字号 24，适合小屏长读')).toBeTruthy());
+    // 老库里的 'lg' 读出来换算成 24 号
+    await waitFor(() =>
+      expect(screen.getByTestId('font-size-slider-value').props.children).toBe(24),
+    );
+    expect(screen.getByText('正文 24 号，适合小屏长读')).toBeTruthy();
     expect(screen.getByText('0.7× 语速，一句一句听得清')).toBeTruthy();
     expect(previewStyle().fontFamily).toBe('serif');
   });

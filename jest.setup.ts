@@ -76,6 +76,20 @@ jest.mock('expo-splash-screen', () => ({
   hideAsync: () => (globalThis as any).__SPLASH__.hideAsync(),
 }));
 
+// -------------------------------------------------------- @react-native-community/slider
+// 原生滑块没法在 Jest 里拖：降级成一个带同样 props 的 View，
+// 用例直接调 props.onValueChange / onSlidingComplete 模拟「拖动 / 松手」。
+jest.mock('@react-native-community/slider', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    __esModule: true,
+    default: React.forwardRef((props: any, ref: any) =>
+      React.createElement(View, { ...props, ref }),
+    ),
+  };
+});
+
 // ---------------------------------------------------------------- expo-status-bar
 jest.mock('expo-status-bar', () => ({ StatusBar: () => null }));
 

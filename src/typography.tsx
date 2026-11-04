@@ -11,14 +11,14 @@ import {
 
 import { getSetting, setSetting } from '@/lib/db';
 import { DEFAULT_PUNCT, isPunctKey } from '@/lib/punct';
-import { BASE_FONT_SIZE, familyOf, isLayoutKey, scaleOf } from '@/lib/typography';
-import type { FontKey, Layout, PunctKey, SizeKey } from '@/lib/types';
+import { bodySizeOf, DEFAULT_BODY, familyOf, isLayoutKey, scaleOfBody } from '@/lib/typography';
+import type { FontKey, Layout, PunctKey } from '@/lib/types';
 
 interface TypographyCtxValue {
   /** 字族档位 */
   font: FontKey;
-  /** 字号档位 */
-  size: SizeKey;
+  /** 正文字号（px，滑块直接给的值） */
+  bodySize: number;
   /** 排版：横排 / 竖排 */
   layout: Layout;
   /** 竖排（自右向左逐列） */
@@ -27,12 +27,10 @@ interface TypographyCtxValue {
   punct: PunctKey;
   /** 解析后的 fontFamily，undefined = 系统默认 */
   family: string | undefined;
-  /** 字号倍率（1 = 标准） */
+  /** 字号倍率（1 = 标准，21 号），其余文字按它等比缩放 */
   scale: number;
-  /** 正文基准字号 × 倍率 */
-  bodySize: number;
   setFont: (k: FontKey) => void;
-  setSize: (k: SizeKey) => void;
+  setBodySize: (n: number) => void;
   setLayout: (k: Layout) => void;
   setPunct: (k: PunctKey) => void;
 }
@@ -46,7 +44,7 @@ const TypographyContext = createContext<TypographyCtxValue | null>(null);
 export function AppTypographyProvider({ children }: { children: ReactNode }) {
   const db = useSQLiteContext();
   const [font, setFontState] = useState<FontKey>('system');
-  const [size, setSizeState] = useState<SizeKey>('md');
+  const [bodySize, setBodyState] = useState<number>(DEFAULT_BODY);
   const [layout, setLayoutState] = useState<Layout>('horizontal');
   const [punct, setPunctState] = useState<PunctKey>(DEFAULT_PUNCT);
 
@@ -61,7 +59,8 @@ export function AppTypographyProvider({ children }: { children: ReactNode }) {
       .then(([f, s, l, p]) => {
         if (!alive) return;
         if (f === 'system' || f === 'song' || f === 'kai') setFontState(f);
-        if (s === 'sm' || s === 'md' || s === 'lg' || s === 'xl') setSizeState(s);
+        // 老库里的 sm|md|lg|xl 会在 bodySizeOf 里换算成 px
+        if (s) setBodyState(bodySizeOf(s));
         if (isLayoutKey(l)) setLayoutState(l);
         if (isPunctKey(p)) setPunctState(p);
       })
@@ -79,10 +78,11 @@ export function AppTypographyProvider({ children }: { children: ReactNode }) {
     [db],
   );
 
-  const setSize = useCallback(
-    (k: SizeKey) => {
-      setSizeState(k);
-      setSetting(db, 'settings_font_size', k).catch(() => {});
+  const setBodySize = useCallback(
+    (n: number) => {
+      const px = bodySizeOf(String(n));
+      setBodyState(px);
+      setSetting(db, 'settings_font_size', String(px)).catch(() => {});
     },
     [db],
   );
@@ -103,23 +103,22 @@ export function AppTypographyProvider({ children }: { children: ReactNode }) {
     [db],
   );
 
-  const scale = scaleOf(size);
+  const scale = scaleOfBody(bodySize);
   const value = useMemo(
     () => ({
       font,
-      size,
       layout,
       vertical: layout === 'vertical',
       punct,
       family: familyOf(font),
       scale,
-      bodySize: Math.round(BASE_FONT_SIZE * scale),
+      bodySize,
       setFont,
-      setSize,
+      setBodySize,
       setLayout,
       setPunct,
     }),
-    [font, size, layout, punct, scale, setFont, setSize, setLayout, setPunct],
+    [font, layout, punct, scale, bodySize, setFont, setBodySize, setLayout, setPunct],
   );
 
   return <TypographyContext.Provider value={value}>{children}</TypographyContext.Provider>;

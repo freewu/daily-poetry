@@ -3,7 +3,7 @@ import { ScrollView, Text, View, type StyleProp, type TextStyle } from 'react-na
 
 import { isVerse } from '@/lib/format';
 import { hidePunct } from '@/lib/punct';
-import type { Poem } from '@/lib/types';
+import type { Poem, PunctKey } from '@/lib/types';
 import { columnsOf, toColumnText } from '@/lib/typography';
 import { useTypography } from '@/typography';
 
@@ -17,6 +17,8 @@ interface Props {
   testID?: string;
   /** 覆盖设置里的排版（导出卡片固定横排，竖排长诗塞不进方寸） */
   vertical?: boolean;
+  /** 覆盖设置里的标点（卡片页可以现场选「空 / 符」） */
+  punct?: PunctKey;
 }
 
 /**
@@ -73,9 +75,18 @@ function VerticalLines({ poem, color, size, family }: { poem: Poem; color: strin
 }
 
 /** 正文渲染：诗句居中、长文左对齐，保留原始换行；字体 / 字号 / 排版跟随设置 */
-export function PoemLines({ poem, color, fontSize, style, testID, vertical: forceVertical }: Props) {
-  const { family, bodySize, vertical: prefVertical, punct } = useTypography();
+export function PoemLines({
+  poem,
+  color,
+  fontSize,
+  style,
+  testID,
+  vertical: forceVertical,
+  punct: forcePunct,
+}: Props) {
+  const { family, bodySize, vertical: prefVertical, punct: prefPunct } = useTypography();
   const vertical = forceVertical ?? prefVertical;
+  const punct = forcePunct ?? prefPunct;
   // 「空白断句」：标点换成空格。竖排时 toColumnText 把空格换成全角空位，
   // 于是标点原本站的那一格在竖列里仍然空着。
   const shown = useMemo(

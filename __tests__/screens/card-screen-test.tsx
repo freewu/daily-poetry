@@ -1,8 +1,9 @@
-import { fireEvent, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, waitFor } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 
 import CardScreen from '@/app/card/[id]';
 
-import { renderWithTheme, screen, seedPoems, useMemoryDb } from '../helpers/test-utils';
+import { asDb, renderWithTheme, screen, seedPoems, useMemoryDb } from '../helpers/test-utils';
 
 // 路由参数由用例控制，截图与相册都是原生能力，这里 mock 掉只看编排
 let mockParams: { id?: string; date?: string } = { id: '1' };
@@ -32,7 +33,15 @@ const mockMl = jest.requireMock('expo-media-library') as {
 
 function seeded() {
   const db = useMemoryDb();
-  seedPoems(db, [{ id: 1, title: '静夜思', content: '床前明月光\n疑是地上霜' }]);
+  seedPoems(db, [
+    {
+      id: 1,
+      title: '静夜思',
+      content: '床前明月光，疑是地上霜。',
+      title_tw: '靜夜思',
+      content_tw: '床前明月光，疑是地上霜。',
+    },
+  ]);
   return db;
 }
 
@@ -123,6 +132,81 @@ describe('<CardScreen />', () => {
     await waitFor(() => expect(screen.getByTestId('card-result')).toBeTruthy());
     expect(screen.getByText('保存失败，请再试一次')).toBeTruthy();
     expect(mockMl.Asset.create).not.toHaveBeenCalled();
+  });
+
+  it('卡片下方有字号滑块 / 用字 / 标点三个开关', async () => {
+    await renderWithTheme(<CardScreen />, { db: seeded() });
+    await waitFor(() => expect(screen.getByTestId('card-size')).toBeTruthy());
+    expect(screen.getByTestId('card-script-cn')).toBeTruthy();
+    expect(screen.getByTestId('card-script-tw')).toBeTruthy();
+    expect(screen.getByTestId('card-punct-keep')).toBeTruthy();
+    expect(screen.getByTestId('card-punct-space')).toBeTruthy();
+  });
+
+  it('拖字号滑块，卡片正文跟着变（不动阅读设置）', async () => {
+    const db = seeded();
+    await renderWithTheme(<CardScreen />, { db });
+    await waitFor(() => expect(screen.getByTestId('share-card')).toBeTruthy());
+
+    await act(async () => {
+      screen.getByTestId('card-size').props.onValueChange(26);
+    });
+    const body = () =>
+      StyleSheet.flatten(screen.getByText('床前明月光，疑是地上霜。').props.style) as {
+        fontSize?: number;
+      };
+    expect(body().fontSize).toBe(26);
+
+    // 卡片页没有「松手才落库」这回事（压根不存），onSlidingComplete 只是兜底
+    await act(async () => {
+      screen.getByTestId('card-size').props.onSlidingComplete(31);
+    });
+    expect(body().fontSize).toBe(31);
+    // 只影响这一张卡片，阅读设置原样
+    expect(
+      await asDb(db).getFirstAsync("SELECT value FROM meta WHERE key = 'settings_font_size'"),
+    ).toBeNull();
+  });
+
+  it('选「繁」用繁體，选「简」回简体（不改设置）', async () => {
+    const db = seeded();
+    await renderWithTheme(<CardScreen />, { db });
+    await waitFor(() => expect(screen.getByTestId('card-script-tw')).toBeTruthy());
+
+    await fireEvent.press(screen.getByTestId('card-script-tw'));
+    await waitFor(() => expect(screen.getByText('靜夜思')).toBeTruthy());
+
+    await fireEvent.press(screen.getByTestId('card-script-cn'));
+    await waitFor(() => expect(screen.getByText('静夜思')).toBeTruthy());
+    expect(
+      await asDb(db).getFirstAsync("SELECT value FROM meta WHERE key = 'settings_script'"),
+    ).toBeNull();
+  });
+
+  it('选「空」把标点换成空位，选「符」还原', async () => {
+    const db = seeded();
+    await renderWithTheme(<CardScreen />, { db });
+    await waitFor(() => expect(screen.getByTestId('card-punct-space')).toBeTruthy());
+    expect(screen.getByText('床前明月光，疑是地上霜。')).toBeTruthy();
+
+    await fireEvent.press(screen.getByTestId('card-punct-space'));
+    await waitFor(() => expect(screen.getByText('床前明月光 疑是地上霜')).toBeTruthy());
+
+    await fireEvent.press(screen.getByTestId('card-punct-keep'));
+    await waitFor(() => expect(screen.getByText('床前明月光，疑是地上霜。')).toBeTruthy());
+    expect(
+      await asDb(db).getFirstAsync("SELECT value FROM meta WHERE key = 'settings_punct'"),
+    ).toBeNull();
+  });
+
+  it('没动过开关时，简繁 / 标点跟阅读设置走', async () => {
+    const db = seeded();
+    await asDb(db).runAsync(
+      "INSERT INTO meta (key, value) VALUES ('settings_script','tw'), ('settings_punct','space')",
+    );
+    await renderWithTheme(<CardScreen />, { db });
+    await waitFor(() => expect(screen.getByText('靜夜思')).toBeTruthy());
+    expect(screen.getByText('床前明月光 疑是地上霜')).toBeTruthy();
   });
 
   it('id 查不到时给空态', async () => {

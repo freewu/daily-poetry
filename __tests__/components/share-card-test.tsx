@@ -1,4 +1,6 @@
-import { ShareCard } from '@/components/share-card';
+import { StyleSheet } from 'react-native';
+
+import { CARD_BODY, ShareCard } from '@/components/share-card';
 import type { Poem } from '@/lib/types';
 
 import { asDb, createTestDb, renderWithTheme, screen } from '../helpers/test-utils';
@@ -82,5 +84,46 @@ describe('<ShareCard />', () => {
     const style = screen.getByTestId('share-card').props.style;
     const flat = Array.isArray(style) ? Object.assign({}, ...style.filter(Boolean)) : style;
     expect(flat.width).toBe(377);
+  });
+
+  it('不传字号就用卡片默认 18 号', async () => {
+    await renderWithTheme(<ShareCard poem={poem} width={340} />, { db: await dbWith() });
+    const body = StyleSheet.flatten(screen.getByText(/床前明月光/).props.style) as {
+      fontSize?: number;
+    };
+    expect(CARD_BODY).toBe(18);
+    expect(body.fontSize).toBe(18);
+  });
+
+  it('传了字号就跟着走，题目按 1.4 倍等比放大', async () => {
+    await renderWithTheme(<ShareCard poem={poem} width={340} bodySize={25} />, {
+      db: await dbWith(),
+    });
+    const body = StyleSheet.flatten(screen.getByText(/床前明月光/).props.style) as {
+      fontSize?: number;
+    };
+    const title = StyleSheet.flatten(screen.getByText('静夜思').props.style) as {
+      fontSize?: number;
+    };
+    expect(body.fontSize).toBe(25);
+    // 卡片不会出现「标题比正文还小」
+    expect(title.fontSize).toBe(35);
+  });
+
+  it('简繁可以不跟设置（卡片页现场选）', async () => {
+    const tw: Poem = { ...poem, title_tw: '靜夜思', content_tw: '床前明月光' };
+    await renderWithTheme(<ShareCard poem={tw} width={340} script="cn" />, {
+      db: await dbWith({ tw: true }),
+    });
+    expect(screen.getByText('静夜思')).toBeTruthy();
+  });
+
+  it('标点可以不跟设置（卡片页现场选「空」）', async () => {
+    const punctPoem: Poem = { ...poem, content: '床前明月光，疑是地上霜。' };
+    await renderWithTheme(<ShareCard poem={punctPoem} width={340} punct="space" />, {
+      db: await dbWith(),
+    });
+    expect(screen.getByText(/床前明月光 疑是地上霜/)).toBeTruthy();
+    expect(screen.queryByText(/床前明月光，/)).toBeNull();
   });
 });
