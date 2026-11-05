@@ -6,7 +6,7 @@
 #   bash tool/android.sh boot [avd]      # 启动模拟器并等到 sys.boot_completed=1
 #   bash tool/android.sh wait            # 只等设备开机完成
 #   bash tool/android.sh install         # prebuild + Gradle 构建 Debug 包并安装
-#   bash tool/android.sh apk             # 打离线可用的 Release APK（拔线 / 关 Metro 也能用）
+#   bash tool/android.sh apk             # 打离线可用的 Release APK → dist/（拔线 / 关 Metro 也能用）
 #   bash tool/android.sh e2e [flow…]     # 跑 .maestro 下的 Maestro 流程
 #
 # WSL 说明：模拟器本身是 Windows 程序，必须由 Windows 侧启动；adb 用 Linux
@@ -131,8 +131,20 @@ cmd_install() {
 # Debug 包的 JS 是 Metro 现喂的（adb reverse 8081），拔线 / 关 just start 之后就只剩
 # 「Unable to load script」—— 想脱机用必须装 Release 包（JS 打进 APK 里）。
 # 本地 Release 用模板自带的 debug.keystore 签名（见 android/app/build.gradle），能直接装。
+
+# 从 app.json 读一个字段（版本号 / versionCode）；读不到就给兜底，别让文件名变成空的
+app_field() {
+  node -p "const a = require('./app.json').expo; String($1)" 2>/dev/null || printf '0'
+}
+
+# 产物文件名：daily-poetry-<version>-vc<versionCode>.apk（dist/ 已在 .gitignore 里）
+apk_name() {
+  printf 'daily-poetry-%s-vc%s.apk' "$(app_field 'a.version')" "$(app_field 'a.android.versionCode || 1')"
+}
+
 cmd_apk() {
   local apk="android/app/build/outputs/apk/release/app-release.apk"
+  local dist="$ROOT/dist"
   info "构建 Release APK（JS 打进包里，装完可以拔线）…"
   if on_wsl; then
     win_run "cd android && gradlew.bat assembleRelease" \
@@ -141,7 +153,11 @@ cmd_apk() {
     ( cd android && ./gradlew assembleRelease ) || die "Gradle 构建失败"
   fi
   [ -f "$apk" ] || die "没找到产物 $apk"
-  info "产物：$apk（$(du -h "$apk" | cut -f1)）"
+
+  # 顺手收一份到 dist/：Gradle 的产物目录会被 clean 清掉，dist/ 是给「拿文件去装」用的
+  mkdir -p "$dist"
+  cp -f "$apk" "$dist/$(apk_name)" || die "复制产物到 dist/ 失败"
+  info "产物：dist/$(apk_name)（$(du -h "$dist/$(apk_name)" | cut -f1)）"
 
   [ -n "${ADB:-}" ] || {
     info "没有 adb，跳过安装（手动装：adb install -r $apk）"

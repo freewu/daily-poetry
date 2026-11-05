@@ -19,6 +19,10 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
    要脱机验证就打 Release：`just apk`（`gradlew assembleRelease`，JS 打进包里；
    `android/app/build.gradle` 的 release 用模板自带的 `debug.keystore` 签名，
    所以能直接 `adb install -r` 覆盖装上去，收藏 / 设置都留着）。上架 AAB 仍走 EAS。
+   产物统一收进 `dist/`（已 gitignore）：`just apk` → `daily-poetry-<版本>-vc<N>.apk`；
+   `just pkg` 一次出 APK + IPA。iOS 的 `.ipa` 只能在 macOS 上本地打（`just ipa`，
+   **关掉 code signing** 归档再把 `.app` 塞进 `Payload/` 打成 zip，装设备要自签），
+   Windows 上走 `just ipa-eas`（EAS 云端签名，下完自动落 `dist/`）。
 3. **ccache**：`ReactNative-application.cmake` 会自动 `find_program(ccache)` 并设为编译器启动器；
    Cygwin/MSYS 版 ccache 认不了 `C:\...\clang++.exe`，NDK 编译会整片
    `ccache: FATAL: Could not find compiler ... in PATH`。用原生版（`choco install ccache`），

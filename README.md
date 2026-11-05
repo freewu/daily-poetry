@@ -165,11 +165,14 @@ just db-full  # 再加古文观止 / 幽梦影 / 论语 / 四书 / 蒙学等（�
 | `just android` / `ios` | 原生 Debug 构建并在设备上启动 |
 | `just emulator [avd]` | 启动模拟器并等到开机完成 |
 | `just android-install` | 构建 Debug 包并安装到设备（**JS 靠 Metro，拔线打不开**） |
-| `just apk` | 打离线可用的 Release APK（JS 打进包里；设备在线时顺带安装） |
+| `just apk` | 打离线可用的 Release APK → `dist/daily-poetry-<版本>-vc<N>.apk`（设备在线时顺带安装） |
+| `just ipa` | macOS 本地归档 → `dist/daily-poetry-<版本>-b<N>.ipa`（未签名，需自签才装得上） |
+| `just ipa-eas` | EAS 云端打 iOS `.ipa` 并下载到 `dist/`（Windows 也能跑，需 Apple 凭证） |
+| `just pkg` | 一次出两个包到 `dist/`（非 macOS 时 IPA 自动跳过并提示） |
 | `just e2e [流程]` | 跑 Maestro E2E（全部或单条 `.maestro/*.yaml`） |
 | `just android-doctor` | Android 工具链自检（SDK / adb / 设备 / Maestro） |
 | `just export` | 打 Android JS bundle 至 `dist/`（验证打包） |
-| `just build` | 提示：离线包用 `just apk`，上架用 EAS Build |
+| `just build` | 提示：本地出包用 `just pkg` / `apk` / `ipa`，上架用 EAS Build |
 | `just envcheck` | 环境自检 |
 
 > **为什么拔了 USB 就打不开**：`just android` / `android-install` 装的是 **Debug 包**，
@@ -187,7 +190,13 @@ just db-full  # 再加古文观止 / 幽梦影 / 论语 / 四书 / 蒙学等（�
 > ```
 >
 > 构建会自动带上 `assets/poetry.db`（已在 `metro.config.js` 注册 `db` 为资源类型）。
-> iOS 云构建需在 EAS 项目设置中配置 Apple 凭证。
+> iOS 云构建需在 EAS 项目设置中配置 Apple 凭证 —— 配好后 `just ipa-eas` 一条命令就能出
+> `.ipa` 并自动下载到 `dist/`（在 Windows 上也能用，本机没有 Xcode 照样出包）。
+>
+> **本地能出什么包**：`just apk` 出安卓（Gradle，本地签名，能直接装）；`just ipa` 只在
+> macOS + Xcode 上能跑，且产物**未签名**（关掉 code signing 归档后把 `.app` 塞进 `Payload/`
+> 打成 zip），装设备要过 AltStore / Sideloadly 自签；`just pkg` 一次出两个。产物统一落在
+> `dist/`（已在 `.gitignore` 里，不进库）。
 
 ## 测试
 

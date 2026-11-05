@@ -90,9 +90,24 @@ android-install:
 
 # 本地用模板的 debug.keystore 签名，够自用；上架仍走 EAS。
 
-# 打**离线可用**的 Release APK（JS 打进包里，装完拔线也能开；设备在线时顺带覆盖安装）
+# 打**离线可用**的 Release APK → dist/daily-poetry-<版本>-vc<N>.apk（设备在线时顺带覆盖安装）
 apk: check
     bash tool/android.sh apk
+
+# 其它平台只提示，真出包走 just ipa-eas
+
+# 打 iOS .ipa → dist/：macOS 本地归档（未签名，AltStore / Sideloadly 自签可装）
+ipa: check
+    bash tool/ios.sh ipa
+
+# 用 EAS Build 云端打 .ipa（Windows / WSL 也能跑；需 expo 账号 + Apple 凭证），下完收进 dist/
+ipa-eas:
+    bash tool/ios.sh eas
+
+# 一次出两个包到 dist/：APK 本地打，IPA 本地（macOS）或跳过并提示走 just ipa-eas
+pkg: check
+    bash tool/android.sh apk
+    bash tool/ios.sh ipa --soft
 
 # Maestro E2E：just e2e 跑全部，或 just e2e .maestro/01-today.yaml 跑单个
 e2e *args:
@@ -134,6 +149,6 @@ ios: check
 export: check
     npx expo export --platform android --output-dir dist
 
-# 打包提示：本地离线装用 just apk，上架用 EAS Build（这个目标自己不打任何包）
+# 打包提示：本地出包用 just pkg（APK + IPA）/ just apk / just ipa，上架用 EAS
 build:
-    @echo "本地离线安装包：just apk；上架：npx eas-cli build --platform android --profile production"
+    @echo "本地出包：just pkg（APK + IPA）｜只要安卓：just apk｜只要 iOS：just ipa 或 just ipa-eas"
