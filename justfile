@@ -215,10 +215,10 @@ build:
 # 三方鸿蒙化库（@react-native-oh-tpl/*）普遍落后，且 expo-sqlite 没有鸿蒙版 ——
 # 见 tool/harmony-template/README.md 的「没做的部分」。
 
-# 初始化鸿蒙工程：装 RNOH 依赖（约 140MB，不进 package.json）+ 生成 harmony/（可重复跑）
+# 初始化鸿蒙工程：装 RNOH 依赖（约 140MB，不进 package.json）+ 生成 harmony/（可重复跑；--force 重写已存在的）
 [group('5. 鸿蒙')]
-harmony-setup:
-    bash tool/harmony.sh setup
+harmony-setup *args:
+    bash tool/harmony.sh setup {{args}}
 
 # 编译 Debug HAP + 装到真机 / 模拟器 + 起 Metro（没设备会自动起模拟器；改 JS 热加载）
 [group('5. 鸿蒙')]

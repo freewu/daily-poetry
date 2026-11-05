@@ -187,10 +187,11 @@ render_project() { # $@ = 额外参数（--force）
   vn="$(app_field version)"
   vc="$(app_field android.versionCode)"
   [ -n "$vc" ] || vc="1"
-  # compatibleSdkVersion / hvigor 的 modelVersion 都跟本机装的 SDK 走
+  # compatibleSdkVersion / hvigor 的 modelVersion 都跟本机装的 SDK 走。
+  # modelVersion 是 hvigor 的“模型版本”（5.0.0 / 6.0.0 这种大版本），
+  # 不能拿 compatibleSdkVersion 的 6.0.1 直接当（它只取大版本 + .0.0）。
   sdk="${HARMONY_SDK_VERSION:-5.0.0(12)}"
-  model="${HARMONY_MODEL_VERSION:-${HARMONY_SDK_VERSION%%(*}}"
-  [ -n "$model" ] || model="5.0.0"
+  model="${HARMONY_MODEL_VERSION:-${sdk%%.*}.0.0}"
   if [ -z "${HARMONY_SDK_VERSION:-}" ]; then
     warn "没检测到本机 HarmonyOS SDK，先按 $sdk 写；装好 DevEco 后跑 just harmony-setup --force 重来"
   fi
@@ -470,7 +471,9 @@ cmd_setup() {
 
   if [ -f "$HARMONY/build-profile.json5" ] && [ -z "$force" ]; then
     info "harmony/ 已存在，跳过生成（要重来：tool/harmony.sh setup --force）"
-    sdk_in_project="$(grep -o 'compatibleSdkVersion[^,]*' "$HARMONY/build-profile.json5" | head -1 | sed 's/.*"\([^"]*\)".*/\1/')"
+    # 只认带引号的键值：模板第一行注释里也有“compatibleSdkVersion”这几个字，
+    # 按 `compatibleSdkVersion[^,]*` 抓会先命中最上面那行注释（拿到的是键名本身）。
+    sdk_in_project="$(grep -o '"compatibleSdkVersion"[[:space:]]*:[[:space:]]*"[^"]*"' "$HARMONY/build-profile.json5" | head -1 | sed 's/.*"\([^"]*\)"$/\1/')"
     if [ -n "${HARMONY_SDK_VERSION:-}" ] && [ "$sdk_in_project" != "$HARMONY_SDK_VERSION" ]; then
       warn "harmony/ 里的 compatibleSdkVersion=$sdk_in_project 跟本机 SDK=$HARMONY_SDK_VERSION 不一致"
       warn "换 SDK 后要 just harmony-setup --force（签名得在 DevEco 里重配）"
