@@ -7,6 +7,11 @@
 # 固定用 bash 后，PowerShell 里会落到 system32\bash.exe（= WSL），PATH 正常翻译成 /mnt/…。
 set shell := ["bash", "-uc"]
 
+# 默认目标：裸跑 `just` 就列出全部命令（不再是 init）
+[private]
+default:
+    @just --list
+
 # 一键初始化：安装依赖 + 下载语料 + 构建数据库 + 生成图标
 init: deps data db assets
     @echo "初始化完成 🎉 运行 just start 开始开发"
@@ -15,9 +20,10 @@ init: deps data db assets
 deps:
     npm install
 
-# 下载主体语料（全唐诗 / 诗经 / 楚辞 / 五代诗词 / 纳兰性德 / 曹操 / 全宋词 / 元曲 / 唐诗三百首 / 千家诗）
 # 判“已存在”时点名抽查几块语料：只看目录会在旧语料上一直 skip，
 # 于是 build-db 静默地「缺哪块跳哪块」（宋词 / 元曲就是这么“没”的）。
+
+# 下载主体语料（全唐诗 / 诗经 / 楚辞 / 五代诗词 / 纳兰性德 / 曹操 / 全宋词 / 元曲 / 唐诗三百首 / 千家诗）
 data:
     test -f .data/chinese-poetry/宋词/ci.song.0.json && test -f .data/chinese-poetry/元曲/yuanqu.json && test -f .data/chinese-poetry/全唐诗/poet.tang.0.json && echo "语料已存在，跳过下载" || bash scripts/fetch-corpus.sh standard
     node scripts/fetch-yuefu.mjs
@@ -27,8 +33,9 @@ data-full:
     bash scripts/fetch-corpus.sh full
     node scripts/fetch-yuefu.mjs
 
-# 构建 SQLite 数据库 → assets/poetry.db（约 9.5 万首，简繁双写，约 59MB）
 # 顺带生成预统计 assets/stats.json（作者 / 词牌；页面读它，不现算 SQL）
+
+# 构建 SQLite 数据库 → assets/poetry.db（约 9.5 万首，简繁双写，约 59MB）
 db: deps data
     node scripts/build-db.mjs
     node scripts/build-stats.mjs
@@ -76,11 +83,13 @@ emulator avd="":
     bash tool/android.sh boot {{avd}}
 
 # Debug 包的 JS 是 Metro 现喂的（adb reverse 8081）：拔线 / 关 just start 打开就是白屏。
+
 # 构建并安装 Debug 包到模拟器 / 真机（首次会下载 Gradle 依赖）
 android-install:
     bash tool/android.sh install
 
 # 本地用模板的 debug.keystore 签名，够自用；上架仍走 EAS。
+
 # 打**离线可用**的 Release APK（JS 打进包里，装完拔线也能开；设备在线时顺带覆盖安装）
 apk: check
     bash tool/android.sh apk
@@ -104,14 +113,16 @@ envcheck:
 start:
     npx expo start
 
-# 重生成原生工程（android/ ios/ 都是 prebuild 产物，不入库）
 # 改图标 / 启动图 / app.json 原生配置后必跑，再 just android
+
+# 重生成原生工程（android/ ios/ 都是 prebuild 产物，不入库）
 native-reset:
     rm -rf android ios
     npx expo prebuild --clean
 
-# 在 Android 模拟器/真机启动（原生 Debug 构建 + Metro）
 # 注意：android/ 已存在时 expo run 不会重跑 prebuild，图标 / 启动图改了要 just native-reset
+
+# 在 Android 模拟器/真机启动（原生 Debug 构建 + Metro）
 android: check
     npx expo run:android
 
@@ -123,6 +134,6 @@ ios: check
 export: check
     npx expo export --platform android --output-dir dist
 
-# 说明：想脱机用就打 just apk；要上架（AAB + 正式签名）仍走 EAS Build
+# 打包提示：本地离线装用 just apk，上架用 EAS Build（这个目标自己不打任何包）
 build:
     @echo "本地离线安装包：just apk；上架：npx eas-cli build --platform android --profile production"
