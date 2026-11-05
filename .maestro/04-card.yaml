@@ -21,14 +21,15 @@ name: 诗词卡片
       id: 'share-card'
     timeout: 15000
 - assertVisible: '保存并分享'
-- assertVisible: '每日一诗'
+# 卡片底部只印「日期 · 农历」（App 名只在顶部抬头）
+- assertVisible: '农历.*'
 - takeScreenshot: card
 
 # 卡片页现场调版式：用字 / 标点都能切（只影响这张卡片）
 # 每首都可能有繁体列缺失（回退简体），这里只验开关点得动、卡片还在
 - tapOn:
     id: 'card-script-tw'
-- assertVisible: '每日一诗'
+- assertVisible: '农历.*'
 - tapOn:
     id: 'card-punct-space'
 - takeScreenshot: card-options

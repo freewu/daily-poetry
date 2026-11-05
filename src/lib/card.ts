@@ -1,3 +1,4 @@
+import { dayInfo } from './lunar';
 import { isPunctKey } from './punct';
 import { bodySizeOf } from './typography';
 import type { Poem, PunctKey, Script } from './types';
@@ -5,7 +6,7 @@ import type { Poem, PunctKey, Script } from './types';
 /** 存相册时用的文件夹名（Android 上是一个 MediaStore bucket） */
 export const CARD_ALBUM = '每日诗词';
 
-/** 卡片底部署名 + 相册文件名前缀 */
+/** 相册文件名前缀（卡片上不再印它：底部只留「日期 · 农历」） */
 export const CARD_BRAND = '每日一诗';
 
 /** 卡片**顶部**的抬头（比底部署名多带出「这是哪个 App」） */
@@ -19,6 +20,17 @@ export function cardStamp(date?: string | null): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec((date ?? '').trim());
   if (!m) return '';
   return `${m[1]}年${Number(m[2])}月${Number(m[3])}日`;
+}
+
+/**
+ * 卡片底部那一行：`2026年11月3日 · 农历九月廿五`。
+ * 日期没传 / 格式不对 → 空串，调用方据此整块不画（别只留条空横线）。
+ */
+export function cardDateLine(date?: string | null): string {
+  const raw = (date ?? '').trim();
+  const stamp = cardStamp(raw);
+  if (!stamp) return '';
+  return `${stamp} · 农历${dayInfo(raw).lunarDate}`;
 }
 
 /** 相册里看到的名字：`每日一诗-静夜思`，去掉空格与路径非法字符 */

@@ -39,7 +39,10 @@ describe('<ShareCard />', () => {
     expect(screen.getByText(/床前明月光/)).toBeTruthy();
     expect(screen.getByText('选自《唐诗三百首》')).toBeTruthy();
     expect(screen.getByText('每日诗词 APP')).toBeTruthy();
-    expect(screen.getByText('每日一诗 · 2026年11月3日')).toBeTruthy();
+    // 底部只有「日期 · 农历」，不再印 App 名（抬头已经写着「每日诗词 APP」）
+    expect(screen.getByTestId('share-card-stamp')).toBeTruthy();
+    expect(screen.getByText('2026年11月3日 · 农历九月廿五')).toBeTruthy();
+    expect(screen.queryByText('每日一诗')).toBeNull();
     expect(screen.getByText('五言绝句')).toBeTruthy();
   });
 
@@ -52,12 +55,12 @@ describe('<ShareCard />', () => {
     expect(texts).toEqual(['每日诗词 APP', '五言绝句']);
   });
 
-  it('不传日期就只印签名（不印日期戳）', async () => {
+  it('不传日期就整块不印日期戳（连分隔线一起）', async () => {
     await renderWithTheme(<ShareCard poem={poem} width={340} />, { db: await dbWith() });
-    // 顶部抬头是 App 名，底部署名仍是「每日一诗」，各一处
     expect(screen.getByText('每日诗词 APP')).toBeTruthy();
-    expect(screen.getAllByText('每日一诗')).toHaveLength(1);
+    expect(screen.queryByTestId('share-card-stamp')).toBeNull();
     expect(screen.queryByText(/\d{4}年\d{1,2}月\d{1,2}日/)).toBeNull();
+    expect(screen.queryByText('每日一诗')).toBeNull();
   });
 
   it('跟着简繁设置走（繁体用 title_tw / content_tw）', async () => {

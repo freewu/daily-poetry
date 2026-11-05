@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { PoemLines } from '@/components/poem-lines';
-import { CARD_BRAND, CARD_MARK, cardStamp } from '@/lib/card';
+import { CARD_MARK, cardDateLine } from '@/lib/card';
 import { attributionOf, sourceOf } from '@/lib/format';
 import { localizePoem } from '@/lib/script';
 import type { Poem, PunctKey, Script } from '@/lib/types';
@@ -24,7 +24,7 @@ export const CARD_BODY = 18;
 
 interface Props {
   poem: Poem;
-  /** 每日一诗的那天，印在卡片底部；不传就只印签名 */
+  /** 每日一诗的那天，印在卡片底部（`2026年11月3日 · 农历九月廿五`）；不传就不印 */
   date?: string;
   /** 卡片宽度（按屏幕宽度算，导出即物理像素） */
   width: number;
@@ -57,7 +57,7 @@ export function ShareCard({
   const poem = localizePoem(raw, script);
   const size = bodySize ?? CARD_BODY;
   const attr = attributionOf(poem);
-  const stamp = cardStamp(date);
+  const stamp = cardDateLine(date);
   // 题目 / 作者按正文等比走：正文拉大时标题不至于显得没长
   const titleSize = Math.round(size * 1.4);
   const attrSize = Math.round(size * 0.72);
@@ -87,10 +87,14 @@ export function ShareCard({
         />
 
         <Text style={[styles.src, { color: INK_FAINT }]}>{sourceOf(poem)}</Text>
-        <View style={[styles.footRule, { backgroundColor: LINE }]} />
-        <Text style={[styles.stamp, { color: INK_SUB }]}>
-          {stamp ? `${CARD_BRAND} · ${stamp}` : CARD_BRAND}
-        </Text>
+        {stamp ? (
+          <>
+            <View style={[styles.footRule, { backgroundColor: LINE }]} />
+            <Text testID="share-card-stamp" style={[styles.stamp, { color: INK_SUB }]}>
+              {stamp}
+            </Text>
+          </>
+        ) : null}
       </View>
     </View>
   );

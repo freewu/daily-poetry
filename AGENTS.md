@@ -169,8 +169,9 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
   字号拖动**只在 `onSlidingComplete` 落库**（`onChange` 一次拖动触发几十遍），
   跟阅读设置的字号滑块是同一套路。它**不是**阅读设置，别写到 `settings_font_size` 上。
 - 卡片上两个品牌位是**两个常量**（`src/lib/card.ts`）：顶部抬头 `CARD_MARK`（`每日诗词 APP`，
-  说清这是哪个 App），底部署名 / 相册文件名前缀 `CARD_BRAND`（`每日一诗`）。
-  改抬头别顺手把 `CARD_BRAND` 也改掉 —— 那会连相册里的文件名一起变。
+  说清这是哪个 App）；底部**只印** `cardDateLine()` 的「2026年11月3日 · 农历九月廿五」
+  （`date` 没传就不画，连上面那条分隔线一起）；`CARD_BRAND`（`每日一诗`）现在**只做
+  相册文件名前缀**，卡片上不再出现 —— 改它就等于改相册里的文件名。
 
 # 集子（诗词列表 / 作者统计 / 词牌）
 

@@ -22,7 +22,7 @@ jest.mock('expo-file-system', () => {
   return { File: MockFile, Paths: { cache: 'file:///cache' } };
 });
 
-import { cardFileName, cardStamp, CARD_ALBUM } from '@/lib/card';
+import { cardDateLine, cardFileName, cardStamp, CARD_ALBUM } from '@/lib/card';
 import { saveImageToLibrary, shareImage } from '@/lib/card-save';
 
 // 工厂在 require 时才跑，所以 mock 里拿不到外面定义的常量，取出来用
@@ -54,6 +54,21 @@ describe('cardStamp', () => {
     expect(cardStamp()).toBe('');
     expect(cardStamp(null)).toBe('');
     expect(cardStamp('2026-1-3')).toBe('');
+  });
+});
+
+describe('cardDateLine', () => {
+  it('日期后接农历月日（卡片底部唯一一行）', () => {
+    expect(cardDateLine('2026-11-03')).toBe('2026年11月3日 · 农历九月廿五');
+    expect(cardDateLine('2026-01-20')).toBe('2026年1月20日 · 农历腊月初二');
+  });
+
+  it('没有日期 / 格式不对 → 空串（底部整块不画）', () => {
+    expect(cardDateLine()).toBe('');
+    expect(cardDateLine(null)).toBe('');
+    expect(cardDateLine('  ')).toBe('');
+    expect(cardDateLine('2026-1-3')).toBe('');
+    expect(cardDateLine('2026/11/03')).toBe('');
   });
 });
 

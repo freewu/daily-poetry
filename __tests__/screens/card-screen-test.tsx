@@ -97,7 +97,7 @@ describe('<CardScreen />', () => {
     mockParams = { id: '1', date: '2026-11-03' };
     await renderWithTheme(<CardScreen />, { db: seeded() });
     await waitFor(() => expect(screen.getByTestId('card-save')).toBeTruthy());
-    expect(screen.getByText('每日一诗 · 2026年11月3日')).toBeTruthy();
+    expect(screen.getByText('2026年11月3日 · 农历九月廿五')).toBeTruthy();
 
     await fireEvent.press(screen.getByTestId('card-save'));
     await waitFor(() =>
