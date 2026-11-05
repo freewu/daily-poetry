@@ -92,11 +92,30 @@ hvigor）+ `tool/harmony-render.mjs`（渲染 `tool/harmony-template/` → `harm
   `Index.ets` 的 `AnyJSBundleProvider` 按 Metro → 沙箱文件 → rawfile 三级兜底。
 - **tsconfig / eslint 都要排掉** `harmony/` 与 `tool/harmony-template/`（ArkTS 不归 tsc 管，
   `hvigorfile.ts` import 的 `@ohos/hvigor-ohos-plugin` 本机没有类型）。
-- **已知阻塞（还没真正跑起来）**：`expo-sqlite` 没有鸿蒙版（诗词库全靠它），
-  `react-native-screens` 4.26 的 native-tabs 只发了 `.android/.ios`（`just hap` 在 bundle 阶段报
-  `Unable to resolve module ./TabsHost`），`reanimated 4` / `gesture-handler 2` 远高于
-  `@react-native-oh-tpl/*`。`bundle_harmony` 失败时会打 `harmony_port_note()` 提示，别把它当成
-  配置问题去改 Metro 配置。
+- **已知阻塞（还没真正跑起来）**：模拟器 / 编译 / 装机 / Metro / 设备日志都通了，**卡在 Expo
+  模块没有鸿蒙实现**。`expo-modules-core` 注册不出 TurboModule，装上去能起、JS bundle 也能跑完，
+  但一进渲染就挂：
+  `W TurboModuleFactory: Turbo Module 'ExpoModulesCore' not found` →
+  `E RNOH_JS: [TypeError: Cannot read property 'EventEmitter' of undefined]`（屏幕白 / 红屏）。
+  `expo-sqlite`（60MB 诗词库）同源；`reanimated 4` / `gesture-handler 2` 远高于
+  `@react-native-oh-tpl/*`。`bundle_harmony` 失败时会打 `harmony_port_note()` 提示，
+  别把它当成配置问题去改 Metro 配置。
+- **构建期四个已经绕过、但换个环境会重现的坑**（详见 `tool/harmony-template/README.md`）：
+  模板里的 `.json` 必须严格 JSON（restool 不认 JSON5，报 `11203002` 还不说哪个文件）；
+  `abiFilters` 必须带 `x86_64`（模拟器是 x86_64 镜像，只编 arm64 装上去秒退，
+  hilog 只有 `libRNOHApp is undefined`）；多 ABI 时 hvigor 只给第一个 ABI 生成
+  `summary.cmake`，第二个 ABI 报 `ffrt::ffrt_cpp but the target was not found`（在模板的
+  `CMakeLists.txt` 里自己按 `CMAKE_FIND_ROOT_PATH` 找）；RNOH 0.86.1 的
+  `WebSocketTurboModule.ts` 引用了 API 26 才有的 `WebSocketOpenInfo`，API 21 的 SDK 下
+  ArkTS 类型检查不过 → `patch_rnoh_sdk_compat()` 删掉那一支（幂等，`ohpm install` 后重打）。
+- **Metro 不能被原生构建目录搞死**：CMake 在 `harmony/entry/.cxx/**` 里反复建 / 删
+  `CMakeScratch`，`metro-file-map` 的 fallback watcher 撞 ENOENT 直接退出（表现是装上去白屏）。
+  `metro.config.js` 把 `harmony/**` 的构建产物加进 `resolver.blockList`。
+- **Debug 不走 `bundle-harmony`**：`bundle-harmony --dev true` 把 `sourceMap` / `sourceMapUrl`
+  传成同一个文件，metro-source-map 断言 `Unexpected module with full source map found` 抛错。
+  Debug 直接起 Metro（`just harmony-start` / `just harmony`）；Release 的 `--dev false` 正常。
+- **别用 `npx` 起 RN CLI**：本机 WSL 里 `npx` 会把 `RNOH_METRO=1` 丢掉（`metro.config.js`
+  读到 `undefined`，鸿蒙解析规则整段不生效）。脚本里用 `node_modules/.bin/react-native`。
 
 # 数据与简繁
 

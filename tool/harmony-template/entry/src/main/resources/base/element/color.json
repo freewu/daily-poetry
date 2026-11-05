@@ -1,9 +1,8 @@
 {
   "color": [
     {
-      // 启动窗口底色 = 纸色，跟 App 的图标 / 首屏一致，避免闪白
       "name": "start_window_background",
-      "value": "#F4EDDA",
-    },
-  ],
+      "value": "#F4EDDA"
+    }
+  ]
 }

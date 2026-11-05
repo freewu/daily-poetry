@@ -67,8 +67,21 @@ const walk = (dir, base = '') => {
 
 const copy = (src, dest, { text }) => {
   fs.mkdirSync(path.dirname(dest), { recursive: true });
-  if (text) fs.writeFileSync(dest, fill(fs.readFileSync(src, 'utf8')));
-  else fs.copyFileSync(src, dest);
+  if (text) {
+    const body = fill(fs.readFileSync(src, 'utf8'));
+    // 资源目录下的 .json 是 restool 读的，**不是 JSON5**：尾逗号 / // 注释会让构建挂在
+    // CompileResource（Error Code 11203002 "Failed to parse the JSON file"）。
+    // 这里直接解析一遍，错在生成阶段就报。
+    if (path.extname(dest).toLowerCase() === '.json') {
+      try {
+        JSON.parse(body);
+      } catch (e) {
+        console.error(`✗ ${path.relative(process.cwd(), dest)} 不是严格 JSON（restool 不认 JSON5）：${e.message}`);
+        process.exit(1);
+      }
+    }
+    fs.writeFileSync(dest, body);
+  } else fs.copyFileSync(src, dest);
 };
 
 if (!fs.existsSync(template)) {

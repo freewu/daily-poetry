@@ -34,6 +34,15 @@ CLI_PKG="@react-native-community/cli@20"
 # Metro 靠环境变量切到鸿蒙解析规则（见 metro.config.js 的 RNOH_METRO 段）：
 # `npx react-native start` 只认根目录的 metro.config.js，没有传配置的入口。
 METRO_ENV="RNOH_METRO=1"
+# 用 node_modules/.bin/react-native，**不要用 npx**：本机 WSL 里 npx 会把
+# RNOH_METRO=1 丢掉（metro.config.js 里读到的是 undefined，鸿蒙解析规则整段不生效）。
+rn_cli() {
+  if [ -x "$ROOT/node_modules/.bin/react-native" ]; then
+    printf '%s' "$ROOT/node_modules/.bin/react-native"
+  else
+    printf '%s' npx
+  fi
+}
 
 info() { printf '  %s\n' "$*"; }
 warn() { printf '  ! %s\n' "$*" >&2; }
@@ -366,11 +375,39 @@ find_hap() {
   fi
 }
 
+# RNOH 0.86.1 的 WebSocketTurboModule 里有个 `deviceInfo.sdkApiVersion >= 26` 分支，
+# 引用了 `'openInfo'` / `webSocket.WebSocketOpenInfo` —— 这两个只在 API 26 的 SDK 里才有。
+# 本机 SDK 是 API 21 时 ArkTS 连“永远不会走到”的分支也要类型检查，直接编译失败：
+#   Argument of type '"openInfo"' is not assignable to parameter of type '"headerReceive"'
+#   Namespace 'webSocket' has no exported member 'WebSocketOpenInfo'
+# 所以缺这两个符号时把那一整段删掉（API 21 上本来就走 else 分支，行为不变）。
+# SDK 升到 26 后 d.ts 里有 WebSocketOpenInfo，这里自然跳过（幂等，ohpm install 后重打）。
+patch_rnoh_sdk_compat() {
+  local f dts="${HARMONY_SDK:-}/openharmony/ets/api/@ohos.net.webSocket.d.ts"
+  [ -f "$dts" ] && grep -q WebSocketOpenInfo "$dts" && return 0
+  for f in "$HARMONY"/oh_modules/.ohpm/@rnoh+react-native-openharmony@*/oh_modules/@rnoh/react-native-openharmony/src/main/ets/RNOHCorePackage/turboModules/WebSocketTurboModule.ts; do
+    [ -f "$f" ] || continue
+    grep -q 'sdkApiVersion >= 26' "$f" || continue
+    if node -e '
+      const fs = require("fs"), f = process.argv[1];
+      const re = /[ \t]*if \(deviceInfo\.sdkApiVersion >= 26\) \{\n[\s\S]*?\n[ \t]*\} else \{\n/;
+      const s = fs.readFileSync(f, "utf8");
+      if (!re.test(s)) process.exit(1);
+      fs.writeFileSync(f, s.replace(re, "    {\n"));
+    ' "$f"; then
+      info "已去掉 RNOH 的 API 26 WebSocket 分支（本机 SDK 没有 WebSocketOpenInfo）"
+    else
+      warn "打补丁失败：${f#$HARMONY/}（RNOH 换了写法？先手动看一眼）"
+    fi
+  done
+}
+
 # ------------------------------------------------------------------ 构建
 hv_build() { # $1 = debug | release
   local mode="$1" args
   [ -n "${HVIGORW:-}" ] || die "没找到 hvigorw.js（先 just harmony-doctor）"
   [ -n "${DEVECO_NODE:-}" ] || die "没找到 node（hvigor 要用 DevEco 自带的那份）"
+  patch_rnoh_sdk_compat
   args="--mode module -p product=default -p module=entry@default -p buildMode=$mode assembleHap --no-daemon"
   step "hvigor assembleHap（$mode）"
   if on_wsl; then
@@ -383,7 +420,7 @@ hv_build() { # $1 = debug | release
 bundle_harmony() { # $1 = true | false（dev）
   step "打 JS bundle（--dev $1）→ harmony/entry/src/main/resources/rawfile/"
   # 入口是根目录的 index.js（RNOH 把 Metro URL 写死成 /index.bundle，见 index.js 的注释）
-  if ! env "$METRO_ENV" npx react-native bundle-harmony --dev "$1"; then
+  if ! env "$METRO_ENV" "$(rn_cli)" bundle-harmony --dev "$1"; then
     warn "bundle-harmony 失败"
     harmony_port_note
     return 1
@@ -392,9 +429,11 @@ bundle_harmony() { # $1 = true | false（dev）
 
 # 鸿蒙侧生态没跟上时最常见的失败（解析不到 .harmony/.native 文件、缺 TurboModule）
 harmony_port_note() {
-  warn "—— 如果报的是 'Unable to resolve module' 或缺三方原生模块，那是鸿蒙移植还没做："
-  warn "   expo-sqlite 没有鸿蒙版（诗词库全靠它）、react-native-screens 4.x 只发了"
-  warn "   .android/.ios 文件、reanimated 4 / gesture-handler 2 也远高于 @react-native-oh-tpl 的版本。"
+  warn "—— 如果报的是 'Unable to resolve module' 或缺 TurboModule，那是鸿蒙移植还没做："
+  warn "   expo-modules-core 在鸿蒙上注册不出 TurboModule（ExpoModulesCore not found），"
+  warn "   连带 expo-sqlite（诗词库 60MB 全靠它）/ image / font / media-library / sharing…全部落空，"
+  warn "   JS 一进渲染就 TypeError: Cannot read property 'EventEmitter' of undefined。"
+  warn "   要真上鸿蒙得把这些换成 RN 社区库或自写 Harmony 原生模块。"
   warn "   详见 tool/harmony-template/README.md 的「没做的部分」。"
 }
 
@@ -410,7 +449,7 @@ start_metro() {
     return 0
   fi
   step "起 Metro（harmony 平台，日志 .data/harmony/metro.log）"
-  nohup env "$METRO_ENV" npx react-native start --port 8081 \
+  nohup env "$METRO_ENV" "$(rn_cli)" start --port 8081 \
     >"$WORK/metro.log" 2>&1 &
   echo $! >"$WORK/metro.pid"
   local i
@@ -497,7 +536,7 @@ cmd_setup() {
 cmd_start() {
   ensure_rnoh
   step "Metro（Ctrl-C 结束）"
-  exec env "$METRO_ENV" npx react-native start --port 8081
+  exec env "$METRO_ENV" "$(rn_cli)" start --port 8081
 }
 
 cmd_run() {

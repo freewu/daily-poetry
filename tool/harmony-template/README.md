@@ -40,6 +40,43 @@ just hap              # Release HAP → dist/
 
 - 签名：`build-profile.json5` 故意留空 `signingConfigs`，出的是 unsigned HAP（模拟器可装）。
   真机请在 DevEco 里勾自动签名（需登录华为账号），DevEco 会自己把配置写进这个文件。
+- **Expo 模块没有鸿蒙实现（真正的墙）**：`expo-modules-core` 在鸿蒙上注册不出 TurboModule，
+  模拟器上装上去能起、JS bundle 也能跑完，但一进 React 渲染就挂：
+
+  ```
+  W RNOH_CPP: TurboModuleFactory.cpp:257> Turbo Module 'ExpoModulesCore' not found.
+  E RNOH_JS:  [TypeError: Cannot read property 'EventEmitter' of undefined]
+  ```
+
+  连带 `expo-sqlite`（60MB 诗词库全靠它）/ `expo-image` / `expo-font` / `expo-media-library`
+  / `expo-sharing` / `expo-speech` / `expo-splash-screen` 全部落空。要真上鸿蒙，得把这些换成
+  RN 社区库或自写 Harmony 原生模块（sqlite 那层工作量最大：`@ohos.data.relationalStore`）。
 - 鸿蒙化三方库：`@react-native-oh-tpl/*` 的版本普遍落后于本工程的
-  `reanimated 4.x / screens 4.x / gesture-handler 2.x`，尤其 **`expo-sqlite` 没有鸿蒙版**
-  （本 App 的诗词库全靠它）。要在鸿蒙上跑通完整功能，得先解决 `expo-sqlite` 的替代实现。
+  `reanimated 4.x / screens 4.x / gesture-handler 2.x`；`react-native-screens` 4.x 的
+  native-tabs 只发了 `.android/.ios`（`./TabsHost` / `./TabsScreen` 解析不到），
+  `metro.config.js` 里暂时回退到它的 `.web` 版（expo-router 的底部 tab 走 JS 实现，够用）。
+
+## 构建期的几个坑（都已在模板 / 脚本里绕过）
+
+- **模板里的 `.json` 必须是严格 JSON**：restool 不认 JSON5（尾逗号 / `//` 注释都会报
+  `Error Code 11203002`，且不说是哪个文件）。`harmony-render.mjs` 现在会在写盘前 `JSON.parse`
+  一遍，坏了直接指出是哪个模板。
+- **`abiFilters` 必须带上 `x86_64`**：DevEco 的模拟器是 x86_64 镜像，只编 `arm64-v8a` 时装上去
+  秒退，hilog 只有一句 `F RNOH_ARK: Couldn't create bindings between ETS and CPP.
+  libRNOHApp is undefined.`（HAP 里没有这个 ABI 的 `.so`，`libRNOHApp` 加载不到）。
+- **多 ABI 时 ffrt 找不到**：hvigor 只给**第一个** ABI 生成 `summary.cmake`（里面就一句
+  `find_package(ffrt)`），第二个 ABI 的 configure 会报
+  `Target "reactnative" links to: ffrt::ffrt_cpp but the target was not found.`。
+  `entry/src/main/cpp/CMakeLists.txt` 里按 `CMAKE_FIND_ROOT_PATH` 自己找一次。
+- **RNOH 0.86.1 用了 API 26 的符号**：`WebSocketTurboModule.ts` 里
+  `deviceInfo.sdkApiVersion >= 26` 那一支引用了 `webSocket.WebSocketOpenInfo` / `'openInfo'`，
+  API 21 的 SDK 里没有，ArkTS 连走不到的分支也要类型检查 → 编译失败。`just harmony` 的
+  `patch_rnoh_sdk_compat()` 会把那一支删掉（幂等，`ohpm install` 后重打）。
+- **Metro 不能被原生构建目录搞死**：CMake 在 `harmony/entry/.cxx/**` 里反复建 / 删
+  `CMakeScratch` 目录，`metro-file-map` 的 fallback watcher 撞上 ENOENT 直接退出（表现是
+  装上去白屏）。`metro.config.js` 把 `harmony/**` 的构建产物加进了 `resolver.blockList`。
+- **`bundle-harmony --dev true` 走不通**：它把 `sourceMap` / `sourceMapUrl` 传成同一个文件，
+  metro-source-map 断言 `Unexpected module with full source map found` 直接抛。Debug 不要用它，
+  直接起 Metro（`just harmony-start` / `just harmony`）即可；Release 的 `--dev false` 正常。
+- **别用 `npx` 起 RN CLI**：本机 WSL 里 `npx` 会把 `RNOH_METRO=1` 丢掉（metro.config.js
+  读到 `undefined`，鸿蒙解析规则整段不生效）。脚本里用 `node_modules/.bin/react-native`。
