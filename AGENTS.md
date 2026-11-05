@@ -116,6 +116,11 @@ hvigor）+ `tool/harmony-render.mjs`（渲染 `tool/harmony-template/` → `harm
   Debug 直接起 Metro（`just harmony-start` / `just harmony`）；Release 的 `--dev false` 正常。
 - **别用 `npx` 起 RN CLI**：本机 WSL 里 `npx` 会把 `RNOH_METRO=1` 丢掉（`metro.config.js`
   读到 `undefined`，鸿蒙解析规则整段不生效）。脚本里用 `node_modules/.bin/react-native`。
+- **`'vp2px' has been deprecated` 不用管**：编译期只有四处、全在 RNOH 的 har 里
+  （`RNViewBase.ets:113-115` + `RNSurface.ets:285`），本工程自己的 `.ets` 没用过。
+  `vp2px` 从 API 18 起弃用，替代品要组件上下文（`UIContext.vp2px()`）或改走
+  `display.getDefaultDisplaySync().densityPixels`；第三方代码 + 当前 App 渲染不了 = 改完没法验证，
+  留给上游。
 
 # 数据与简繁
 

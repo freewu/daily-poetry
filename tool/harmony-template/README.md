@@ -80,3 +80,8 @@ just hap              # Release HAP → dist/
   直接起 Metro（`just harmony-start` / `just harmony`）即可；Release 的 `--dev false` 正常。
 - **别用 `npx` 起 RN CLI**：本机 WSL 里 `npx` 会把 `RNOH_METRO=1` 丢掉（metro.config.js
   读到 `undefined`，鸿蒙解析规则整段不生效）。脚本里用 `node_modules/.bin/react-native`。
+- **`'vp2px' has been deprecated` 是 RNOH 自己的代码，可以不管**：编译期只有四处，全在 har 里
+  （`RNViewBase.ets:113-115` 的 transform 矩阵 + `RNSurface.ets:285` 的 `pixelRatio: vp2px(1)`），
+  本工程自己的 `.ets` 一个都没用。`vp2px` 从 API 18 起标弃用，替代品是 `UIContext.vp2px()`
+  （要组件上下文）或 `display.getDefaultDisplaySync().densityPixels`；但这是第三方代码、
+  而且现在 App 根本渲染不了（见上条），改完无法验证 —— **别去打这个补丁**，等上游 RNOH 自己换。
