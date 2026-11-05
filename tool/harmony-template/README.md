@@ -40,17 +40,38 @@ just hap              # Release HAP → dist/
 
 - 签名：`build-profile.json5` 故意留空 `signingConfigs`，出的是 unsigned HAP（模拟器可装）。
   真机请在 DevEco 里勾自动签名（需登录华为账号），DevEco 会自己把配置写进这个文件。
-- **Expo 模块没有鸿蒙实现（真正的墙）**：`expo-modules-core` 在鸿蒙上注册不出 TurboModule，
-  模拟器上装上去能起、JS bundle 也能跑完，但一进 React 渲染就挂：
+- **Expo 模块没有鸿蒙实现（真正的墙）**：`expo-modules-core` 的**原生**侧负责在启动时把
+  `globalThis.expo`（`EventEmitter` / `NativeModule` / `SharedObject` / `modules` …）装进 JS 运行时，
+  鸿蒙上没有这份原生实现，于是模块求值的第一步就炸：
 
   ```
   W RNOH_CPP: TurboModuleFactory.cpp:257> Turbo Module 'ExpoModulesCore' not found.
   E RNOH_JS:  [TypeError: Cannot read property 'EventEmitter' of undefined]
   ```
 
+  出错点是 `node_modules/expo-modules-core/src/EventEmitter.ts:22`
+  （`export const EventEmitter = globalThis.expo.EventEmitter`）。把 dev bundle 拉下来数过：
+  `globalThis.expo.*` 一共被读 **21 次、赋值 0 次** —— 没有任何 JS 会去建它。
+
   连带 `expo-sqlite`（60MB 诗词库全靠它）/ `expo-image` / `expo-font` / `expo-media-library`
-  / `expo-sharing` / `expo-speech` / `expo-splash-screen` 全部落空。要真上鸿蒙，得把这些换成
-  RN 社区库或自写 Harmony 原生模块（sqlite 那层工作量最大：`@ohos.data.relationalStore`）。
+  / `expo-sharing` / `expo-speech` / `expo-splash-screen` / `expo-router` 全部落空。
+
+  **社区有现成端口**：`@expo-harmony/*`（<https://github.com/renbaoshuo/expo-harmony>，140★，
+  2026-10 还在更新），上面这些模块 + `metro-config` / `prebuild-config` / `config-plugins` /
+  `cli` / `template` 全都有。但它只到 **Expo SDK 55**（`55.0.31-harmony.3`），peer 钉死：
+
+  | 包 | 端口要求 | 本工程 |
+  | --- | --- | --- |
+  | `expo` | `55.0.31` | `~57.0.19` |
+  | `expo-modules-core` | `55.0.26` | `~57.x` |
+  | `@react-native-oh/react-native-harmony` | `0.84.1` | `0.86.1` |
+  | `@react-native-ohos/react-native-reanimated` | `4.0.2` | `reanimated 4.5.1` |
+  | `@react-native-ohos/react-native-gesture-handler` | `2.30.2` | `2.32.0` |
+  | `@react-native-ohos/react-native-worklets` | `1.0.1` | — |
+
+  所以要在鸿蒙上真跑，得二选一：**整个工程降到 SDK 55 / RN 0.84 / RNOH 0.84.1**（Android / iOS
+  也要跟着回归），或者把 `@expo-harmony` 往 56/57 迁（上游没做）。光靠 patch Metro 配置、
+  写 `globalThis.expo` 桩是走不远的 —— 桩只挪得动报错的位置，`expo-sqlite` 仍然没有实现。
 - 鸿蒙化三方库：`@react-native-oh-tpl/*` 的版本普遍落后于本工程的
   `reanimated 4.x / screens 4.x / gesture-handler 2.x`；`react-native-screens` 4.x 的
   native-tabs 只发了 `.android/.ios`（`./TabsHost` / `./TabsScreen` 解析不到），

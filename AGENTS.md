@@ -93,13 +93,19 @@ hvigor）+ `tool/harmony-render.mjs`（渲染 `tool/harmony-template/` → `harm
 - **tsconfig / eslint 都要排掉** `harmony/` 与 `tool/harmony-template/`（ArkTS 不归 tsc 管，
   `hvigorfile.ts` import 的 `@ohos/hvigor-ohos-plugin` 本机没有类型）。
 - **已知阻塞（还没真正跑起来）**：模拟器 / 编译 / 装机 / Metro / 设备日志都通了，**卡在 Expo
-  模块没有鸿蒙实现**。`expo-modules-core` 注册不出 TurboModule，装上去能起、JS bundle 也能跑完，
-  但一进渲染就挂：
+  模块没有鸿蒙实现**。`expo-modules-core` 的原生侧负责启动时把 `globalThis.expo` 装进 JS 运行时，
+  鸿蒙上没有，于是模块求值第一步就挂：
   `W TurboModuleFactory: Turbo Module 'ExpoModulesCore' not found` →
-  `E RNOH_JS: [TypeError: Cannot read property 'EventEmitter' of undefined]`（屏幕白 / 红屏）。
-  `expo-sqlite`（60MB 诗词库）同源；`reanimated 4` / `gesture-handler 2` 远高于
-  `@react-native-oh-tpl/*`。`bundle_harmony` 失败时会打 `harmony_port_note()` 提示，
-  别把它当成配置问题去改 Metro 配置。
+  `E RNOH_JS: [TypeError: Cannot read property 'EventEmitter' of undefined]`
+  （出错点 `expo-modules-core/src/EventEmitter.ts:22`；dev bundle 里 `globalThis.expo.*` 被读
+  21 次、赋值 0 次）。`expo-sqlite`（60MB 诗词库）同源。
+  - **社区端口 `@expo-harmony/*`（renbaoshuo/expo-harmony）只到 Expo SDK 55**：
+    peer 钉死 `expo 55.0.31` / `expo-modules-core 55.0.26` / RNOH `0.84.1` /
+    `@react-native-ohos/*` reanimated `4.0.2`、gesture-handler `2.30.2`、worklets `1.0.1`；
+    本工程是 `expo ~57.0.19` / RN `0.86.3` / RNOH `0.86.1` / reanimated `4.5.1` /
+    gesture-handler `2.32.0`。要真上鸿蒙得**整工程降到 SDK 55**（Android / iOS 跟着回归）
+    或把端口往 56/57 迁（上游没做）。写 `globalThis.expo` 桩只能挪走报错位置，
+    `expo-sqlite` 依旧没实现，别往这个方向花时间。
 - **构建期四个已经绕过、但换个环境会重现的坑**（详见 `tool/harmony-template/README.md`）：
   模板里的 `.json` 必须严格 JSON（restool 不认 JSON5，报 `11203002` 还不说哪个文件）；
   `abiFilters` 必须带 `x86_64`（模拟器是 x86_64 镜像，只编 arm64 装上去秒退，
