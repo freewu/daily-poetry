@@ -63,18 +63,20 @@ function variants(x) {
  * 库结构版本：改动表结构时 +1，App 端据此判断是否需要替换随包数据库。
  * 只加了新语料、结构没动也要 +1 —— 否则装过旧版的设备会一直用旧库，
  * 新版 App 里看不到新加的集子（3 = 加纳兰性德 / 曹操；4 = 标准库并入全宋词 / 元曲；
- * 5 = 加乐府诗集）。
+ * 5 = 加乐府诗集；6 = 加宋词三百首）。
  */
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 
 /**
  * 每日精选池：始终只用这些精选集。
  * 乐府诗集（3773 首，一半是郊庙 / 燕射乐章）不进池：一进去每日轮换的池子就从
- * 1680 变成 5453，全设备当天的诗会整体重排。想加就把它加进这个 Set。
+ * 1963 变成 5736，全设备当天的诗会整体重排。想加就把它加进这个 Set。
+ * 宋词三百首是「选本」，跟唐诗三百首 / 千家诗 一样进池（跟全宋词有重合，可接受）。
  */
 const DAILY_COLLECTIONS = new Set([
   'tangshi',
   'qianjiashi',
+  'songci300',
   'shijing',
   'chuci',
   'huajianji',
@@ -339,6 +341,32 @@ function parseYuefu() {
   return out;
 }
 
+/**
+ * 宋词三百首（维基文库）：{title, author, dynasty, lines}[]。
+ * 由 `scripts/fetch-songci300.mjs` 抓成 `.data/songci300/songci300.json`（在 chinese-poetry
+ * 目录外面 —— 那边只有全宋词，没有这部选本）。
+ * 题目就是词牌（`青玉案` / `宴山亭·北行見杏花`），副题留空：`cipaiOf()` 优先认副题，
+ * 这里往副题里塞东西会把词牌统计搞乱。词序（`（丙辰中秋…）`）是正文第一行，不进副题。
+ */
+function parseSongci300() {
+  const file = join(dirname(DATA_DIR), 'songci300', 'songci300.json');
+  if (!existsSync(file)) throw new Error(`缺少语料文件: ${file}`);
+  const arr = JSON.parse(readFileSync(file, 'utf8'));
+  const out = [];
+  for (const it of arr) {
+    const lines = (it.lines ?? []).map(s).filter((l) => !empty(l));
+    if (!lines.length) continue;
+    const title = titleFromLines(it.title, lines);
+    if (empty(title)) continue;
+    out.push({
+      coll: 'songci300', name: '宋词三百首', kind: '词',
+      dynasty: s(it.dynasty) || '宋', author: s(it.author), title, subtitle: '',
+      lines,
+    });
+  }
+  return out;
+}
+
 /** 幽梦影: [{content, comment}] */
 function parseYoumengying() {
   const arr = loadJson('幽梦影/youmengying.json');
@@ -418,6 +446,7 @@ function parseMengxue(rel, coll, name, author, dynasty) {
 const PARSERS = (full) => [
   [() => parseTangQian('蒙学/tangshisanbaishou.json', 'tangshi', '唐诗三百首', '诗'), 'tangshi'],
   [() => parseTangQian('蒙学/qianjiashi.json', 'qianjiashi', '千家诗', '诗'), 'qianjiashi'],
+  [parseSongci300, 'songci300'],
   [parseQuanTang, 'quantangshi'],
   [parseShijing, 'shijing'],
   [parseChuci, 'chuci'],

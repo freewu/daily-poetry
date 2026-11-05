@@ -21,6 +21,16 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import {
+  cacheName,
+  fetchWikitext,
+  readCache,
+  stripBlocks,
+  stripInline,
+  stripTemplates,
+  writeCache,
+} from './wikitext.mjs';
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
 const DATA = resolve(ROOT, '.data', 'yuefu');
@@ -28,10 +38,7 @@ const RAW = join(DATA, 'raw');
 const OUT = join(DATA, 'yuefu.json');
 const REFRESH = process.argv.includes('--refresh');
 
-const API = 'https://zh.wikisource.org/w/api.php';
-const UA = 'daily-poetry-bot/1.0 (+https://github.com/freewu/daily-poetry)';
 const VOL_COUNT = 100;
-const BATCH = 50;
 
 /** 朝代字（出现在标题旁的专名模板里，如「齊」「梁」「唐」） */
 const DYNASTIES = [
@@ -40,8 +47,6 @@ const DYNASTIES = [
   // 先秦诸侯国（「【猗蘭操】魯·孔子」）
   '魯', '鲁', '楚', '衛', '卫', '燕', '鄭', '郑', '韓', '韩', '趙', '赵', '蔡', '曹', '越',
 ];
-
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** 卷次用中文（subtitle 显示「卷五十八 · 琴曲歌辞二」，跟原书一致） */
 const CN_DIGITS = '〇一二三四五六七八九';
@@ -55,111 +60,7 @@ function cnNumber(n) {
   return `${CN_DIGITS[tens]}十${ones ? CN_DIGITS[ones] : ''}`;
 }
 
-async function api(params, attempt = 1) {
-  const url = `${API}?${new URLSearchParams({ format: 'json', formatversion: '2', ...params })}`;
-  try {
-    const res = await fetch(url, { headers: { 'User-Agent': UA } });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
-  } catch (e) {
-    if (attempt >= 3) throw e;
-    await sleep(800 * attempt);
-    return api(params, attempt + 1);
-  }
-}
-
-/** 一批页面（≤50）的 wikitext；缺失的页面不出现在返回值里 */
-async function fetchWikitext(titles) {
-  const out = new Map();
-  for (let i = 0; i < titles.length; i += BATCH) {
-    const batch = titles.slice(i, i + BATCH);
-    const d = await api({
-      action: 'query',
-      prop: 'revisions',
-      rvprop: 'content',
-      rvslots: 'main',
-      titles: batch.join('|'),
-    });
-    for (const p of d.query?.pages ?? []) {
-      if (p.missing) continue;
-      const content = p.revisions?.[0]?.slots?.main?.content;
-      if (typeof content === 'string') out.set(p.title, content);
-    }
-    // 批量请求偶尔有页面没跟着回来（见过 058 卷），缺的单独补一次
-    const gap = batch.filter((t) => !out.has(t));
-    if (gap.length) {
-      await sleep(200);
-      const retry = await api({
-        action: 'query',
-        prop: 'revisions',
-        rvprop: 'content',
-        rvslots: 'main',
-        titles: gap.join('|'),
-      });
-      for (const p of retry.query?.pages ?? []) {
-        if (p.missing) continue;
-        const content = p.revisions?.[0]?.slots?.main?.content;
-        if (typeof content === 'string') out.set(p.title, content);
-      }
-    }
-    if (i + BATCH < titles.length) await sleep(250);
-  }
-  return out;
-}
-
-const cacheName = (prefix, title) =>
-  join(RAW, `${prefix}-${title.replace(/[^\p{Script=Han}\w.-]+/gu, '_')}.txt`);
-
-function readCache(path) {
-  if (REFRESH || !existsSync(path)) return null;
-  const text = readFileSync(path, 'utf8');
-  return text.startsWith('\u0000') ? null : text; // \u0000 = 确认「该页不存在」
-}
-
-function writeCache(path, text) {
-  writeFileSync(path, text ?? '\u0000');
-}
-
 // ---------------------------------------------------------------- 清洗
-
-/** header / footer / 质量模板整块去掉（多行，带 } 收尾） */
-function stripBlocks(src) {
-  return src
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/<ref[^>]*>[\s\S]*?<\/ref>/g, '')
-    .replace(/<\/?(?:onlyinclude|noinclude|includeonly|center|small|big|br|div|span)\b[^>]*>/g, '')
-    .replace(/\{\{(?:header2?|footer|Textquality|PD-old|正体化)\b[\s\S]*?\}\}/g, '');
-}
-
-const DROP_TPL = new Set(['*', 'PUA', '？', '?', '*'.repeat(1)]);
-
-/** 模板：`{{*|注}}` / `{{PUA|}}` / `{{？|左石右嵬}}` 丢；`{{另|甲|乙}}` 取甲；其余取末参 */
-function stripTemplates(src) {
-  let s = src;
-  for (let i = 0; i < 12; i += 1) {
-    const next = s.replace(/\{\{([^{}]*)\}\}/g, (_, body) => {
-      const parts = body.split('|').map((x) => x.trim());
-      const name = parts[0];
-      if (DROP_TPL.has(name)) return '';
-      if (name === '另') return parts[1] ?? '';
-      return parts.length > 1 ? parts[parts.length - 1] : '';
-    });
-    if (next === s) break;
-    s = next;
-  }
-  return s;
-}
-
-/** 行内标记：[[甲|乙]] → 乙，[[甲]] → 甲，-{云}- → 云，{魚且} → 去，'''粗体''' → 去 */
-function stripInline(src) {
-  return src
-    .replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, '$2')
-    .replace(/\[\[([^\]]+)\]\]/g, '$1')
-    .replace(/-\{([^{}]*)\}-/g, '$1')
-    .replace(/\{[^{}]*\}/g, '')
-    .replace(/'{2,}/g, '')
-    .replace(/<[^>]+>/g, '');
-}
 
 /**
  * 题解（不是诗）：`《宋書•樂志》曰：「…」`「謝希逸《琴論》曰：「…」」。
@@ -392,8 +293,8 @@ async function main() {
   const missing = [];
   const toFetch = [];
   for (const title of volTitles) {
-    const p = cacheName('vol', title);
-    const cached = readCache(p);
+    const p = cacheName(RAW, 'vol', title);
+    const cached = readCache(p, REFRESH);
     if (cached !== null) {
       if (cached) texts.set(title, cached);
       else missing.push(title);
@@ -404,7 +305,7 @@ async function main() {
     const got = await fetchWikitext(toFetch);
     for (const title of toFetch) {
       const text = got.get(title) ?? null;
-      writeCache(cacheName('vol', title), text);
+      writeCache(cacheName(RAW, 'vol', title), text);
       if (text) texts.set(title, text);
       else missing.push(title);
     }
@@ -423,8 +324,8 @@ async function main() {
   const needPage = [];
   const pageText = new Map();
   for (const t of pages) {
-    const p = cacheName('page', t);
-    const cached = readCache(p);
+    const p = cacheName(RAW, 'page', t);
+    const cached = readCache(p, REFRESH);
     if (cached === null) needPage.push(t);
     else if (cached) pageText.set(t, cached);
   }
@@ -433,7 +334,7 @@ async function main() {
     const got = await fetchWikitext(needPage);
     for (const t of needPage) {
       const text = got.get(t) ?? null;
-      writeCache(cacheName('page', t), text);
+      writeCache(cacheName(RAW, 'page', t), text);
       if (text) pageText.set(t, text);
     }
   }

@@ -296,6 +296,64 @@ describeDb('assets/poetry.db（随包数据）', () => {
     expect(noTitle?.title).toBe('朔风吹古柳');
   });
 
+  it('宋词三百首：整本选集都在，且进了每日池', async () => {
+    const row = await db.getFirstAsync<{
+      id: string; name: string; name_tw: string; kind: string; kind_tw: string; count: number; daily: number;
+    }>("SELECT * FROM collections WHERE id = 'songci300'");
+    expect(row).toMatchObject({
+      id: 'songci300',
+      name: '宋词三百首',
+      name_tw: '宋詞三百首',
+      kind: '词',
+      kind_tw: '詞',
+      daily: 1, // 选本，跟唐诗三百首 / 千家诗 一样进池
+    });
+    // 朱孝臧 1924 年那本收 300 首，维基文库录了 283 首
+    expect(row?.count).toBeGreaterThan(280);
+    expect(
+      await db.getFirstAsync<{ n: number }>(
+        "SELECT COUNT(*) n FROM poems WHERE collection = 'songci300' AND daily = 0",
+      ),
+    ).toEqual({ n: 0 });
+  });
+
+  it('宋词三百首：题目就是词牌，副题留空（否则词牌统计会串）', async () => {
+    // 转写那一条（维基文库只有链接、正文在子页面）要拼成「词牌·副题」
+    const yuanxi = await db.getFirstAsync<Poem>(
+      "SELECT * FROM poems WHERE collection = 'songci300' AND title = '青玉案·元夕'",
+    );
+    expect(yuanxi?.author).toBe('辛弃疾');
+    expect(yuanxi?.author_tw).toBe('辛棄疾');
+    expect(yuanxi?.subtitle).toBe('');
+    expect(yuanxi?.content).toContain('众里寻他千百度');
+    expect(yuanxi?.content_tw).toContain('眾裡尋他千百度');
+
+    // 词序（`（丙辰中秋…）`）是正文第一行，不是副题
+    const mid = await db.getFirstAsync<Poem>(
+      "SELECT * FROM poems WHERE collection = 'songci300' AND title = '水调歌头' AND author = '苏轼'",
+    );
+    expect(mid?.content.split('\n')[0]).toContain('丙辰中秋');
+    expect(mid?.subtitle).toBe('');
+
+    // 五代人（冯延已）不该标成宋
+    const wu = await db.getFirstAsync<Poem>(
+      "SELECT * FROM poems WHERE collection = 'songci300' AND author = '冯延已'",
+    );
+    expect(wu?.dynasty).toBe('五代');
+  });
+
+  it('宋词三百首：作者 / 词牌统计与库对得上', async () => {
+    const stat = statsOf('songci300');
+    const count = await db.getFirstAsync<{ n: number }>(
+      "SELECT COUNT(*) n FROM poems WHERE collection = 'songci300'",
+    );
+    expect(stat?.total).toBe(count?.n);
+    expect((stat?.authors ?? []).reduce((n, a) => n + a.count, 0)).toBe(count?.n);
+    // 吴文英 25 / 周邦彦 22 / 姜夔 17，词牌最多的是蝶恋花 / 木兰花
+    expect(stat?.authors.find((a) => a.name === '吴文英')?.count).toBe(25);
+    expect(stat?.cipai[0]).toMatchObject({ name: '蝶恋花', count: 11 });
+  });
+
   it('作者统计：数量对得上选集，名家的首字母也对', async () => {
     // 页面读的是建库时算好、随包走的 assets/stats.json（见 lib/stats.ts）
     const tang = statsOf('tangshi')?.authors ?? [];

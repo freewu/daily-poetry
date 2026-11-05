@@ -22,16 +22,20 @@ deps:
 
 # 判“已存在”时点名抽查几块语料：只看目录会在旧语料上一直 skip，
 # 于是 build-db 静默地「缺哪块跳哪块」（宋词 / 元曲就是这么“没”的）。
+# 主体语料在 chinese-poetry 仓库（sparse clone）；乐府诗集 / 宋词三百首 不在里面，
+# 由 fetch-yuefu / fetch-songci300 从维基文库抓，缓存在 .data/yuefu、.data/songci300。
 
-# 下载主体语料（全唐诗 / 诗经 / 楚辞 / 五代诗词 / 纳兰性德 / 曹操 / 全宋词 / 元曲 / 唐诗三百首 / 千家诗）
+# 下载主体语料 + 乐府诗集 / 宋词三百首
 data:
     test -f .data/chinese-poetry/宋词/ci.song.0.json && test -f .data/chinese-poetry/元曲/yuanqu.json && test -f .data/chinese-poetry/全唐诗/poet.tang.0.json && echo "语料已存在，跳过下载" || bash scripts/fetch-corpus.sh standard
     node scripts/fetch-yuefu.mjs
+    node scripts/fetch-songci300.mjs
 
 # 下载全部语料（再含古文观止 / 幽梦影 / 论语 / 四书 / 蒙学）
 data-full:
     bash scripts/fetch-corpus.sh full
     node scripts/fetch-yuefu.mjs
+    node scripts/fetch-songci300.mjs
 
 # 顺带生成预统计 assets/stats.json（作者 / 词牌；页面读它，不现算 SQL）
 
