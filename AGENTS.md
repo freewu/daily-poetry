@@ -27,9 +27,16 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
 # 数据与简繁
 
 - 语料在 `.data/chinese-poetry`（`just data`；`data-full` 再多取古文观止 / 幽梦影 / 论语 / 四书 / 蒙学），
-  库产物 `assets/poetry.db`（`just db`，不入库）。标准模式下十一部集子共 91234 首
-  （全唐诗 57599 + 全宋词 21049 + 元曲 10906 + 唐诗三百首 320 + 千家诗 214 + 诗经 305
-  + 楚辞 65 + 花间集 447 + 南唐词 45 + 纳兰性德词 258 + 曹操诗集 26），每日池 1680 首。
+  库产物 `assets/poetry.db`（`just db`，不入库）。标准模式下十二部集子共 95004 首
+  （全唐诗 57599 + 全宋词 21049 + 元曲 10906 + 乐府诗集 3770 + 唐诗三百首 320 + 千家诗 214
+  + 诗经 305 + 楚辞 65 + 花间集 447 + 南唐词 45 + 纳兰性德词 258 + 曹操诗集 26），每日池 1680 首。
+- 乐府诗集是**第二个语料来源**：`.data/yuefu/yuefu.json` 由 `scripts/fetch-yuefu.mjs`
+  从中文维基文库抓（`Category:樂府詩集` 一百卷，`==曲调（作者）==` / `===诗题===` 两级标题切条目，
+  题解 / `:` 注疏 / header-footer 剥掉）。它在 chinese-poetry 目录**外面**，`build-db.mjs`
+  用 `join(dirname(DATA_DIR), 'yuefu', 'yuefu.json')` 找它 —— 别改成 `.data/chinese-poetry/` 下面，
+  那是 sparse clone 的工作区。`fetch-yuefu` 按卷缓存原文到 `.data/yuefu/raw/`，重跑不重复请求；
+  第五十八卷没维基化（`【詩題】朝代·作者` 纯文本，无 `===`），单独一套规则。
+  乐府 **不进每日池**（大半是郊庙 / 燕射乐章），进池会把 1680 的轮换整体重排。
   全宋词 / 元曲 属于主体语料，**不能**只放在 `FULL_DIRS` 里：`scripts/build-db.mjs` 的主体育法
   一直包含它们，语料缺失时只会「缺哪块跳哪块」地静默少两万多首。
   全唐诗 目录里混着全宋诗，`scripts/fetch-corpus.sh` 只按需取 `poet.tang.*.json` + `唐诗补录.json`。

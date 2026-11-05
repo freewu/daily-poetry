@@ -20,12 +20,14 @@ deps:
 # 于是 build-db 静默地「缺哪块跳哪块」（宋词 / 元曲就是这么“没”的）。
 data:
     test -f .data/chinese-poetry/宋词/ci.song.0.json && test -f .data/chinese-poetry/元曲/yuanqu.json && test -f .data/chinese-poetry/全唐诗/poet.tang.0.json && echo "语料已存在，跳过下载" || bash scripts/fetch-corpus.sh standard
+    node scripts/fetch-yuefu.mjs
 
 # 下载全部语料（再含古文观止 / 幽梦影 / 论语 / 四书 / 蒙学）
 data-full:
     bash scripts/fetch-corpus.sh full
+    node scripts/fetch-yuefu.mjs
 
-# 构建 SQLite 数据库 → assets/poetry.db（约 9.1 万首，简繁双写，约 58MB）
+# 构建 SQLite 数据库 → assets/poetry.db（约 9.5 万首，简繁双写，约 59MB）
 # 顺带生成预统计 assets/stats.json（作者 / 词牌；页面读它，不现算 SQL）
 db: deps data
     node scripts/build-db.mjs

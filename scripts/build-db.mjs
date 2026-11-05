@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 /**
- * build-db.mjs — 把 chinese-poetry 语料导入 SQLite（assets/poetry.db）
+ * build-db.mjs — 把语料导入 SQLite（assets/poetry.db）
+ *
+ * 语料有两个来源：chinese-poetry 仓库（`.data/chinese-poetry`，`just data` 拉）
+ * 与中文维基文库的《乐府诗集》（`.data/yuefu`，`scripts/fetch-yuefu.mjs` 抓）。
  *
  * 用法:
- *   node scripts/build-db.mjs                # 主体语料：唐诗三百首/千家诗/全唐诗/诗经/楚辞/五代诗词/全宋词/元曲/纳兰/曹操
+ *   node scripts/build-db.mjs                # 主体语料：唐诗三百首/千家诗/全唐诗/诗经/楚辞/五代诗词/全宋词/元曲/纳兰/曹操/乐府诗集
  *   node scripts/build-db.mjs --full         # 再加杂项：古文观止/幽梦影/论语/四书/蒙学
  *   node scripts/build-db.mjs --data <dir>   # 指定语料目录（默认 .data/chinese-poetry）
  *   node scripts/build-db.mjs --out <file>   # 指定输出文件（默认 assets/poetry.db）
@@ -59,11 +62,16 @@ function variants(x) {
 /**
  * 库结构版本：改动表结构时 +1，App 端据此判断是否需要替换随包数据库。
  * 只加了新语料、结构没动也要 +1 —— 否则装过旧版的设备会一直用旧库，
- * 新版 App 里看不到新加的集子（3 = 加纳兰性德 / 曹操；4 = 标准库并入全宋词 / 元曲）。
+ * 新版 App 里看不到新加的集子（3 = 加纳兰性德 / 曹操；4 = 标准库并入全宋词 / 元曲；
+ * 5 = 加乐府诗集）。
  */
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
-/** 每日精选池：始终只用这些精选集 */
+/**
+ * 每日精选池：始终只用这些精选集。
+ * 乐府诗集（3773 首，一半是郊庙 / 燕射乐章）不进池：一进去每日轮换的池子就从
+ * 1680 变成 5453，全设备当天的诗会整体重排。想加就把它加进这个 Set。
+ */
 const DAILY_COLLECTIONS = new Set([
   'tangshi',
   'qianjiashi',
@@ -306,6 +314,31 @@ function parseCaocao() {
   return out;
 }
 
+/**
+ * 乐府诗集（维基文库）：{volume, series, chapter, title, dynasty, author, lines}[]。
+ * 由 `scripts/fetch-yuefu.mjs` 抓成 `.data/yuefu/yuefu.json`（在 chinese-poetry 目录外面，
+ * 因为那边没有这部书）。subtitle 拼「卷X · 郊廟歌辭三 · 宋明堂歌」，列表里既能看卷次也能看曲调。
+ */
+function parseYuefu() {
+  const file = join(dirname(DATA_DIR), 'yuefu', 'yuefu.json');
+  if (!existsSync(file)) throw new Error(`缺少语料文件: ${file}`);
+  const arr = JSON.parse(readFileSync(file, 'utf8'));
+  const out = [];
+  for (const it of arr) {
+    const lines = (it.lines ?? []).map(s).filter((l) => !empty(l));
+    if (!lines.length) continue;
+    const title = titleFromLines(it.title, lines);
+    if (empty(title)) continue;
+    out.push({
+      coll: 'yuefu', name: '乐府诗集', kind: '乐府',
+      dynasty: s(it.dynasty), author: s(it.author), title,
+      subtitle: [s(it.volumeLabel), s(it.series), s(it.chapter)].filter(Boolean).join(' · '),
+      lines,
+    });
+  }
+  return out;
+}
+
 /** 幽梦影: [{content, comment}] */
 function parseYoumengying() {
   const arr = loadJson('幽梦影/youmengying.json');
@@ -394,6 +427,7 @@ const PARSERS = (full) => [
   [parseYuanqu, 'qu'],
   [parseNalan, 'nalan'],
   [parseCaocao, 'caocao'],
+  [parseYuefu, 'yuefu'],
   ...(full ? [
     [parseGuwen, 'guwen'],
     [parseYoumengying, 'youmengying'],

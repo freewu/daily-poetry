@@ -242,6 +242,49 @@ describeDb('assets/poetry.db（随包数据）', () => {
     expect(cao?.dynasty).toBe('东汉');
   });
 
+  it('乐府诗集：一百卷都进了库，且不占每日池', async () => {
+    const row = await db.getFirstAsync<{ id: string; name: string; name_tw: string; kind: string; kind_tw: string; count: number; daily: number }>(
+      "SELECT * FROM collections WHERE id = 'yuefu'",
+    );
+    expect(row).toMatchObject({
+      id: 'yuefu',
+      name: '乐府诗集',
+      name_tw: '樂府詩集',
+      kind: '乐府',
+      kind_tw: '樂府',
+      daily: 0, // 郊庙乐章不进每日轮换
+    });
+    expect(row?.count).toBeGreaterThan(3000);
+    expect(await db.getFirstAsync<{ n: number }>("SELECT COUNT(*) n FROM poems WHERE collection = 'yuefu' AND daily = 1")).toEqual({ n: 0 });
+  });
+
+  it('乐府诗集：subtitle 记了卷次 / 曲调，繁体与简体各自成列', async () => {
+    const p = await db.getFirstAsync<Poem>(
+      "SELECT * FROM poems WHERE collection = 'yuefu' AND title = '练时日'",
+    );
+    expect(p?.subtitle).toBe('卷一 · 郊庙歌辞一 · 汉郊祀歌');
+    expect(p?.title_tw).toBe('練時日');
+    expect(p?.content).toContain('练时日　侯有望');
+    expect(p?.content_tw).toContain('練時日　侯有望');
+
+    // 第五十八卷是没维基化的纯文本页，标题旁的「朝代·作者」要拆成两列
+    const shi = await db.getFirstAsync<Poem>(
+      "SELECT * FROM poems WHERE collection = 'yuefu' AND title = '思归引' AND author = '石崇'",
+    );
+    expect(shi?.subtitle).toBe('卷五十八 · 琴曲歌辞二 · 思归引');
+    expect(shi?.dynasty).toBe('晋');
+    expect(shi?.author_tw).toBe('石崇');
+  });
+
+  it('乐府诗集：作者统计与库对得上（页面读 stats.json）', async () => {
+    const yuefu = statsOf('yuefu')?.authors ?? [];
+    const count = await db.getFirstAsync<{ n: number }>(
+      "SELECT COUNT(*) n FROM poems WHERE collection = 'yuefu'",
+    );
+    expect(yuefu.reduce((n, a) => n + a.count, 0)).toBe(count?.n);
+    expect(yuefu.find((a) => a.name === '李白')?.count).toBeGreaterThan(50);
+  });
+
   it('纳兰那首缺题目的词用首句补了题目（不留空标题）', async () => {
     const empty = await db.getFirstAsync<{ n: number }>(
       "SELECT COUNT(*) n FROM poems WHERE collection IN ('nalan','caocao') AND (TRIM(title) = '' OR TRIM(content) = '')",
