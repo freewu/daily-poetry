@@ -308,7 +308,7 @@ describeDb('assets/poetry.db（随包数据）', () => {
       kind_tw: '詞',
       daily: 1, // 选本，跟唐诗三百首 / 千家诗 一样进池
     });
-    // 朱孝臧 1924 年那本收 300 首，维基文库录了 283 首
+    // 古文岛这部选集连唐五代词一起收，比朱孝臧 1924 年那本（300 首）略少
     expect(row?.count).toBeGreaterThan(280);
     expect(
       await db.getFirstAsync<{ n: number }>(
@@ -317,8 +317,8 @@ describeDb('assets/poetry.db（随包数据）', () => {
     ).toEqual({ n: 0 });
   });
 
-  it('宋词三百首：题目就是词牌，副题留空（否则词牌统计会串）', async () => {
-    // 转写那一条（维基文库只有链接、正文在子页面）要拼成「词牌·副题」
+  it('宋词三百首：题目是「词牌·首句」，副题留空（否则词牌统计会串）', async () => {
+    // 古文岛按「词牌·首句」命名，`cipaiOf()` 取 `·` 前段，词牌统计才对得上
     const yuanxi = await db.getFirstAsync<Poem>(
       "SELECT * FROM poems WHERE collection = 'songci300' AND title = '青玉案·元夕'",
     );
@@ -328,16 +328,16 @@ describeDb('assets/poetry.db（随包数据）', () => {
     expect(yuanxi?.content).toContain('众里寻他千百度');
     expect(yuanxi?.content_tw).toContain('眾裡尋他千百度');
 
-    // 词序（`（丙辰中秋…）`）是正文第一行，不是副题
+    // 词序（`丙辰中秋…`）是正文第一行，不是副题
     const mid = await db.getFirstAsync<Poem>(
-      "SELECT * FROM poems WHERE collection = 'songci300' AND title = '水调歌头' AND author = '苏轼'",
+      "SELECT * FROM poems WHERE collection = 'songci300' AND title = '水调歌头·丙辰中秋'",
     );
     expect(mid?.content.split('\n')[0]).toContain('丙辰中秋');
     expect(mid?.subtitle).toBe('');
 
-    // 五代人（冯延已）不该标成宋
+    // 五代人（冯延巳）不该标成宋
     const wu = await db.getFirstAsync<Poem>(
-      "SELECT * FROM poems WHERE collection = 'songci300' AND author = '冯延已'",
+      "SELECT * FROM poems WHERE collection = 'songci300' AND author = '冯延巳'",
     );
     expect(wu?.dynasty).toBe('五代');
   });
@@ -349,9 +349,9 @@ describeDb('assets/poetry.db（随包数据）', () => {
     );
     expect(stat?.total).toBe(count?.n);
     expect((stat?.authors ?? []).reduce((n, a) => n + a.count, 0)).toBe(count?.n);
-    // 吴文英 25 / 周邦彦 22 / 姜夔 17，词牌最多的是蝶恋花 / 木兰花
-    expect(stat?.authors.find((a) => a.name === '吴文英')?.count).toBe(25);
-    expect(stat?.cipai[0]).toMatchObject({ name: '蝶恋花', count: 11 });
+    // 这部选集里吴文英 5 首，词牌最多的是清平乐（11 首）
+    expect(stat?.authors.find((a) => a.name === '吴文英')?.count).toBe(5);
+    expect(stat?.cipai[0]).toMatchObject({ name: '清平乐', count: 11 });
   });
 
   it('作者统计：数量对得上选集，名家的首字母也对', async () => {

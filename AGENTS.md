@@ -75,29 +75,34 @@ hvigor）+ `tool/harmony-render.mjs`（渲染 `tool/harmony-template/` → `harm
 # 数据与简繁
 
 - 语料在 `.data/chinese-poetry`（`just data`；`data-full` 再多取古文观止 / 幽梦影 / 论语 / 四书 / 蒙学），
-  库产物 `assets/poetry.db`（`just db`，不入库）。标准模式下十三部集子共 95287 首
+  库产物 `assets/poetry.db`（`just db`，不入库）。标准模式下十三部集子共 95290 首
   （全唐诗 57599 + 全宋词 21049 + 元曲 10906 + 乐府诗集 3770 + 花间集 447 + 唐诗三百首 320
-  + 诗经 305 + 宋词三百首 283 + 纳兰性德词 258 + 千家诗 214 + 楚辞 65 + 南唐词 45 + 曹操诗集 26），
-  每日池 1963 首。
+  + 诗经 305 + 宋词三百首 286 + 纳兰性德词 258 + 千家诗 214 + 楚辞 65 + 南唐词 45 + 曹操诗集 26），
+  每日池 1966 首。
 - 乐府诗集是**第二个语料来源**：`.data/yuefu/yuefu.json` 由 `scripts/fetch-yuefu.mjs`
   从中文维基文库抓（`Category:樂府詩集` 一百卷，`==曲调（作者）==` / `===诗题===` 两级标题切条目，
   题解 / `:` 注疏 / header-footer 剥掉）。它在 chinese-poetry 目录**外面**，`build-db.mjs`
   用 `join(dirname(DATA_DIR), 'yuefu', 'yuefu.json')` 找它 —— 别改成 `.data/chinese-poetry/` 下面，
   那是 sparse clone 的工作区。`fetch-yuefu` 按卷缓存原文到 `.data/yuefu/raw/`，重跑不重复请求；
   第五十八卷没维基化（`【詩題】朝代·作者` 纯文本，无 `===`），单独一套规则。
-  乐府 **不进每日池**（大半是郊庙 / 燕射乐章），进池会把 1963 的轮换整体重排。
+  乐府 **不进每日池**（大半是郊庙 / 燕射乐章），进池会把 1966 的轮换整体重排。
 - 宋词三百首是**第三个语料来源**：`.data/songci300/songci300.json` 由 `scripts/fetch-songci300.mjs`
-  从维基文库抓（`宋詞三百首` 整本在**一个页面**里，`=='''词牌'''（[[Author:作者|作者]]）==` 二级标题
-  一条一首，`<poem>` 是正文；283 首 / 82 位作者，原文缓存到 `.data/songci300/raw/`）。同样在
-  chinese-poetry 目录外面，`parseSongci300()` 用 `join(dirname(DATA_DIR), 'songci300', …)` 找它。
-  - 题目就是词牌（`青玉案` / `宴山亭·北行见杏花`），**副题必须留空**：`cipaiOf()` 优先认副题，
-    往里塞东西词牌统计立刻串味。
-  - 词序（`（丙辰中秋…）`）写成**正文第一行**（84 首有），不拆不丢；`（小序略）` 是维基的占位符，丢。
-  - 正文一句一行：语料里两首把整阕挤在一行（上下阕用两个全角空格隔开），`splitClauses()` 按
-    `。！？；` 拆开；词序整段括在 `（）` 里，不拆。
-  - `[[青玉案 (辛棄疾)]]` 那条只有链接（`{{:青玉案 (辛棄疾)}}` 转写），题名 / 副题 / 作者要从那个
-    页面的 `{{header}}` 里读 —— 拼成 `青玉案·元夕`，是全书唯一带副题的。
-  - 冯延已是五代人，`DYNASTY_OF` 里单独标；其余按宋。**进每日池**（选本是精选，跟唐诗三百首同理）。
+  从古文岛（原古诗文网）抓：https://www.guwendao.net/gushi/songsan.aspx 。全集页把九卷摊在一页，
+  `<div class="typecont">` 切卷、`<div class="bookMl"><strong>卷一·唐五代词</strong></div>` 是卷名，
+  条目是 `<span><a href="/shiwenv_xxx.aspx">词牌·首句</a>(作者)</span>`；正文在**详情页**的
+  `<div class="contson">`（`<br />` / `</p>` 是换行），朝代取详情页的 `〔唐代〕`。
+  286 首 / 114 位作者 / 9 卷，原文缓存到 `.data/songci300/raw/`（列表页 + 每首一页）。
+  同样在 chinese-poetry 目录外面，`parseSongci300()` 用 `join(dirname(DATA_DIR), 'songci300', …)` 找它。
+  - 题目是「词牌」或「词牌·首句」（`青玉案·元夕` / `水调歌头·丙辰中秋`），**副题必须留空**：
+    `cipaiOf()` 优先认副题，往里塞东西词牌统计立刻串味（`·` 前段才是词牌）。
+  - 词序（`丙辰中秋，欢饮达旦…`）在详情页是正文前面单独一个 `<p>`，照旧写成**正文第一行**。
+  - 正文一句一行：`<br />` / `</p>` 换行后再按 `。！？；` 断句（`splitClauses()`），
+    跟全宋词 / 唐诗的存法一致。
+  - 校记整块丢（`EDITOR_NOTE`）：`(更短亭 一作：连短亭)` / `(后三句疑伪作)` 是编者注不是正文。
+  - 朝代按详情页的 `〔唐代〕` / `〔五代〕` / `〔宋代〕` 映射成 `唐 / 五代 / 宋`（`五代` 不能
+    简单剥「代」字，会变成「五」）。**进每日池**（选本是精选，跟唐诗三百首同理）。
+  - 换源前用的是维基文库那版（283 首 / 82 作者，`=='''词牌'''（作者）==` 一条一首）；
+    换源后**数量、题目形态、作者名（冯延巳）都变了**，所以 `SCHEMA_VERSION` 升到 7。
   全宋词 / 元曲 属于主体语料，**不能**只放在 `FULL_DIRS` 里：`scripts/build-db.mjs` 的主体育法
   一直包含它们，语料缺失时只会「缺哪块跳哪块」地静默少两万多首。
   全唐诗 目录里混着全宋诗，`scripts/fetch-corpus.sh` 只按需取 `poet.tang.*.json` + `唐诗补录.json`。
@@ -112,7 +117,7 @@ hvigor）+ `tool/harmony-render.mjs`（渲染 `tool/harmony-template/` → `harm
 - 改表结构必须同时改：`scripts/build-db.mjs` 的 `SCHEMA_VERSION`、`src/lib/db.ts` 的
   `DB_SCHEMA_VERSION`、`__tests__/helpers/memory-db.ts` 的 `SCHEMA`。
   **只加语料、结构没动也要把 `SCHEMA_VERSION` +1**：换库只认这个号，不升号老设备永远用旧库。
-  （4 = 标准库并入全宋词 / 元曲；5 = 加乐府诗集；6 = 加宋词三百首。）
+  （4 = 标准库并入全宋词 / 元曲；5 = 加乐府诗集；6 = 加宋词三百首；7 = 宋词三百首换源。）
   版本不一致时 `src/lib/db-bootstrap.ts` 会在启动时覆盖随包库，并按「题目 + 作者 + 首句」把收藏 / 足迹写回。
   覆盖会整份替换 `meta` 表，所以新增偏好设置时**必须**加进 `KEPT_SETTINGS` 白名单，
   否则换库会把用户设置重置（现有：`settings_theme / settings_push / settings_daily_gap /

@@ -1,9 +1,8 @@
 /**
  * wikitext.mjs — 中文维基文库的取页 / 缓存 / 清洗工具。
  *
- * 两个抓取脚本共用（`fetch-yuefu.mjs` / `fetch-songci300.mjs`）：都要「按页取 wikitext、
- * 落盘缓存、剥模板与行内标记」。各书自己的版式规则（标题层级、题解判定、断句重排）
- * 留在各自脚本里，别塞进这里。
+ * 两个抓取脚本共用：`fetch-yuefu.mjs` 用取页 + wikitext 清洗，`fetch-songci300.mjs`
+ * （古文岛，HTML）只借按页缓存那三件（`cacheName` / `readCache` / `writeCache`）。
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';

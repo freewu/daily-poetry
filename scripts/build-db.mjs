@@ -2,8 +2,9 @@
 /**
  * build-db.mjs — 把语料导入 SQLite（assets/poetry.db）
  *
- * 语料有两个来源：chinese-poetry 仓库（`.data/chinese-poetry`，`just data` 拉）
- * 与中文维基文库的《乐府诗集》（`.data/yuefu`，`scripts/fetch-yuefu.mjs` 抓）。
+ * 语料有三个来源：chinese-poetry 仓库（`.data/chinese-poetry`，`just data` 拉）、
+ * 中文维基文库的《乐府诗集》（`.data/yuefu`，`scripts/fetch-yuefu.mjs` 抓）、
+ * 古文岛的《宋词三百首》（`.data/songci300`，`scripts/fetch-songci300.mjs` 抓）。
  *
  * 用法:
  *   node scripts/build-db.mjs                # 主体语料：唐诗三百首/千家诗/全唐诗/诗经/楚辞/五代诗词/全宋词/元曲/纳兰/曹操/乐府诗集
@@ -63,9 +64,9 @@ function variants(x) {
  * 库结构版本：改动表结构时 +1，App 端据此判断是否需要替换随包数据库。
  * 只加了新语料、结构没动也要 +1 —— 否则装过旧版的设备会一直用旧库，
  * 新版 App 里看不到新加的集子（3 = 加纳兰性德 / 曹操；4 = 标准库并入全宋词 / 元曲；
- * 5 = 加乐府诗集；6 = 加宋词三百首）。
+ * 5 = 加乐府诗集；6 = 加宋词三百首；7 = 宋词三百首换源（维基文库 → 古文岛））。
  */
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7;
 
 /**
  * 每日精选池：始终只用这些精选集。
@@ -342,11 +343,12 @@ function parseYuefu() {
 }
 
 /**
- * 宋词三百首（维基文库）：{title, author, dynasty, lines}[]。
+ * 宋词三百首（古文岛）：{title, author, dynasty, lines}[]。
  * 由 `scripts/fetch-songci300.mjs` 抓成 `.data/songci300/songci300.json`（在 chinese-poetry
  * 目录外面 —— 那边只有全宋词，没有这部选本）。
- * 题目就是词牌（`青玉案` / `宴山亭·北行見杏花`），副题留空：`cipaiOf()` 优先认副题，
- * 这里往副题里塞东西会把词牌统计搞乱。词序（`（丙辰中秋…）`）是正文第一行，不进副题。
+ * 题目是「词牌」或「词牌·首句」（`青玉案·元夕` / `水调歌头·丙辰中秋`），副题留空：
+ * `cipaiOf()` 优先认副题，这里往副题里塞东西会把词牌统计搞乱。
+ * 词序（`丙辰中秋，欢饮达旦…`）是正文第一行，不进副题。
  */
 function parseSongci300() {
   const file = join(dirname(DATA_DIR), 'songci300', 'songci300.json');

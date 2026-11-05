@@ -49,7 +49,7 @@ envcheck:
     @echo "—— 原生构建前置（Gradle 跑在 Windows 侧）——"
     @bash tool/android.sh doctor
 
-# 下载主体语料（sparse clone）+ 抓维基文库乐府诗集 / 宋词三百首
+# 下载主体语料（sparse clone）+ 抓维基文库乐府诗集、古文岛宋词三百首
 [group('1. 初始化')]
 data:
     test -f .data/chinese-poetry/宋词/ci.song.0.json && test -f .data/chinese-poetry/元曲/yuanqu.json && test -f .data/chinese-poetry/全唐诗/poet.tang.0.json && echo "语料已存在，跳过下载" || bash scripts/fetch-corpus.sh standard
