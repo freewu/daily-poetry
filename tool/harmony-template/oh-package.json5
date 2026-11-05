@@ -1,0 +1,13 @@
+{
+  "modelVersion": "__HVIGOR_MODEL_VERSION__",
+  "name": "daily-poetry",
+  "version": "1.0.0",
+  "description": "每日诗词 · HarmonyOS 壳工程（RNOH）",
+  "main": "",
+  "author": "",
+  "license": "Apache-2.0",
+  "dependencies": {},
+  "devDependencies": {
+    "@ohos/hypium": "1.0.6",
+  },
+}

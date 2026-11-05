@@ -1,0 +1,17 @@
+{
+  "apiType": "stageMode",
+  "buildOption": {
+    // RNOH 的 C++ 部分（librnoh_app.so）—— 把 RN 的 native 侧编进 HAP
+    "externalNativeOptions": {
+      "path": "./src/main/cpp/CMakeLists.txt",
+      "arguments": "",
+      "cppFlags": "-fstack-protector-strong -Wl,-z,noexecstack",
+    },
+  },
+  "targets": [
+    {
+      "name": "default",
+      "runtimeOS": "HarmonyOS",
+    },
+  ],
+}

@@ -18,5 +18,10 @@
   "include": [
     "**/*.ts",
     "**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "harmony",
+    "tool/harmony-template"
   ]
 }

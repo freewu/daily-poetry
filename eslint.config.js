@@ -5,6 +5,7 @@ const expoConfig = require('eslint-config-expo/flat');
 module.exports = defineConfig([
   expoConfig,
   {
-    ignores: ['dist/*', 'dist-export/*'],
+    // harmony/ 是 tool/harmony-template 渲染出来的鸿蒙工程（ArkTS，不归 expo lint 管）
+    ignores: ['dist/*', 'dist-export/*', 'harmony/*', 'tool/harmony-template/*'],
   },
 ]);

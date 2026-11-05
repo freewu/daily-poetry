@@ -1,0 +1,6 @@
+# 混淆规则（release 构建时生效）。默认只保留 RNOH 的 native 绑定，
+# 真出上架包时再按需补 keep 规则。
+-keep-global-name
+-keep-dts ./src/main/ets
+-enable-property-obfuscation=false
+-enable-toplevel-obfuscation=false

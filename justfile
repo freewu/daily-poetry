@@ -108,10 +108,46 @@ ipa: check
 ipa-eas:
     bash tool/ios.sh eas
 
-# 一次出两个包到 dist/：APK 本地打，IPA 本地（macOS）或跳过并提示走 just ipa-eas
+# 一次出三个包到 dist/：APK / IPA / HAP 本地打，缺工具链的平台只提示不报错
 pkg: check
     bash tool/android.sh apk
     bash tool/ios.sh ipa --soft
+    bash tool/harmony.sh hap --soft
+
+# ---------------------------------------------------------------- 鸿蒙（RNOH）
+# 构建实际跑在 Windows 侧（DevEco Studio 只有 Windows / macOS 版），WSL 里经 cmd.exe 调
+#
+# 版本对齐：RNOH 的 npm 包跟 RN 大版本绑定（RN 0.86.3 → 0.86.1），
+# 三方鸿蒙化库（@react-native-oh-tpl/*）普遍落后，且 expo-sqlite 没有鸿蒙版 ——
+# 见 tool/harmony-template/README.md 的「没做的部分」。
+
+# 鸿蒙工具链自检：DevEco Studio / SDK / hdc / ohpm / hvigor / 设备 / RNOH 依赖
+harmony-doctor:
+    bash tool/harmony.sh doctor
+
+# 初始化鸿蒙工程：装 RNOH 依赖（约 140MB，不进 package.json）+ 生成 harmony/（可重复跑）
+harmony-setup:
+    bash tool/harmony.sh setup
+
+# 编译 Debug HAP + 装到真机 / 模拟器 + 起 Metro（改 JS 热加载）
+harmony: harmony-setup
+    bash tool/harmony.sh run
+
+# 只起鸿蒙用的 Metro（platform = harmony，端口仍是 8081）
+harmony-start:
+    bash tool/harmony.sh start
+
+# 打 Release HAP（JS 打进包里，脱机可用）→ dist/daily-poetry-<版本>-<versionCode>.hap
+hap: check
+    bash tool/harmony.sh hap
+
+# 看设备日志（hilog；默认过滤 RN 相关 tag，可传关键字：just harmony-log MyTag）
+harmony-log *args:
+    bash tool/harmony.sh log {{args}}
+
+# 清鸿蒙构建产物（保留 harmony/ 工程本身）
+harmony-clean:
+    bash tool/harmony.sh clean
 
 # Maestro E2E：just e2e 跑全部，或 just e2e .maestro/01-today.yaml 跑单个
 e2e *args:
@@ -153,6 +189,6 @@ ios: check
 export: check
     npx expo export --platform android --output-dir dist
 
-# 打包提示：本地出包用 just pkg（APK + IPA）/ just apk / just ipa，上架用 EAS
+# 打包提示：本地出包用 just pkg（APK + IPA + HAP）/ just apk / just ipa / just hap，上架用 EAS
 build:
-    @echo "本地出包：just pkg（APK + IPA）｜只要安卓：just apk｜只要 iOS：just ipa 或 just ipa-eas"
+    @echo "本地出包：just pkg（APK + IPA + HAP）｜安卓：just apk｜iOS：just ipa 或 just ipa-eas｜鸿蒙：just hap"
