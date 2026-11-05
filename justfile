@@ -13,7 +13,14 @@
 #     先跑 native-reset。
 #   · ipa 只有 macOS 能本地打且未签名（装设备要自签）；Windows / WSL 上走 ipa-eas。
 #   · 鸿蒙构建跑在 Windows 侧（DevEco Studio 只有 Windows / macOS 版），
-#     RNOH 依赖用 `npm install --no-save` 装、不进 package.json。
+#     RNOH 依赖用 `npm --no-save` 装、不进 package.json。
+#   · 鸿蒙模拟器也是 Windows GUI（{DevEco}/tools/emulator/Emulator.exe）：
+#     `just harmony-emulator` 从 WSL 拉起它并等到开机完成（设备注册成 127.0.0.1:5555，
+#     hdc 服务在 8710 —— 别再写 HDC_SERVER_PORT=7035，hdc 认的是 OHOS_HDC_SERVER_PORT）。
+#     `just harmony` 发现没设备会自动走这一步，不用开 DevEco 点 Device Manager。
+#   · 模拟器起不来时 Windows 侧只丢一句 `Unable to start the emulator`（Emulator.log 一个字
+#     都不写，连裸跑 Emulator.exe 也一样）：这是 Windows 那边的残留状态，重启一次就好；
+#     脚本会在进程秒退时 5 秒内报错，不会白等五分钟。
 #   · 毛泽东诗词没有可抓的 URL（知乎 403），语料是 data/mao-poems.json（跟着仓库走）；
 #     要重做就把存档页放 .data/mao/mao.html 再跑 node scripts/fetch-mao.mjs。
 
@@ -213,10 +220,15 @@ build:
 harmony-setup:
     bash tool/harmony.sh setup
 
-# 编译 Debug HAP + 装到真机 / 模拟器 + 起 Metro（改 JS 热加载）
+# 编译 Debug HAP + 装到真机 / 模拟器 + 起 Metro（没设备会自动起模拟器；改 JS 热加载）
 [group('5. 鸿蒙')]
 harmony: harmony-setup
     bash tool/harmony.sh run
+
+# 起 HarmonyOS 模拟器（已在跑就复用；--list 看实例，--stop 关掉，可传实例名）
+[group('5. 鸿蒙')]
+harmony-emulator *args:
+    bash tool/harmony.sh emulator {{args}}
 
 # 只起鸿蒙用的 Metro（platform = harmony，端口仍是 8081）
 [group('5. 鸿蒙')]

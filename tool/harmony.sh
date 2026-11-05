@@ -3,6 +3,7 @@
 #
 #   tool/harmony.sh doctor   环境 + 工程自检
 #   tool/harmony.sh setup    装 RNOH 依赖 + 生成 harmony/ 工程（可重复跑）
+#   tool/harmony.sh emulator 起模拟器（已在跑就复用，等系统起完；--list / --stop）
 #   tool/harmony.sh start    起鸿蒙用的 Metro（platform = harmony）
 #   tool/harmony.sh run      编译 Debug HAP → 装设备 → 拉起（JS 走 Metro 热加载）
 #   tool/harmony.sh hap      打 Release HAP → dist/（JS 打进包里，脱机可用）
@@ -50,18 +51,36 @@ tool_path() {
 }
 
 # 跑 Windows 侧命令：写个 .bat 再 cmd.exe /c 它（路径里的空格才不会被拆开）
+bat_head() { # $1 = 工作目录
+  printf '@echo off\r\n'
+  [ -n "${DEVECO_SDK_HOME:-}" ] && printf 'set DEVECO_SDK_HOME=%s\r\n' "$(to_win "$DEVECO_SDK_HOME")"
+  [ -n "${OHOS_HDC_SERVER_PORT:-}" ] && printf 'set OHOS_HDC_SERVER_PORT=%s\r\n' "$OHOS_HDC_SERVER_PORT"
+  printf 'cd /d "%s" || exit /b 1\r\n' "$(to_win "$1")"
+}
+
 win_run() {
   local dir="$1"
   shift
   mkdir -p "$WORK"
   local bat="$WORK/run.bat"
   {
-    printf '@echo off\r\n'
-    [ -n "${DEVECO_SDK_HOME:-}" ] && printf 'set DEVECO_SDK_HOME=%s\r\n' "$(to_win "$DEVECO_SDK_HOME")"
-    printf 'set HDC_SERVER_PORT=%s\r\n' "$HDC_SERVER_PORT"
-    printf 'cd /d "%s" || exit /b 1\r\n' "$(to_win "$dir")"
+    bat_head "$dir"
     printf '%s\r\n' "$*"
     printf 'exit /b %%ERRORLEVEL%%\r\n'
+  } >"$bat"
+  cmd.exe /c "$(to_win "$bat")"
+}
+
+# 起 GUI 进程（模拟器）：cmd.exe 默认会等子进程退出，所以 bat 里套一层 start ""
+win_start() { # $1 = 工作目录，其余 = 命令行
+  local dir="$1"
+  shift
+  mkdir -p "$WORK"
+  local bat="$WORK/start.bat"
+  {
+    bat_head "$dir"
+    printf 'start "" %s\r\n' "$*"
+    printf 'exit /b 0\r\n'
   } >"$bat"
   cmd.exe /c "$(to_win "$bat")"
 }
@@ -202,12 +221,100 @@ hdc() {
   "$HDC" "$@"
 }
 
+# 在线的 hdc 目标（一行一个；没设备时输出空）
+devices() {
+  [ -n "${HDC:-}" ] || return 1
+  "$HDC" list targets 2>/dev/null | tr -d '\r' | grep -v '^[[:space:]]*$' | grep -v 'Empty'
+}
+
 require_device() {
-  [ -n "${HDC:-}" ] || die "没找到 hdc（先 just harmony-doctor）"
   local devs
-  devs="$(hdc list targets 2>/dev/null | tr -d '\r' | grep -v '^\s*$' | grep -v 'Empty')"
-  [ -n "$devs" ] || die "没有在线鸿蒙设备（插真机开 USB 调试，或在 DevEco 的 Device Manager 起模拟器）"
+  devs="$(devices)" || die "没找到 hdc（先 just harmony-doctor）"
+  [ -n "$devs" ] || die "没有在线鸿蒙设备：just harmony-emulator 起模拟器，或插真机开 USB 调试"
   info "设备：$(echo "$devs" | tr '\n' ' ')"
+}
+
+# ------------------------------------------------------------------ 模拟器（HVD）
+# DevEco 的模拟器就是个 Windows GUI 程序（Emulator.exe）：
+#   Emulator.exe -hvd <实例名> -path <实例目录> -imageRoot <系统镜像目录>
+# 起来之后它自己往 hdc 服务（默认 127.0.0.1:8710）注册成 127.0.0.1:5555，
+# 所以 WSL 这边不需要端口映射 —— 直接 hdc list targets 就能看到。
+hvd_list() {
+  [ -n "${HVD_EMULATOR:-}" ] || return 1
+  "$HVD_EMULATOR" -list 2>/dev/null | tr -d '\r' | grep -v '^[[:space:]]*$' | grep -v '\[Empty\]'
+}
+
+# 默认实例：config.ini 里 isDefault=true 的那个，没有就取第一个
+hvd_default() {
+  local all name
+  all="$(hvd_list)" || return 1
+  [ -n "$all" ] || return 1
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    if grep -q '^isDefault=true' "${HVD_HOME:-/nonexistent}/$name/config.ini" 2>/dev/null; then
+      printf '%s' "$name"
+      return 0
+    fi
+  done <<EOF
+$all
+EOF
+  printf '%s\n' "$all" | head -1
+}
+
+# 模拟器进程还在不在（Windows 侧 GUI 程序，只能在 Windows 进程表里看）。
+# 查不了（没开 interop / 没有 tasklist）一律当它活着 —— 误判成「死了」比多等几分钟更糟。
+emu_running() {
+  local out
+  out="$(tasklist.exe 2>/dev/null)" || return 0
+  [ -n "$out" ] || return 0
+  printf '%s\n' "$out" | grep -qi 'Emulator\.exe'
+}
+
+# 系统起来没有：hdc 先连上，再等 bootevent.boot.completed（首次开机约 1-2 分钟）
+# 返回 0 = 就绪，1 = 超时，2 = 模拟器进程没了（秒退，别傻等 5 分钟）
+wait_device() { # $1 = 超时秒数（默认 300）
+  local t="${1:-300}" i=0
+  while [ "$i" -lt "$t" ]; do
+    if [ -n "$(devices)" ]; then
+      if timeout 15 "$HDC" shell "param get bootevent.boot.completed" 2>/dev/null | tr -d '\r' | grep -q true; then
+        return 0
+      fi
+    elif [ "${WATCH_EMU:-0}" = 1 ] && ! emu_running; then
+      return 2
+    fi
+    sleep 3
+    i=$((i + 3))
+  done
+  return 1
+}
+
+start_emulator() { # $1 = 实例名（空 = 默认实例）
+  local name="$1" path root
+  [ -n "${HVD_EMULATOR:-}" ] || die "没找到模拟器 Emulator.exe（DevEco 5.0+ 自带，跑 just harmony-doctor 看看）"
+  [ -n "$name" ] || name="$(hvd_default)" || name=""
+  [ -n "$name" ] || die "没有可用的模拟器实例（DevEco → Device Manager → 新建，会顺带下载系统镜像）"
+  [ -n "${HVD_HOME:-}" ] || die "找不到模拟器实例目录（Device Manager 里的 openharmonyDeployPath）"
+  path="$HVD_HOME/$name"
+  [ -d "$path" ] || die "模拟器实例目录不存在：$path"
+  root="${HVD_IMAGE_ROOT:-}"
+  [ -n "$root" ] || die "找不到模拟器系统镜像目录（Device Manager 里的 imageDeployPath）"
+  step "启动模拟器：$name"
+  if on_wsl; then
+    win_start "$(dirname "$HVD_EMULATOR")" \
+      "\"$(to_win "$HVD_EMULATOR")\" -hvd \"$name\" -path \"$(to_win "$path")\" -imageRoot \"$(to_win "$root")\"" \
+      || die "Emulator.exe 启动失败"
+  else
+    (cd "$(dirname "$HVD_EMULATOR")" && "$HVD_EMULATOR" -hvd "$name" -path "$path" -imageRoot "$root" >/dev/null 2>&1 &)
+  fi
+  # 起完立刻死掉是常见故障（Windows 侧只丢一句 Unable to start the emulator，
+  # Emulator.log 一个字都不写），别让调用方白等五分钟。
+  sleep 5
+  if ! emu_running; then
+    warn "模拟器进程秒退（Windows 侧通常只打印 Unable to start the emulator）"
+    warn "日志：$path/Emulator.log｜能起一次但重复起不来时先重启 Windows"
+    return 1
+  fi
+  info "模拟器窗口已拉起（关掉窗口 / just harmony-emulator --stop 可停）"
 }
 
 # 装包：先试 hdc install，不行再 file send + bm install（老版本 hdc 没有 install）
@@ -327,6 +434,8 @@ cmd_doctor() {
   info "提示：签名要在 DevEco 里配（File > Project Structure > Signing Configs 勾自动签名，"
   info "      需登录华为账号）。没签名只能装模拟器 / 开发者模式的真机。"
   harmony_port_note
+  echo
+  info "下一步：just harmony-emulator（没设备就起模拟器）｜just harmony（编译 + 装机）"
 }
 
 cmd_setup() {
@@ -368,7 +477,7 @@ cmd_start() {
 cmd_run() {
   ensure_rnoh
   [ -f "$HARMONY/build-profile.json5" ] || render_project || die "生成 harmony/ 失败"
-  require_device
+  ensure_device
   start_metro || warn "Metro 没起来，装上去也是白屏 —— 另开一个终端跑 just harmony-start"
 
   step "端口转发（Metro 8081）"
@@ -422,7 +531,7 @@ cmd_hap() {
   esac
   if [ -n "${HDC:-}" ]; then
     local devs
-    devs="$(hdc list targets 2>/dev/null | tr -d '\r' | grep -v '^\s*$' | grep -v 'Empty')"
+    devs="$(devices)"
     [ -n "$devs" ] && install_hap "$out" && info "已覆盖安装到设备"
   fi
 }
@@ -434,6 +543,89 @@ cmd_log() {
   hdc hilog | grep -Ei "$filter"
 }
 
+cmd_emulator() {
+  local name="" stop="" list="" a
+  for a in "$@"; do
+    case "$a" in
+      -l | --list) list=1 ;;
+      -s | --stop) stop=1 ;;
+      -h | --help)
+        sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+        return 0
+        ;;
+      *) name="$a" ;;
+    esac
+  done
+  [ -n "${HVD_EMULATOR:-}" ] || die "没找到模拟器 Emulator.exe（DevEco 5.0+ 才有；先 just harmony-doctor）"
+
+  if [ -n "$list" ]; then
+    info "模拟器：$HVD_EMULATOR"
+    info "实例目录：${HVD_HOME:-（没找到）}"
+    info "系统镜像：${HVD_IMAGE_ROOT:-（没找到）}"
+    hvd_list | while IFS= read -r a; do
+      [ -n "$a" ] && info "· $a（$(du -sh "${HVD_HOME:-/nonexistent}/$a" 2>/dev/null | cut -f1)）"
+    done
+    return 0
+  fi
+
+  if [ -n "$stop" ]; then
+    [ -n "$name" ] || name="$(hvd_default)" || name=""
+    [ -n "$name" ] || die "没有可停的实例（just harmony-emulator --list 看看）"
+    step "停止模拟器：$name"
+    "$HVD_EMULATOR" -stop "$name" 2>&1 | tr -d '\r' | sed 's/^/  /'
+    local i=0
+    while [ -n "$(devices)" ] && [ "$i" -lt 20 ]; do
+      sleep 1
+      i=$((i + 1))
+    done
+    info "已停止"
+    return 0
+  fi
+
+  [ -n "$name" ] || name="$(hvd_default)" || name=""
+  if [ -n "$(devices)" ]; then
+    info "已经有设备在线：$(devices | tr '\n' ' ')（不重复起）"
+    [ -n "$name" ] && info "要换成模拟器 $name：just harmony-emulator --stop 再起"
+    return 0
+  fi
+  start_emulator "$name" || return 1
+  step "等系统起完（hdc 先连上，再等 bootevent.boot.completed；首次开机 1-2 分钟）"
+  WATCH_EMU=1 wait_device 300
+  case "$?" in
+    0)
+      info "设备就绪：$(devices | tr '\n' ' ')"
+      info "下一步：just harmony（编译 + 装机 + 热加载）｜just harmony-log 看日志"
+      ;;
+    2)
+      warn "模拟器中途退出了（进程已经不在）"
+      warn "日志：${HVD_HOME:-<实例目录>}/$name/Emulator.log"
+      return 1
+      ;;
+    *)
+      warn "5 分钟没等到就绪的设备"
+      warn "模拟器自己的日志：${HVD_HOME:-<实例目录>}/$name/Emulator.log"
+      warn "Device Manager 能起而这里起不来时，检查系统镜像是否已下载完（imageDeployPath）"
+      return 1
+      ;;
+  esac
+}
+
+# 装 / 跑之前调它：没设备就自动拉模拟器（而不是直接报错让人切 GUI）
+ensure_device() {
+  local devs
+  devs="$(devices)" || die "没找到 hdc（先 just harmony-doctor）"
+  if [ -n "$devs" ]; then
+    info "设备：$(echo "$devs" | tr '\n' ' ')"
+    return 0
+  fi
+  if [ -n "${HVD_EMULATOR:-}" ] && [ -n "$(hvd_list)" ]; then
+    info "没有在线设备，自动起模拟器"
+    cmd_emulator || die "模拟器没起来（just harmony-emulator --list 看实例）"
+    return 0
+  fi
+  die "没有在线鸿蒙设备：just harmony-emulator 起模拟器，或插真机开 USB 调试"
+}
+
 cmd_clean() {
   step "清构建产物"
   rm -rf "$HARMONY/entry/build" "$HARMONY/build" "$HARMONY/entry/.preview" "$HARMONY/.hvigor" "$HARMONY/oh_modules/.cache"
@@ -443,6 +635,7 @@ cmd_clean() {
 case "${1:-}" in
   doctor) cmd_doctor ;;
   setup) shift; cmd_setup "$@" ;;
+  emulator | emu) shift; cmd_emulator "$@" ;;
   start) cmd_start ;;
   run) cmd_run ;;
   hap) shift; cmd_hap "$@" ;;
@@ -453,6 +646,6 @@ case "${1:-}" in
     sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
     ;;
   *)
-    die "未知子命令：$1（doctor / setup / start / run / hap / log / clean）"
+    die "未知子命令：$1（doctor / setup / emulator / start / run / hap / log / clean）"
     ;;
 esac

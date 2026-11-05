@@ -32,7 +32,7 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
 
 工具链在 `tool/harmony.sh`（子命令）+ `tool/harmony-env.sh`（探测 DevEco / SDK / hdc / ohpm /
 hvigor）+ `tool/harmony-render.mjs`（渲染 `tool/harmony-template/` → `harmony/`）。
-`just harmony-doctor | harmony-setup | harmony | harmony-start | hap | harmony-log | harmony-clean`。
+`just harmony-doctor | harmony-setup | harmony | harmony-emulator | harmony-start | hap | harmony-log | harmony-clean`。
 
 - **`harmony/` 是生成物，不进版本库**（`.gitignore`）。模板里是 `__BUNDLE_NAME__` 这类占位符，
   `app.json` 的 `android.package` / `version` / `versionCode` 与**本机 SDK**（`5.0.0(12)` 这种，
@@ -40,7 +40,23 @@ hvigor）+ `tool/harmony-render.mjs`（渲染 `tool/harmony-template/` → `harm
   `module.json5` 不能丢），`--force` 才整份重来 —— 别改成无条件覆盖。
 - **构建跑在 Windows 侧**：DevEco 的工具一律经 `win_run()` 写 `.bat` 再 `cmd.exe /c` 调
   （`C:\Program Files\Huawei\DevEco Studio` 有空格，内联 `cd /d` 会被拆开）；bat 里同时注入
-  `DEVECO_SDK_HOME` 与 `HDC_SERVER_PORT=7035`（避开 adb 的 5037）。
+  `DEVECO_SDK_HOME` 与 `OHOS_HDC_SERVER_PORT`（默认 8710，避开 adb 的 5037）。
+  **hdc 只认 `OHOS_HDC_SERVER_PORT`** —— 早先写的 `HDC_SERVER_PORT=7035` 是误配，
+  hdc 根本不看那个名字，结果是设备“消失”（两边服务端口打架）。
+- **模拟器也是 Windows GUI**（`{DevEco}/tools/emulator/Emulator.exe`）：`just harmony-emulator`
+  写个 bat 用 `start ""` 拉起（直接调 `cmd.exe` 会一直等 GUI 退出），再轮询
+  `param get bootevent.boot.completed`。它自己往 hdc 服务（8710）注册成 `127.0.0.1:5555`，
+  WSL 这边不需要端口映射。实例名 / 实例目录 / 镜像目录都**现读**，不硬编码：
+  `deviceManager.xml` 的 `openharmonyDeployPath` / `imageDeployPath` + `Emulator.exe -list`，
+  可用 `HVD_HOME` / `HVD_IMAGE_ROOT` / `AHarmonyOS_HVD_HOME` 覆盖。
+  - `{APPDATA}/Huawei/DevEcoStudio<版本>/options/deviceManager.xml` 是唯一记录这两个目录的地方；
+    `{LOCALAPPDATA}/Huawei/Emulator/deployed/` 下常有一份**指向 C: 的同名残壳**（只有 config.ini，
+    没有镜像），别被它误导 —— 真实例在 `openharmonyDeployPath` 里。
+  - **起不来时 Windows 只丢一句 `Unable to start the emulator`**，`Emulator.log` 一个字都不写，
+    连裸跑 `Emulator.exe`（甚至不带参数）也一样 —— 说明是 Windows 侧的残留状态，重启 Windows
+    就恢复（DevEco 能起 / 命令行不能起时先试 GUI 一次）。所以 `start_emulator` 起完 5 秒查一次
+    `tasklist`，进程秒退就报错，`wait_device` 也会在进程消失时提前返回（返回码 2），
+    不让人白等五分钟。
 - **RNOH 依赖故意不进 `package.json`**：`install_rnoh()` 一次 `npm install --no-save` 装三个包
   —— `react-native-harmony`（alias 到 `@react-native-oh/react-native-harmony`，含 140MB 的 `.har`）、
   RNOH CLI、**`@react-native-community/cli`**（Expo 工程默认没有它，而 `bundle-harmony` 只能走

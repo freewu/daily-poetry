@@ -179,7 +179,8 @@ just db-full  # 再加古文观止 / 幽梦影 / 论语 / 四书 / 蒙学等（�
 | `just android-doctor` | Android 工具链自检（SDK / adb / 设备 / Maestro） |
 | `just harmony-doctor` | 鸿蒙工具链自检（DevEco / SDK / hdc / ohpm / hvigor / 设备 / RNOH 依赖） |
 | `just harmony-setup` | 装 RNOH 工具链（`--no-save`，不进锁文件）+ 生成 `harmony/` 工程 |
-| `just harmony` | 编译 Debug HAP → 装设备 → 起 Metro（改 JS 热加载） |
+| `just harmony` | 编译 Debug HAP → 装设备 → 起 Metro（改 JS 热加载；没设备会自动起模拟器） |
+| `just harmony-emulator [--list\|--stop\|实例名]` | 从 WSL 拉起 / 停止 / 列出鸿蒙模拟器，并等到开机完成 |
 | `just harmony-start` | 只起鸿蒙用的 Metro（platform = harmony，端口仍 8081） |
 | `just hap` | 打离线可用的 Release HAP → `dist/daily-poetry-<版本>-<vc>.hap` |
 | `just harmony-log [过滤]` | 看设备日志（hilog，默认过滤 RN 相关 tag） |
@@ -217,13 +218,20 @@ just db-full  # 再加古文观止 / 幽梦影 / 论语 / 四书 / 蒙学等（�
 ```bash
 just harmony-doctor   # 先看缺什么（DevEco Studio / SDK / hdc / ohpm / hvigor）
 just harmony-setup    # 装 RNOH 依赖 + 生成 harmony/ 工程
+just harmony-emulator # 起模拟器（没设备时 just harmony 会自动走这一步）
 just harmony          # 编译 Debug HAP → 装真机 / 模拟器 → 起 Metro
 just hap              # Release HAP → dist/
 ```
 
 - **构建跑在 Windows 侧**：DevEco Studio（hvigor / ohpm / hdc）只有 Windows / macOS 版，
   WSL 里经 `cmd.exe` 调 `tool/harmony.sh` 生成的 `.bat`（`DEVECO_HOME` 路径含空格，不能内联
-  `cd /d`）。hdc 用 7035 端口，不跟 adb 的 5037 打架。
+  `cd /d`）。hdc 服务用 `OHOS_HDC_SERVER_PORT`（默认 **8710**，不跟 adb 的 5037 打架；
+  早先写的 `HDC_SERVER_PORT=7035` 是误配，hdc 根本不看那个名字）。
+- **模拟器也是 Windows GUI**：`just harmony-emulator` 用 `start ""` 拉起 `Emulator.exe`
+  （直接调会一直等 GUI 退出），起完等 `bootevent.boot.completed`。它自己注册成
+  `127.0.0.1:5555`，WSL 这边不需要端口映射；实例名 / 实例目录 / 镜像目录都从
+  `deviceManager.xml` 与 `Emulator.exe -list` 现读。Windows 侧只丢一句
+  `Unable to start the emulator` 且 `Emulator.log` 不写时，重启一次 Windows 就好。
 - **`harmony/` 是生成物**：`tool/harmony-template/` 存模板，`tool/harmony-render.mjs` 按
   `app.json` 与本机 SDK 渲染（`__BUNDLE_NAME__` 之类占位符）。已存在时**只补缺、不覆盖**
   （保护你在 DevEco 里配的签名），`just harmony-setup --force` 才整份重来。

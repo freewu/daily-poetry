@@ -13,7 +13,13 @@
 #   OHPM                ohpm 包管理器（鸿蒙侧的 npm）
 #   HVIGORW             DevEco 自带的 hvigorw.js（构建入口，不是工程里的 wrapper）
 #   DEVECO_NODE         DevEco 自带的 node（hvigor 要求用它跑）
-#   HDC_SERVER_PORT     hdc 服务端口（默认 7035，别跟 adb 的 5037 抢）
+#   HDC_PORT            hdc 服务端口（默认 8710；hdc 只认 OHOS_HDC_SERVER_PORT）
+#   HVD_EMULATOR        模拟器 Emulator.exe（{DevEco}/tools/emulator/）
+#   HVD_HOME            模拟器实例目录（Device Manager 里的 openharmonyDeployPath）
+#   HVD_IMAGE_ROOT      模拟器系统镜像目录（imageDeployPath）
+#
+# 模拟器（HVD）相关的两个目录不在注册表里，只写在
+# {APPDATA}/Huawei/DevEcoStudio<版本>/options/deviceManager.xml，所以得读那个文件。
 
 on_wsl() {
   grep -qiE '(microsoft|wsl)' /proc/version 2>/dev/null
@@ -47,6 +53,16 @@ first_file() {
   return 1
 }
 
+# Windows 路径 → WSL 路径（D:\a\b → /mnt/d/a/b）。不依赖 wslpath，任意 shell 都能跑。
+win_to_wsl() {
+  printf '%s' "$1" | awk '{
+    p = $0
+    gsub(/\\/, "/", p)
+    if (match(p, /^[A-Za-z]:/)) p = "/mnt/" tolower(substr(p, 1, 1)) substr(p, 3)
+    print p
+  }'
+}
+
 # ------------------------------------------------------------- DevEco Studio
 # DevEco 只有 Windows / macOS 版；WSL 里就借 Windows 装的那份（构建也在 Windows 侧跑）。
 detect_deveco() {
@@ -55,10 +71,25 @@ detect_deveco() {
     return 0
   fi
   if on_wsl; then
+    # 先看开始菜单的快捷方式：DevEco 不写注册表，但 .lnk 里就带着安装路径
+    for lnk in /mnt/[c-z]/ProgramData/Microsoft/"Windows"/"Start Menu"/Programs/Huawei/"DevEco Studio"*.lnk; do
+      [ -f "$lnk" ] || continue
+      local t
+      t="$(tr -d '\000' <"$lnk" | grep -ao '[A-Za-z]:\\[^"]*devecostudio64\.exe' | head -1)"
+      [ -n "$t" ] || continue
+      t="$(win_to_wsl "$t")"
+      t="$(dirname "$(dirname "$t")")"
+      [ -d "$t/tools" ] || [ -d "$t/sdk" ] || continue
+      printf '%s' "$t"
+      return 0
+    done
+    # 兜底：常见安装位置（含 D:\idea\Huawei\DevEco Studio 这种自定义目录）
     for d in /mnt/[c-z]/"Program Files"/Huawei/"DevEco Studio"* \
       /mnt/[c-z]/"Program Files (x86)"/Huawei/"DevEco Studio"* \
       /mnt/[c-z]/Huawei/"DevEco Studio"* \
-      /mnt/[c-z]/"DevEco Studio"*; do
+      /mnt/[c-z]/"DevEco Studio"* \
+      /mnt/[c-z]/*/Huawei/"DevEco Studio"* \
+      /mnt/[c-z]/*/"DevEco Studio"*; do
       [ -d "$d" ] || continue
       [ -d "$d/tools" ] || [ -d "$d/sdk" ] || continue
       printf '%s' "$d"
@@ -79,9 +110,13 @@ detect_sdk_home() {
   printf '%s' "$DEVECO_HOME/sdk"
 }
 
-# SDK 里某个版本目录（默认用 default/，老版本是 5.0.0(12)/ 这种）
+# SDK 里某个版本目录（DevEco 6 是 default/sdk-pkg.json，老版本是 default/openharmony/oh-uni-package.json）
 detect_sdk() {
   [ -n "${DEVECO_SDK_HOME:-}" ] || return 1
+  if [ -f "$DEVECO_SDK_HOME/default/sdk-pkg.json" ]; then
+    printf '%s' "$DEVECO_SDK_HOME/default"
+    return 0
+  fi
   if [ -f "$DEVECO_SDK_HOME/default/openharmony/oh-uni-package.json" ]; then
     printf '%s' "$DEVECO_SDK_HOME/default"
     return 0
@@ -94,15 +129,18 @@ detect_sdk() {
   return 1
 }
 
-# 从 oh-uni-package.json 读 compatibleSdkVersion（displayName + apiVersion）
+# 读 compatibleSdkVersion 那种「版本(API)」写法（platformVersion 优先，displayName 兜底）
 sdk_version_of() {
   [ -n "${1:-}" ] || return 1
-  f="$1/openharmony/oh-uni-package.json"
+  local f
+  f="$1/sdk-pkg.json"
+  [ -f "$f" ] || f="$1/openharmony/oh-uni-package.json"
   [ -f "$f" ] || return 1
   "$(command -v node || echo node)" -e '
     try {
-      const j = require(process.argv[1]);
-      const name = j.displayName || j.version || "";
+      const raw = require(process.argv[1]);
+      const j = raw.data || raw;
+      const name = j.platformVersion || j.displayName || j.version || "";
       const api = String(j.apiVersion || "");
       if (name && api) console.log(name + "(" + api + ")");
       else if (name) console.log(name);
@@ -181,9 +219,88 @@ HVIGORW="$(detect_hvigorw)" || HVIGORW=""
 DEVECO_NODE="$(detect_deveco_node)" || DEVECO_NODE=""
 [ -n "$DEVECO_NODE" ] && export DEVECO_NODE
 
-# hdc 默认端口跟 adb 不一样，文档建议固定一个值，免得被系统随机端口干扰
-HDC_SERVER_PORT="${HDC_SERVER_PORT:-7035}"
-export HDC_SERVER_PORT
+# ------------------------------------------------------------- 模拟器（HVD）
+# Device Manager 的「实例目录 / 系统镜像目录」只写在 IDE 的设置文件里。
+deveco_settings_xml() {
+  local f best=""
+  # 目录名按字典序展开，DevEcoStudio6.0 排在 5.0 后面 → 最后一个就是最高版本
+  for f in /mnt/[c-z]/Users/*/AppData/Roaming/Huawei/DevEcoStudio*/options/deviceManager.xml; do
+    [ -f "$f" ] && best="$f"
+  done
+  [ -n "$best" ] && printf '%s' "$best"
+}
+
+detect_hvd_home() {
+  if [ -n "${AHarmonyOS_HVD_HOME:-}" ] && [ -d "$AHarmonyOS_HVD_HOME" ]; then
+    printf '%s' "$AHarmonyOS_HVD_HOME"
+    return 0
+  fi
+  local xml p
+  xml="$(deveco_settings_xml)" && {
+    p="$(grep -o 'name="openharmonyDeployPath" value="[^"]*"' "$xml" 2>/dev/null | head -1 | sed 's/.*value="//;s/"$//')"
+    if [ -n "$p" ]; then
+      on_wsl && p="$(win_to_wsl "$p")"
+      [ -d "$p" ] && {
+        printf '%s' "$p"
+        return 0
+      }
+    fi
+  }
+  local d
+  for d in /mnt/[c-z]/Users/*/AppData/Local/Huawei/Emulator/deployed; do
+    [ -d "$d" ] && {
+      printf '%s' "$d"
+      return 0
+    }
+  done
+  return 1
+}
+
+detect_hvd_image_root() {
+  if [ -n "${HVD_IMAGE_ROOT:-}" ] && [ -d "$HVD_IMAGE_ROOT" ]; then
+    printf '%s' "$HVD_IMAGE_ROOT"
+    return 0
+  fi
+  local xml p d
+  xml="$(deveco_settings_xml)" && {
+    p="$(grep -o 'name="imageDeployPath" value="[^"]*"' "$xml" 2>/dev/null | head -1 | sed 's/.*value="//;s/"$//')"
+    if [ -n "$p" ]; then
+      on_wsl && p="$(win_to_wsl "$p")"
+      [ -d "$p" ] && {
+        printf '%s' "$p"
+        return 0
+      }
+    fi
+  }
+  for d in /mnt/[c-z]/Users/*/AppData/Local/Huawei/Sdk; do
+    [ -d "$d" ] && {
+      printf '%s' "$d"
+      return 0
+    }
+  done
+  return 1
+}
+
+detect_hvd_emulator() {
+  [ -n "${DEVECO_HOME:-}" ] || return 1
+  exe "$DEVECO_HOME/tools/emulator/Emulator"
+}
+
+HVD_HOME="$(detect_hvd_home)" || HVD_HOME=""
+[ -n "$HVD_HOME" ] && export HVD_HOME
+
+HVD_IMAGE_ROOT="$(detect_hvd_image_root)" || HVD_IMAGE_ROOT=""
+[ -n "$HVD_IMAGE_ROOT" ] && export HVD_IMAGE_ROOT
+
+HVD_EMULATOR="$(detect_hvd_emulator)" || HVD_EMULATOR=""
+[ -n "$HVD_EMULATOR" ] && export HVD_EMULATOR
+
+# hdc 认的是 OHOS_HDC_SERVER_PORT（默认 8710，跟 adb 的 5037 不冲突）。
+# 以前这里写死 HDC_SERVER_PORT=7035 —— hdc 根本不看那个名字，而 DevEco 起的 hdc 服务在 8710，
+# 两边各说一个端口只会互相看不见（模拟器 / 真机全“消失”）。所以只在用户显式设了才往下传。
+HDC_PORT="${OHOS_HDC_SERVER_PORT:-8710}"
+export HDC_PORT
+[ -n "${OHOS_HDC_SERVER_PORT:-}" ] && export OHOS_HDC_SERVER_PORT
 
 # ------------------------------------------------------------- 自检
 if [ "${1:-}" = "doctor" ]; then
@@ -205,8 +322,21 @@ if [ "${1:-}" = "doctor" ]; then
     bad "没找到 HarmonyOS SDK（DevEco 里装 SDK，或 export DEVECO_SDK_HOME=<sdk 目录>）"
   fi
 
-  [ -n "$HDC" ] && ok "hdc：$HDC（HDC_SERVER_PORT=$HDC_SERVER_PORT）" \
+  [ -n "$HDC" ] && ok "hdc：$HDC（端口 $HDC_PORT）" \
     || bad "没找到 hdc（在 {DevEco}/sdk/{版本}/openharmony/toolchains 里）"
+
+  if [ -n "$HVD_EMULATOR" ]; then
+    hvds="$("$HVD_EMULATOR" -list 2>/dev/null | tr -d '\r' | grep -v '^[[:space:]]*$' | grep -v '\[Empty\]')"
+    if [ -n "$hvds" ]; then
+      ok "模拟器：$HVD_EMULATOR"
+      hint "实例（$(echo "$hvds" | wc -l) 个）：$(echo "$hvds" | tr '\n' ' ')"
+      hint "起模拟器：just harmony-emulator｜停：just harmony-emulator --stop"
+    else
+      bad "模拟器能跑但没实例（DevEco 的 Device Manager 里新建一个，会顺带下载系统镜像）"
+    fi
+  else
+    bad "没找到模拟器 Emulator.exe（{DevEco}/tools/emulator/；DevEco 5.0+ 才有）"
+  fi
   [ -n "$OHPM" ] && ok "ohpm：$OHPM" || bad "没找到 ohpm（在 {DevEco}/tools/ohpm/bin 里）"
   [ -n "$HVIGORW" ] && ok "hvigor：$HVIGORW" || bad "没找到 hvigorw.js（在 {DevEco}/tools/hvigor/bin 里）"
   [ -n "$DEVECO_NODE" ] && ok "node（hvigor 用）：$DEVECO_NODE" || bad "没找到 node"
@@ -216,7 +346,7 @@ if [ "${1:-}" = "doctor" ]; then
     if [ -n "$devs" ]; then
       ok "在线设备：$(echo "$devs" | tr '\n' ' ')"
     else
-      bad "没有在线设备（插真机开 USB 调试，或在 DevEco 的 Device Manager 里起模拟器）"
+      bad "没有在线设备（just harmony-emulator 起模拟器，或插真机开 USB 调试）"
     fi
   fi
 fi
