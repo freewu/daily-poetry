@@ -24,8 +24,8 @@
   设置页可直接试听。设备没有语音合成时（没装 TTS 引擎 / 浏览器不支持），朗读按钮与设置里的
   「朗读」整段自动隐藏，不会留一个点了没反应的按钮。
 - **诗词库**：全宋词 21049 · 元曲 10906 · 全唐诗 57599 · 乐府诗集 3770 · 纳兰性德词 258 ·
-  曹操诗集 26 · 宋词三百首 286 · 诗经 / 楚辞 / 五代诗词 / 唐诗三百首 / 千家诗
-  （`just db` 约 9.5 万首，共十三部集子）；
+  宋词三百首 286 · 毛泽东诗词 145 · 曹操诗集 26 · 诗经 / 楚辞 / 五代诗词 / 唐诗三百首 / 千家诗
+  （`just db` 约 9.5 万首，共十四部集子）；
   再 `just data-full` 会补进古文观止 / 幽梦影 / 论语 / 四书 / 蒙学。
   支持按题目、作者、诗句全文搜索（简体、繁體都能搜到）。
 - **集子先看全部诗词**：点开一本诗集就是这本集子的全部作品（按入库顺序），
@@ -88,8 +88,11 @@ assets/               应用图标 / 启动图 / 底栏图标（由脚本生成�
   stats.json          每部集子的作者 / 词牌预统计（入库，随 db 一起重新生成）
 scripts/
   fetch-corpus.sh     下载 chinese-poetry 语料（sparse + blob:none）
+data/
+  mao-poems.json      毛泽东诗词 145 首（知乎存档页解析产物，入库）
   fetch-yuefu.mjs     抓维基文库《乐府诗集》一百卷 → .data/yuefu/yuefu.json
   fetch-songci300.mjs 抓古文岛《宋词三百首》九卷 → .data/songci300/songci300.json
+  fetch-mao.mjs       解析知乎存档页 → data/mao-poems.json（145 首，入库）
   wikitext.mjs        维基文库取页 / wikitext 清洗 + 两个脚本共用的按页缓存
   build-db.mjs        语料 → poetry.db（适配各 JSON 结构、简繁转换、索引）
   build-stats.mjs     poetry.db → stats.json（预统计：每部集子的作者 / 词牌）
@@ -148,7 +151,7 @@ just          # 裸跑不带参数 = 按功能分类列出全部命令（默认�
 just envcheck # 先看 node / npm / python3 / node:sqlite 是否就绪
 just deps     # npm install
 just data     # 下载主体语料（约 65MB，sparse clone + 按需取全唐诗）+ 抓乐府 / 宋词三百首
-just db       # 构建 assets/poetry.db（约 9.5 万首，简繁双写，约 59MB）+ assets/stats.json
+just db       # 构建 assets/poetry.db（约 9.5 万首，简繁双写，约 60MB）+ assets/stats.json
 just assets   # 重新生成图标（换 logo.png 之后跑一遍）
 
 just db-full  # 再加古文观止 / 幽梦影 / 论语 / 四书 / 蒙学等（约 9.2 万首）
@@ -312,9 +315,18 @@ Windows 的 adb server（见 `tool/android-env.sh`）。缺 adb 时 `just androi
   - 朝代按 `〔唐代〕` / `〔五代〕` / `〔宋代〕` 映射成 `唐 / 五代 / 宋`（五代 26 / 唐 27 / 宋 233）。
   乐府仍从维基文库抓，用 `scripts/wikitext.mjs` 里的取页与 wikitext 清洗；
   宋词三百首只用它里面的 `.data/*/raw/` 缓存工具（按页落盘、重跑不重复请求）。
+- 毛泽东诗词（145 首）**没有可抓的 URL**：知乎对脚本一律 403（`zhuanlan.zhihu.com/p/620593015`
+  返回反爬壳页，`api/v4/articles/…` 也 403），所以语料走「浏览器另存为 HTML →
+  `scripts/fetch-mao.mjs` 解析」：存档页放 `.data/mao/mao.html`（不入库），产物
+  `data/mao-poems.json`（145 首，约 100KB）**跟着仓库走**，fresh clone 直接 `just db` 就行。
+  编号行 `N. 体裁·题目` 分首（`43～45. 十六字令` 这种一个编号段带几首，正文用「其一 / 其二」
+  分段），题目统一成「体裁·题目」（`七律·长征` / `沁园春·长沙`），组诗缀 `·其N`，
+  写作日期（`1925年秋`）进**副题**，详情页就成了「选自《毛泽东诗词》· 1925年秋」。
+  `kind` 用「诗词」而不是「词」（否则 `七律` `七绝` 会被当成词牌），**进检索不进每日池**
+  （一半是残篇 / 联句 / 题词）。
 - 换库：`meta.schema_version` 与 App 内的 `DB_SCHEMA_VERSION` 不一致时，启动会把随包库整份覆盖，
   所以**只加语料也必须把版本 +1**（3 = 加纳兰性德 / 曹操，4 = 标准库并入全宋词 / 元曲，
-  5 = 加乐府诗集，6 = 加宋词三百首，7 = 宋词三百首换源），
+  5 = 加乐府诗集，6 = 加宋词三百首，7 = 宋词三百首换源，8 = 加毛泽东诗词），
   否则老装机的设备看不到新集子；
   覆盖前先把收藏 / 足迹按「题目 + 作者 + 首句」抄出来，新库落盘后按同样的键找回
   （见 `src/lib/db-bootstrap.ts`）。用户偏好（主题 / 推送 / 作者间隔 / 简繁 / 字体 / 字号 / 排版 / 标点 / 语速）也在

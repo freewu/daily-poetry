@@ -75,10 +75,10 @@ hvigor）+ `tool/harmony-render.mjs`（渲染 `tool/harmony-template/` → `harm
 # 数据与简繁
 
 - 语料在 `.data/chinese-poetry`（`just data`；`data-full` 再多取古文观止 / 幽梦影 / 论语 / 四书 / 蒙学），
-  库产物 `assets/poetry.db`（`just db`，不入库）。标准模式下十三部集子共 95290 首
+  库产物 `assets/poetry.db`（`just db`，不入库）。标准模式下十四部集子共 95435 首
   （全唐诗 57599 + 全宋词 21049 + 元曲 10906 + 乐府诗集 3770 + 花间集 447 + 唐诗三百首 320
-  + 诗经 305 + 宋词三百首 286 + 纳兰性德词 258 + 千家诗 214 + 楚辞 65 + 南唐词 45 + 曹操诗集 26），
-  每日池 1966 首。
+  + 诗经 305 + 宋词三百首 286 + 纳兰性德词 258 + 千家诗 214 + 毛泽东诗词 145 + 楚辞 65
+  + 南唐词 45 + 曹操诗集 26），每日池 1966 首。
 - 乐府诗集是**第二个语料来源**：`.data/yuefu/yuefu.json` 由 `scripts/fetch-yuefu.mjs`
   从中文维基文库抓（`Category:樂府詩集` 一百卷，`==曲调（作者）==` / `===诗题===` 两级标题切条目，
   题解 / `:` 注疏 / header-footer 剥掉）。它在 chinese-poetry 目录**外面**，`build-db.mjs`
@@ -103,6 +103,19 @@ hvigor）+ `tool/harmony-render.mjs`（渲染 `tool/harmony-template/` → `harm
     简单剥「代」字，会变成「五」）。**进每日池**（选本是精选，跟唐诗三百首同理）。
   - 换源前用的是维基文库那版（283 首 / 82 作者，`=='''词牌'''（作者）==` 一条一首）；
     换源后**数量、题目形态、作者名（冯延巳）都变了**，所以 `SCHEMA_VERSION` 升到 7。
+- 毛泽东诗词是**第四个语料来源，但抓不了**：知乎对脚本一律 403
+  （`zhuanlan.zhihu.com/p/620593015` 是反爬壳页，`api/v4/articles/…` 也 403），
+  所以走「浏览器存下来的页面 → `scripts/fetch-mao.mjs` 解析」：存档页放 `.data/mao/mao.html`
+  （不入库），产物 `data/mao-poems.json`（145 首 / 98KB，**跟着仓库走**）才是建库的输入 ——
+  `parseMao()` 读 `join(ROOT, 'data', 'mao-poems.json')`，fresh clone 不用再找那个页面。
+  - 页面正文全在 `<div class="RichText ztext Post-RichText">` 的 `<p>` 里，编号行 `N. 体裁·题目`
+    分首（`43～45. 十六字令` 这种一个编号段带几首，正文里用「其一 / 其二」分段，
+    没有分段标记就按空行分），日期行 `1910年秋` 后面跟正文。
+  - 题目统一成「体裁·题目」（`七律·长征` / `沁园春·长沙`），组诗缀 `·其N`（`十六字令·其一`）；
+    **写作日期进副题**（`1925年秋`），详情页就是「选自《毛泽东诗词》· 1925年秋」。
+  - `kind` 用「诗词」**不是「词」**：`isCiKind()` 只认「词」，一给这个号就会从
+    `七律·长征` 里认出一个叫「七律」的假词牌（`cipaiOf()` 取 `·` 前段），词牌页立刻变垃圾。
+  - 朝代一律「现代」，作者一律「毛泽东」；**不进每日池**（145 首里一半是残篇 / 联句 / 题词）。
   全宋词 / 元曲 属于主体语料，**不能**只放在 `FULL_DIRS` 里：`scripts/build-db.mjs` 的主体育法
   一直包含它们，语料缺失时只会「缺哪块跳哪块」地静默少两万多首。
   全唐诗 目录里混着全宋诗，`scripts/fetch-corpus.sh` 只按需取 `poet.tang.*.json` + `唐诗补录.json`。
@@ -117,7 +130,8 @@ hvigor）+ `tool/harmony-render.mjs`（渲染 `tool/harmony-template/` → `harm
 - 改表结构必须同时改：`scripts/build-db.mjs` 的 `SCHEMA_VERSION`、`src/lib/db.ts` 的
   `DB_SCHEMA_VERSION`、`__tests__/helpers/memory-db.ts` 的 `SCHEMA`。
   **只加语料、结构没动也要把 `SCHEMA_VERSION` +1**：换库只认这个号，不升号老设备永远用旧库。
-  （4 = 标准库并入全宋词 / 元曲；5 = 加乐府诗集；6 = 加宋词三百首；7 = 宋词三百首换源。）
+  （4 = 标准库并入全宋词 / 元曲；5 = 加乐府诗集；6 = 加宋词三百首；7 = 宋词三百首换源；
+  8 = 加毛泽东诗词。）
   版本不一致时 `src/lib/db-bootstrap.ts` 会在启动时覆盖随包库，并按「题目 + 作者 + 首句」把收藏 / 足迹写回。
   覆盖会整份替换 `meta` 表，所以新增偏好设置时**必须**加进 `KEPT_SETTINGS` 白名单，
   否则换库会把用户设置重置（现有：`settings_theme / settings_push / settings_daily_gap /
@@ -316,7 +330,8 @@ hvigor）+ `tool/harmony-render.mjs`（渲染 `tool/harmony-template/` → `harm
     `seedStats(db)` 按内存库现算一份塞进 `setStatsForTest()`；**改过库（例如 `UPDATE ... author_tw`）
     要再调一次**，否则页面读到的是改之前的。
 - 统计页的量：全唐诗 3650 位作者（`quantangshi`）、全宋词 884 个词牌（最多的是浣溪沙 817 首），
-  唐诗三百首 75 位，宋词三百首 82 位作者 / 153 个词牌（最多的是蝶恋花 11 首），
+  唐诗三百首 75 位，宋词三百首 114 位作者 / 136 个词牌（最多的是清平乐 11 首），
+  毛泽东诗词只有一位作者（145 首全归「毛泽东」；`kind` 是「诗词」不是「词」，没有词牌页），
   诗经 305 首全是「佚名」→ 只有一个「其他」分组。
   作者作品数之和必须等于集子总首数（测试盯着这条）。
 

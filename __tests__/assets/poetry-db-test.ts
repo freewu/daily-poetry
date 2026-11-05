@@ -354,6 +354,50 @@ describeDb('assets/poetry.db（随包数据）', () => {
     expect(stat?.cipai[0]).toMatchObject({ name: '清平乐', count: 11 });
   });
 
+  it('毛泽东诗词：145 首都在，且不进每日池', async () => {
+    const row = await db.getFirstAsync<{
+      id: string; name: string; name_tw: string; kind: string; kind_tw: string; count: number; daily: number;
+    }>("SELECT * FROM collections WHERE id = 'mao'");
+    expect(row).toMatchObject({
+      id: 'mao',
+      name: '毛泽东诗词',
+      name_tw: '毛澤東詩詞',
+      kind: '诗词',
+      kind_tw: '詩詞',
+      count: 145,
+      daily: 0, // 一半是残篇 / 联句 / 题词，不进轮换
+    });
+    expect(
+      await db.getFirstAsync<{ n: number }>(
+        "SELECT COUNT(*) n FROM poems WHERE collection = 'mao' AND daily = 1",
+      ),
+    ).toEqual({ n: 0 });
+  });
+
+  it('毛泽东诗词：题目是「体裁·题目」，写作日期进副题', async () => {
+    const changzheng = await db.getFirstAsync<Poem>(
+      "SELECT * FROM poems WHERE collection = 'mao' AND title = '七律·长征'",
+    );
+    expect(changzheng?.author).toBe('毛泽东');
+    expect(changzheng?.author_tw).toBe('毛澤東');
+    expect(changzheng?.dynasty).toBe('现代');
+    expect(changzheng?.subtitle).toBe('1935年10月');
+    expect(changzheng?.content.split('\n')[0]).toBe('红军不怕远征难，万水千山只等闲。');
+    expect(changzheng?.content_tw).toContain('紅軍不怕遠征難');
+
+    // 词牌的「词」只在题目里（`沁园春·长沙`），副题不能抢着认词牌
+    const changsha = await db.getFirstAsync<Poem>(
+      "SELECT * FROM poems WHERE collection = 'mao' AND title = '沁园春·长沙'",
+    );
+    expect(changsha?.subtitle).toBe('1925年秋');
+
+    // 组诗拆成「·其N」单首（十六字令三首 / 七律二首·送瘟神 / 十六字令八首）
+    const series = await db.getFirstAsync<{ n: number }>(
+      "SELECT COUNT(*) n FROM poems WHERE collection = 'mao' AND title LIKE '%·其%'",
+    );
+    expect(series?.n).toBe(15);
+  });
+
   it('作者统计：数量对得上选集，名家的首字母也对', async () => {
     // 页面读的是建库时算好、随包走的 assets/stats.json（见 lib/stats.ts）
     const tang = statsOf('tangshi')?.authors ?? [];

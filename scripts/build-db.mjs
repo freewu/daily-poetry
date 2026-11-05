@@ -2,12 +2,13 @@
 /**
  * build-db.mjs — 把语料导入 SQLite（assets/poetry.db）
  *
- * 语料有三个来源：chinese-poetry 仓库（`.data/chinese-poetry`，`just data` 拉）、
+ * 语料有四个来源：chinese-poetry 仓库（`.data/chinese-poetry`，`just data` 拉）、
  * 中文维基文库的《乐府诗集》（`.data/yuefu`，`scripts/fetch-yuefu.mjs` 抓）、
- * 古文岛的《宋词三百首》（`.data/songci300`，`scripts/fetch-songci300.mjs` 抓）。
+ * 古文岛的《宋词三百首》（`.data/songci300`，`scripts/fetch-songci300.mjs` 抓）、
+ * 知乎专栏《毛泽东诗词大全（1-145）首》（`data/mao-poems.json`，`scripts/fetch-mao.mjs` 解析）。
  *
  * 用法:
- *   node scripts/build-db.mjs                # 主体语料：唐诗三百首/千家诗/全唐诗/诗经/楚辞/五代诗词/全宋词/元曲/纳兰/曹操/乐府诗集
+ *   node scripts/build-db.mjs                # 主体语料：唐诗三百首/千家诗/全唐诗/诗经/楚辞/五代诗词/全宋词/元曲/纳兰/曹操/乐府诗集/毛泽东诗词
  *   node scripts/build-db.mjs --full         # 再加杂项：古文观止/幽梦影/论语/四书/蒙学
  *   node scripts/build-db.mjs --data <dir>   # 指定语料目录（默认 .data/chinese-poetry）
  *   node scripts/build-db.mjs --out <file>   # 指定输出文件（默认 assets/poetry.db）
@@ -64,15 +65,17 @@ function variants(x) {
  * 库结构版本：改动表结构时 +1，App 端据此判断是否需要替换随包数据库。
  * 只加了新语料、结构没动也要 +1 —— 否则装过旧版的设备会一直用旧库，
  * 新版 App 里看不到新加的集子（3 = 加纳兰性德 / 曹操；4 = 标准库并入全宋词 / 元曲；
- * 5 = 加乐府诗集；6 = 加宋词三百首；7 = 宋词三百首换源（维基文库 → 古文岛））。
+ * 5 = 加乐府诗集；6 = 加宋词三百首；7 = 宋词三百首换源（维基文库 → 古文岛）；
+ * 8 = 加毛泽东诗词）。
  */
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
 
 /**
  * 每日精选池：始终只用这些精选集。
  * 乐府诗集（3773 首，一半是郊庙 / 燕射乐章）不进池：一进去每日轮换的池子就从
- * 1963 变成 5736，全设备当天的诗会整体重排。想加就把它加进这个 Set。
+ * 1966 变成 5736，全设备当天的诗会整体重排。想加就把它加进这个 Set。
  * 宋词三百首是「选本」，跟唐诗三百首 / 千家诗 一样进池（跟全宋词有重合，可接受）。
+ * 毛泽东诗词同理不进池：145 首里一半是残篇 / 联句 / 题词，当每日一诗发出去不合适。
  */
 const DAILY_COLLECTIONS = new Set([
   'tangshi',
@@ -369,6 +372,34 @@ function parseSongci300() {
   return out;
 }
 
+/**
+ * 毛泽东诗词（145 首）：{title, author, dynasty, subtitle, lines}[]。
+ * 知乎对脚本一律 403，这份语料是「浏览器存下来的页面 → `scripts/fetch-mao.mjs` 解析」
+ * 的产物，直接入库放在 `data/mao-poems.json`（不在 `.data/` 里 —— 那边都是能重抓的）。
+ * 题目是「体裁·题目」（`七律·长征` / `沁园春·长沙`），组诗缀 `·其N`（`十六字令·其一`）；
+ * 副题栏放写作日期（`1925年秋`），详情页就成了「选自《毛泽东诗词》· 1925年秋」。
+ * kind 用「诗词」而不是「词」：`isCiKind()` 只认「词」，这个号一给就会生出
+ * 七律 / 七绝 / 五古 一堆假词牌（`cipaiOf()` 拿 `·` 前段当词牌）。
+ */
+function parseMao() {
+  const file = join(ROOT, 'data', 'mao-poems.json');
+  if (!existsSync(file)) throw new Error(`缺少语料文件: ${file}`);
+  const arr = JSON.parse(readFileSync(file, 'utf8'));
+  const out = [];
+  for (const it of arr) {
+    const lines = (it.lines ?? []).map(s).filter((l) => !empty(l));
+    if (!lines.length) continue;
+    const title = titleFromLines(it.title, lines);
+    if (empty(title)) continue;
+    out.push({
+      coll: 'mao', name: '毛泽东诗词', kind: '诗词',
+      dynasty: s(it.dynasty) || '现代', author: s(it.author) || '毛泽东',
+      title, subtitle: s(it.subtitle), lines,
+    });
+  }
+  return out;
+}
+
 /** 幽梦影: [{content, comment}] */
 function parseYoumengying() {
   const arr = loadJson('幽梦影/youmengying.json');
@@ -449,6 +480,7 @@ const PARSERS = (full) => [
   [() => parseTangQian('蒙学/tangshisanbaishou.json', 'tangshi', '唐诗三百首', '诗'), 'tangshi'],
   [() => parseTangQian('蒙学/qianjiashi.json', 'qianjiashi', '千家诗', '诗'), 'qianjiashi'],
   [parseSongci300, 'songci300'],
+  [parseMao, 'mao'],
   [parseQuanTang, 'quantangshi'],
   [parseShijing, 'shijing'],
   [parseChuci, 'chuci'],

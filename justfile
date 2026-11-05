@@ -14,6 +14,8 @@
 #   · ipa 只有 macOS 能本地打且未签名（装设备要自签）；Windows / WSL 上走 ipa-eas。
 #   · 鸿蒙构建跑在 Windows 侧（DevEco Studio 只有 Windows / macOS 版），
 #     RNOH 依赖用 `npm install --no-save` 装、不进 package.json。
+#   · 毛泽东诗词没有可抓的 URL（知乎 403），语料是 data/mao-poems.json（跟着仓库走）；
+#     要重做就把存档页放 .data/mao/mao.html 再跑 node scripts/fetch-mao.mjs。
 
 # 显式指定 POSIX shell：Windows 上 just 默认会摸到 Cygwin 的 sh（D:\env\cygwin64），
 # 它看不见 nvm-windows 的 junction（/cygdrive/d/env/nodejs），于是 npm 变成 127。
@@ -63,7 +65,7 @@ data-full:
     node scripts/fetch-yuefu.mjs
     node scripts/fetch-songci300.mjs
 
-# 构建 SQLite 数据库 → assets/poetry.db（约 9.5 万首，简繁双写，约 59MB）+ 预统计 assets/stats.json
+# 构建 SQLite 数据库 → assets/poetry.db（约 9.5 万首 / 14 部集子，简繁双写，约 60MB）+ 预统计 assets/stats.json
 [group('1. 初始化')]
 db: deps data
     node scripts/build-db.mjs
