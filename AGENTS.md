@@ -44,19 +44,29 @@ hvigor）+ `tool/harmony-render.mjs`（渲染 `tool/harmony-template/` → `harm
   **hdc 只认 `OHOS_HDC_SERVER_PORT`** —— 早先写的 `HDC_SERVER_PORT=7035` 是误配，
   hdc 根本不看那个名字，结果是设备“消失”（两边服务端口打架）。
 - **模拟器也是 Windows GUI**（`{DevEco}/tools/emulator/Emulator.exe`）：`just harmony-emulator`
-  写个 bat 用 `start ""` 拉起（直接调 `cmd.exe` 会一直等 GUI 退出），再轮询
-  `param get bootevent.boot.completed`。它自己往 hdc 服务（8710）注册成 `127.0.0.1:5555`，
-  WSL 这边不需要端口映射。实例名 / 实例目录 / 镜像目录都**现读**，不硬编码：
+  用 PowerShell 的 `Start-Process` 拉起它，再轮询 `param get bootevent.boot.completed`。
+  它自己往 hdc 服务（8710）注册成 `127.0.0.1:5555`，WSL 这边不需要端口映射。
+  实例名 / 实例目录 / 镜像目录都**现读**，不硬编码：
   `deviceManager.xml` 的 `openharmonyDeployPath` / `imageDeployPath` + `Emulator.exe -list`，
   可用 `HVD_HOME` / `HVD_IMAGE_ROOT` / `AHarmonyOS_HVD_HOME` 覆盖。
+  - **`-path` 传的是部署根目录（`HVD_HOME`），不是实例目录**：`Emulator.exe` 自己拼
+    `<path>/<hvd 名>`。传成实例目录它就去找 `<实例>/<实例>`，只往 stderr 丢一句
+    `"Mate 80 Pro Max" is not found. Please create the device(folder): …/<名字>/<名字>`，
+    再加一句 `Unable to start the emulator` 就退出 —— 而 **`Emulator.log` 一个字都不写**。
+    这一句就是「模拟器起不来」的真原因（不关 Windows 状态、跟实例 / 镜像完整性都无关，
+    `-version` / `-list` 都正常）。
+  - 因此**不能**用 bat + `start ""` 拉起：模拟器会继承 WSL 这边的 stdout/stderr，
+    GUI 进程不死管道就永远读不到 EOF，`just harmony-emulator` 会一直卡到模拟器关闭。
+    `Start-Process` 不重定向时会脱离父进程 stdio，2 秒返回；而**加上
+    `-RedirectStandardOutput` 反而会挂住**（实测 6 分钟不返回），所以重定向只用在
+    失败后重跑一次捞 stderr 的 `win_emu_probe`（带 `-Wait`，进程已退不会卡）。
   - `{APPDATA}/Huawei/DevEcoStudio<版本>/options/deviceManager.xml` 是唯一记录这两个目录的地方；
     `{LOCALAPPDATA}/Huawei/Emulator/deployed/` 下常有一份**指向 C: 的同名残壳**（只有 config.ini，
     没有镜像），别被它误导 —— 真实例在 `openharmonyDeployPath` 里。
-  - **起不来时 Windows 只丢一句 `Unable to start the emulator`**，`Emulator.log` 一个字都不写，
-    连裸跑 `Emulator.exe`（甚至不带参数）也一样 —— 说明是 Windows 侧的残留状态，重启 Windows
-    就恢复（DevEco 能起 / 命令行不能起时先试 GUI 一次）。所以 `start_emulator` 起完 5 秒查一次
-    `tasklist`，进程秒退就报错，`wait_device` 也会在进程消失时提前返回（返回码 2），
-    不让人白等五分钟。
+  - `start_emulator` 起完 5 秒查一次 `tasklist`，进程秒退就报错（并打印 `emu-start.log` /
+    `emu-err.log` 里抓到的那两行），`wait_device` 也会在进程消失时提前返回（返回码 2），
+    不让人白等五分钟。`wait_device` 的**超时算墙钟**、每次 `hdc shell` 包 `timeout -k`：
+    hdc 是 Windows 进程，只发 SIGTERM 杀不掉，否则「超时」会变成永久挂起。
 - **RNOH 依赖故意不进 `package.json`**：`install_rnoh()` 一次 `npm install --no-save` 装三个包
   —— `react-native-harmony`（alias 到 `@react-native-oh/react-native-harmony`，含 140MB 的 `.har`）、
   RNOH CLI、**`@react-native-community/cli`**（Expo 工程默认没有它，而 `bundle-harmony` 只能走

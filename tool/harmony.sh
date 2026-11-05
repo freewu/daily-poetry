@@ -71,18 +71,27 @@ win_run() {
   cmd.exe /c "$(to_win "$bat")"
 }
 
-# 起 GUI 进程（模拟器）：cmd.exe 默认会等子进程退出，所以 bat 里套一层 start ""
-win_start() { # $1 = 工作目录，其余 = 命令行
-  local dir="$1"
-  shift
+# 起 GUI 进程（模拟器）：用 PowerShell 的 Start-Process。
+win_emu_start() { # $1 = 参数串（Windows 引号风格）
+  # 为什么不用 .bat + `start ""`：那样模拟器会继承我们的 stdout/stderr，
+  # GUI 进程不死，WSL 这边的管道就永远读不到 EOF，`just harmony-emulator` 会卡到模拟器关闭。
+  # Start-Process 不重定向时会完全脱离父进程的 stdio，2 秒就返回。
+  # **不能加 -RedirectStandardOutput**：带了它 PowerShell 反而会一直挂着（实测 6 分钟不返回）。
+  local args="$1"
+  powershell.exe -NoProfile -Command \
+    "Start-Process -FilePath '$(to_win "$HVD_EMULATOR")' -WorkingDirectory '$(to_win "$(dirname "$HVD_EMULATOR")")' -ArgumentList '$args'" >/dev/null 2>&1
+}
+win_emu_probe() { # $1 = 参数串（Windows 引号风格）—— 只在失败后重跑一次捞原因
+  # GUI 程序从 WSL 拉起时没有控制台，它的 stdout/stderr 本来会直接消失 ——
+  # 而 Emulator.exe 失败时恰恰只写这两条流（Emulator.log 一个字不动，真实原因常在 stderr：
+  # '... is not found. Please create the device(folder)'）。
+  # 这里带 -Wait：不加它 PowerShell 会一直挂着（GUI 子进程），能走到这一步就说明它已经退了。
+  local args="$1" out="$WORK/emu-start.log" err="$WORK/emu-err.log"
   mkdir -p "$WORK"
-  local bat="$WORK/start.bat"
-  {
-    bat_head "$dir"
-    printf 'start "" %s\r\n' "$*"
-    printf 'exit /b 0\r\n'
-  } >"$bat"
-  cmd.exe /c "$(to_win "$bat")"
+  : >"$out"
+  : >"$err"
+  powershell.exe -NoProfile -Command \
+    "Start-Process -FilePath '$(to_win "$HVD_EMULATOR")' -WorkingDirectory '$(to_win "$(dirname "$HVD_EMULATOR")")' -ArgumentList '$args' -RedirectStandardOutput '$(to_win "$out")' -RedirectStandardError '$(to_win "$err")' -Wait | Out-Null" >/dev/null 2>&1
 }
 
 # ------------------------------------------------------------------ 版本
@@ -272,18 +281,21 @@ emu_running() {
 
 # 系统起来没有：hdc 先连上，再等 bootevent.boot.completed（首次开机约 1-2 分钟）
 # 返回 0 = 就绪，1 = 超时，2 = 模拟器进程没了（秒退，别傻等 5 分钟）
-wait_device() { # $1 = 超时秒数（默认 300）
-  local t="${1:-300}" i=0
-  while [ "$i" -lt "$t" ]; do
+wait_device() { # $1 = 超时秒数（默认 300，算的是墙钟）
+  local t="${1:-300}" deadline
+  deadline=$(($(date +%s) + t))
+  while [ "$(date +%s)" -lt "$deadline" ]; do
     if [ -n "$(devices)" ]; then
-      if timeout 15 "$HDC" shell "param get bootevent.boot.completed" 2>/dev/null | tr -d '\r' | grep -q true; then
+      # hdc shell 碰到死 target / 刚开机时会卡住，包一层 timeout；
+      # **必须带 -k**：hdc 是 Windows 进程，WSL 的 timeout 只发 SIGTERM 时杀不掉它，
+      # 于是“超时”变成了永久挂起（模拟器都起来了，脚本还卡着）。
+      if timeout -k 2 8 "$HDC" shell "param get bootevent.boot.completed" 2>/dev/null | tr -d '\r' | grep -q true; then
         return 0
       fi
     elif [ "${WATCH_EMU:-0}" = 1 ] && ! emu_running; then
       return 2
     fi
     sleep 3
-    i=$((i + 3))
   done
   return 1
 }
@@ -299,18 +311,29 @@ start_emulator() { # $1 = 实例名（空 = 默认实例）
   root="${HVD_IMAGE_ROOT:-}"
   [ -n "$root" ] || die "找不到模拟器系统镜像目录（Device Manager 里的 imageDeployPath）"
   step "启动模拟器：$name"
+  # 注意 -path 传的是**部署根目录**（HVD_HOME），不是实例目录：
+  # Emulator.exe 会自己拼成 <path>/<hvd 名>。传实例目录的话它会去找
+  # <实例>/<实例>，只往 stderr 丢一句 'is not found. Please create the device(folder)'
+  # 加一句 'Unable to start the emulator' 就退出，Emulator.log 一个字不写。
   if on_wsl; then
-    win_start "$(dirname "$HVD_EMULATOR")" \
-      "\"$(to_win "$HVD_EMULATOR")\" -hvd \"$name\" -path \"$(to_win "$path")\" -imageRoot \"$(to_win "$root")\"" \
+    win_emu_start "-hvd \"$name\" -path \"$(to_win "$HVD_HOME")\" -imageRoot \"$(to_win "$root")\"" \
       || die "Emulator.exe 启动失败"
   else
-    (cd "$(dirname "$HVD_EMULATOR")" && "$HVD_EMULATOR" -hvd "$name" -path "$path" -imageRoot "$root" >/dev/null 2>&1 &)
+    (cd "$(dirname "$HVD_EMULATOR")" && "$HVD_EMULATOR" -hvd "$name" -path "$HVD_HOME" -imageRoot "$root" \
+      >"$WORK/emu-start.log" 2>"$WORK/emu-err.log" &)
   fi
   # 起完立刻死掉是常见故障（Windows 侧只丢一句 Unable to start the emulator，
   # Emulator.log 一个字都不写），别让调用方白等五分钟。
   sleep 5
   if ! emu_running; then
-    warn "模拟器进程秒退（Windows 侧通常只打印 Unable to start the emulator）"
+    warn "模拟器进程秒退"
+    # 重跑一次捞 stderr（正常路径不付这个代价：PowerShell 的 Start-Process
+    # 不加 -Wait 时会一直挂着，GUI 子进程不退它就不返回）。
+    on_wsl && win_emu_probe "-hvd \"$name\" -path \"$(to_win "$HVD_HOME")\" -imageRoot \"$(to_win "$root")\""
+    for l in "$WORK/emu-start.log" "$WORK/emu-err.log"; do
+      [ -s "$l" ] || continue
+      while IFS= read -r line; do [ -n "$line" ] && warn "  $line"; done <"$l"
+    done
     warn "日志：$path/Emulator.log｜能起一次但重复起不来时先重启 Windows"
     return 1
   fi

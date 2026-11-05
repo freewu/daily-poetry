@@ -227,11 +227,12 @@ just hap              # Release HAP → dist/
   WSL 里经 `cmd.exe` 调 `tool/harmony.sh` 生成的 `.bat`（`DEVECO_HOME` 路径含空格，不能内联
   `cd /d`）。hdc 服务用 `OHOS_HDC_SERVER_PORT`（默认 **8710**，不跟 adb 的 5037 打架；
   早先写的 `HDC_SERVER_PORT=7035` 是误配，hdc 根本不看那个名字）。
-- **模拟器也是 Windows GUI**：`just harmony-emulator` 用 `start ""` 拉起 `Emulator.exe`
-  （直接调会一直等 GUI 退出），起完等 `bootevent.boot.completed`。它自己注册成
-  `127.0.0.1:5555`，WSL 这边不需要端口映射；实例名 / 实例目录 / 镜像目录都从
-  `deviceManager.xml` 与 `Emulator.exe -list` 现读。Windows 侧只丢一句
-  `Unable to start the emulator` 且 `Emulator.log` 不写时，重启一次 Windows 就好。
+- **模拟器也是 Windows GUI**：`just harmony-emulator` 用 PowerShell 的 `Start-Process` 拉起
+  `Emulator.exe`，起完等 `bootevent.boot.completed`。它自己注册成 `127.0.0.1:5555`，WSL 这边
+  不需要端口映射；实例名 / 实例目录 / 镜像目录都从 `deviceManager.xml` 与 `Emulator.exe -list`
+  现读。两个坑：`-path` 要传**部署根目录**（它会自己拼 `<path>/<实例名>`，传成实例目录就报
+  `Unable to start the emulator`，`Emulator.log` 一个字不写）；不能用 bat + `start ""` 拉起
+  （模拟器继承 WSL 的 stdout/stderr，脚本会卡到它关闭）。
 - **`harmony/` 是生成物**：`tool/harmony-template/` 存模板，`tool/harmony-render.mjs` 按
   `app.json` 与本机 SDK 渲染（`__BUNDLE_NAME__` 之类占位符）。已存在时**只补缺、不覆盖**
   （保护你在 DevEco 里配的签名），`just harmony-setup --force` 才整份重来。

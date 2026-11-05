@@ -18,9 +18,9 @@
 #     `just harmony-emulator` 从 WSL 拉起它并等到开机完成（设备注册成 127.0.0.1:5555，
 #     hdc 服务在 8710 —— 别再写 HDC_SERVER_PORT=7035，hdc 认的是 OHOS_HDC_SERVER_PORT）。
 #     `just harmony` 发现没设备会自动走这一步，不用开 DevEco 点 Device Manager。
-#   · 模拟器起不来时 Windows 侧只丢一句 `Unable to start the emulator`（Emulator.log 一个字
-#     都不写，连裸跑 Emulator.exe 也一样）：这是 Windows 那边的残留状态，重启一次就好；
-#     脚本会在进程秒退时 5 秒内报错，不会白等五分钟。
+#   · 模拟器起不来时 Windows 侧只丢一句 `Unable to start the emulator`，`Emulator.log` 一个字
+#     都不写 —— 真原因（`-path` 传错目录）只在 stderr 上：脚本失败时会重跑一次把 stderr 抓出来。
+#     脚本在进程秒退时 5 秒内报错，不会白等五分钟。
 #   · 毛泽东诗词没有可抓的 URL（知乎 403），语料是 data/mao-poems.json（跟着仓库走）；
 #     要重做就把存档页放 .data/mao/mao.html 再跑 node scripts/fetch-mao.mjs。
 
