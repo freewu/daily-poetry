@@ -161,14 +161,21 @@ just db-full  # 再加古文观止 / 幽梦影 / 论语 / 四书 / 蒙学等（�
 | `just start` | 启动 Expo dev server |
 | `just android` / `ios` | 原生 Debug 构建并在设备上启动 |
 | `just emulator [avd]` | 启动模拟器并等到开机完成 |
-| `just android-install` | 构建 Debug 包并安装到设备 |
+| `just android-install` | 构建 Debug 包并安装到设备（**JS 靠 Metro，拔线打不开**） |
+| `just apk` | 打离线可用的 Release APK（JS 打进包里；设备在线时顺带安装） |
 | `just e2e [流程]` | 跑 Maestro E2E（全部或单条 `.maestro/*.yaml`） |
 | `just android-doctor` | Android 工具链自检（SDK / adb / 设备 / Maestro） |
 | `just export` | 打 Android JS bundle 至 `dist/`（验证打包） |
-| `just build` | 提示使用 EAS Build 出真机安装包 |
+| `just build` | 提示：离线包用 `just apk`，上架用 EAS Build |
 | `just envcheck` | 环境自检 |
 
-> 真机安装包使用 [EAS Build](https://docs.expo.dev/eas/)（配置见 `eas.json`）：
+> **为什么拔了 USB 就打不开**：`just android` / `android-install` 装的是 **Debug 包**，
+> JS bundle 不在 APK 里，启动时走 `adb reverse tcp:8081` 向 Metro 要 —— 线一拔（或
+> `just start` 关掉、手机重连 Wi-Fi）就只剩「Unable to load script」/ 白屏。
+> 想脱机用就打 **Release 包**：`just apk`（JS 打进 APK，本地用模板的 `debug.keystore`
+> 签名，能直接覆盖安装，收藏 / 设置都留着；APK 约 60–70MB，大头是随包的语料库）。
+>
+> 上架 AAB / 正式签名仍用 [EAS Build](https://docs.expo.dev/eas/)（配置见 `eas.json`）：
 >
 > ```bash
 > npx eas-cli login

@@ -73,9 +73,15 @@ android-setup:
 emulator avd="":
     bash tool/android.sh boot {{avd}}
 
+# Debug 包的 JS 是 Metro 现喂的（adb reverse 8081）：拔线 / 关 just start 打开就是白屏。
 # 构建并安装 Debug 包到模拟器 / 真机（首次会下载 Gradle 依赖）
 android-install:
     bash tool/android.sh install
+
+# 本地用模板的 debug.keystore 签名，够自用；上架仍走 EAS。
+# 打**离线可用**的 Release APK（JS 打进包里，装完拔线也能开；设备在线时顺带覆盖安装）
+apk: check
+    bash tool/android.sh apk
 
 # Maestro E2E：just e2e 跑全部，或 just e2e .maestro/01-today.yaml 跑单个
 e2e *args:
@@ -115,6 +121,6 @@ ios: check
 export: check
     npx expo export --platform android --output-dir dist
 
-# 说明：真机安装包建议使用 EAS Build（见 README）
+# 说明：想脱机用就打 just apk；要上架（AAB + 正式签名）仍走 EAS Build
 build:
-    @echo "本地原生构建请使用 EAS: npx eas-cli build --platform android"
+    @echo "本地离线安装包：just apk；上架：npx eas-cli build --platform android --profile production"

@@ -6,6 +6,7 @@
 #   bash tool/android.sh boot [avd]      # 启动模拟器并等到 sys.boot_completed=1
 #   bash tool/android.sh wait            # 只等设备开机完成
 #   bash tool/android.sh install         # prebuild + Gradle 构建 Debug 包并安装
+#   bash tool/android.sh apk             # 打离线可用的 Release APK（拔线 / 关 Metro 也能用）
 #   bash tool/android.sh e2e [flow…]     # 跑 .maestro 下的 Maestro 流程
 #
 # WSL 说明：模拟器本身是 Windows 程序，必须由 Windows 侧启动；adb 用 Linux
@@ -127,6 +128,35 @@ cmd_install() {
   fi
 }
 
+# Debug 包的 JS 是 Metro 现喂的（adb reverse 8081），拔线 / 关 just start 之后就只剩
+# 「Unable to load script」—— 想脱机用必须装 Release 包（JS 打进 APK 里）。
+# 本地 Release 用模板自带的 debug.keystore 签名（见 android/app/build.gradle），能直接装。
+cmd_apk() {
+  local apk="android/app/build/outputs/apk/release/app-release.apk"
+  info "构建 Release APK（JS 打进包里，装完可以拔线）…"
+  if on_wsl; then
+    win_run "cd android && gradlew.bat assembleRelease" \
+      || die "Gradle 构建失败。日志：%USERPROFILE%\\.gradle\\daemon\\*.out.log（JDK17 / ccache 见 AGENTS.md）"
+  else
+    ( cd android && ./gradlew assembleRelease ) || die "Gradle 构建失败"
+  fi
+  [ -f "$apk" ] || die "没找到产物 $apk"
+  info "产物：$apk（$(du -h "$apk" | cut -f1)）"
+
+  [ -n "${ADB:-}" ] || {
+    info "没有 adb，跳过安装（手动装：adb install -r $apk）"
+    return 0
+  }
+  local serial
+  serial="$(device_serial)" || serial=""
+  if [ -z "$serial" ]; then
+    info "设备不在线，跳过安装（adb install -r $apk）"
+    return 0
+  fi
+  info "覆盖安装到 $serial（收藏 / 设置都会留着）…"
+  "$ADB" -s "$serial" install -r "$apk" >/dev/null && info "装好了 ✓ 现在可以拔线"
+}
+
 cmd_e2e() {
   local serial flows=("$@")
   serial="$(device_serial)" || true
@@ -162,9 +192,10 @@ case "${1:-doctor}" in
   boot | emulator) shift; cmd_boot "${1:-}" ;;
   wait) shift; wait_boot "${1:-240}" ;;
   install | build) cmd_install ;;
+  apk | release) cmd_apk ;;
   e2e) shift; cmd_e2e "$@" ;;
   *)
-    printf '用法：bash tool/android.sh [doctor|setup|boot|wait|install|e2e] [参数…]\n' >&2
+    printf '用法：bash tool/android.sh [doctor|setup|boot|wait|install|apk|e2e] [参数…]\n' >&2
     exit 2
     ;;
 esac

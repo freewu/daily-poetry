@@ -6,14 +6,20 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
 
 `just android` 的 Gradle 构建跑在 Windows 侧（WSL 通过 `cmd.exe` 调 `gradlew.bat`），
 失败时只看 `exit code 1` 没用，要翻 `%USERPROFILE%\.gradle\daemon\9.3.1\daemon-*.out.log`。
-两个已知坑（`just android-doctor` / `just envcheck` 会自检）：
+三个已知坑（`just android-doctor` / `just envcheck` 会自检前两个）：
 
 1. **JDK 17**：`@react-native/gradle-plugin` 用 `jvmToolchain(17)` + foojay resolver，
    而 Gradle 不扫 IDEA 的 `%USERPROFILE%\jdks`，找不到就去 GitHub 自动下载（国内常卡死在
    0 字节 `.part` 上，配置阶段静默挂几十分钟）。解决：在 `%USERPROFILE%\.gradle\gradle.properties` 写
    `org.gradle.java.installations.paths=C:\\...\\jdk-17.x` 和
    `org.gradle.java.installations.auto-download=false`。
-2. **ccache**：`ReactNative-application.cmake` 会自动 `find_program(ccache)` 并设为编译器启动器；
+2. **Debug 包不能脱机用**：`just android` / `android-install` 装的是 Debug 变体，JS bundle
+   **不在 APK 里**，启动时靠 `adb reverse tcp:8081` 向 Metro 要 —— 拔线 / 关 `just start` /
+   手机重连 Wi-Fi 之后打开就只有「Unable to load script」或白屏（不是崩溃，也不是包的 bug）。
+   要脱机验证就打 Release：`just apk`（`gradlew assembleRelease`，JS 打进包里；
+   `android/app/build.gradle` 的 release 用模板自带的 `debug.keystore` 签名，
+   所以能直接 `adb install -r` 覆盖装上去，收藏 / 设置都留着）。上架 AAB 仍走 EAS。
+3. **ccache**：`ReactNative-application.cmake` 会自动 `find_program(ccache)` 并设为编译器启动器；
    Cygwin/MSYS 版 ccache 认不了 `C:\...\clang++.exe`，NDK 编译会整片
    `ccache: FATAL: Could not find compiler ... in PATH`。用原生版（`choco install ccache`），
    或禁用那个 ccache.exe。
