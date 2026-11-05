@@ -82,8 +82,7 @@ export default function TodayScreen() {
     <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top + 8 }}>
       <View style={styles.head}>
         <View style={{ flexShrink: 1 }}>
-          <Text style={[styles.brand, { color: colors.text }]}>每日一诗</Text>
-          <Text style={[styles.date, { color: colors.sub }]} numberOfLines={1}>
+          <Text style={[styles.date, { color: colors.text }]} numberOfLines={1}>
             {prettyDate(date)} · {weekdayOf(date)}
           </Text>
           {info ? (
@@ -190,7 +189,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 14,
   },
-  brand: { fontSize: 20, fontWeight: '800', letterSpacing: 3 },
   date: { fontSize: 13, marginTop: 2, letterSpacing: 0.5 },
   lunar: { fontSize: 11, marginTop: 2, letterSpacing: 0.5 },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },

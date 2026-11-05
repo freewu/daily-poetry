@@ -8,8 +8,9 @@ name: 今日一诗
 - launchApp:
     clearState: true # 清掉旧库，让 App 重新从 assets 里释放 poetry.db
 
-# 首屏要拷库 + 建索引，慢设备上会停留几秒
-- assertVisible: '每日一诗'
+# 首屏要拷库 + 建索引，慢设备上会停留几秒（顶栏现在是「日期 · 星期 + 农历」，没有大标题）
+- assertVisible:
+    id: 'day-prev'
 - extendedWaitUntil:
     visible:
       id: 'today-poem'
@@ -34,7 +35,8 @@ name: 今日一诗
     visible:
       id: 'today-poem'
     timeout: 15000
-- assertVisible: '每日一诗'
+# 顶栏是 ScrollView 外面的一层，永远可见（「左右滑动」提示在诗卡下面，可能要滚才看得到）
+- assertVisible: '农历.*'
 
 # 左右滑动也要能翻日：右滑回前一天，再左滑回今天
 - swipe:

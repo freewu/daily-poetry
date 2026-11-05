@@ -81,7 +81,8 @@ describe('<TodayScreen />', () => {
 
     await waitFor(() => expect(screen.getByTestId('today-poem')).toBeTruthy());
     expect(screen.getByText(await expectedTitle(db, today))).toBeTruthy();
-    expect(screen.getByText('每日一诗')).toBeTruthy();
+    // 顶栏不再有大标题，只有「日期 · 星期」
+    expect(screen.queryByText('每日一诗')).toBeNull();
     expect(
       screen.getByText(`${prettyDate(today)} · ${weekdayOf(today)}`),
     ).toBeTruthy();
