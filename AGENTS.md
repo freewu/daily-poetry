@@ -62,6 +62,21 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
   `daily = 1`，否则等于没做。
 - 挑诗器按「库实例 + 档位」缓存在 `WeakMap` 里（一次会话只建一次，逐日推到今天约 8ms）；
   测试里换 db 实例会重建，别把 20 多万次的循环写进断言。
+- **隔夜缓存**（`src/lib/daily-cache.ts`）：挑今天的诗要跑应景检索（`LIKE '%词%'` 扫全库
+  5.7 万行）或从 1960 年逐日推到今天，两步都在首屏必经路径上（桌面实测 75ms / 27ms）。
+  所以首页画完后（`pickForDateCached()` 返回之后）**不 await** 地调 `prefetchUpcomingDays()`
+  把往后 3 天的诗算好，写进 `meta` 的 `daily_picks`：
+  `{ 'YYYY-MM-DD': { id, key: 'push|gap', themed } }` —— 只存 id，不存正文。
+  下次打开 `pickForDateCached()` 先读这条 KV（约 0.03ms）再 `getPoem(id)`。
+  - 缓存**不改变结果**：`poemForDay` / `poemForOccasion` 都是「日期 + 池子 + 偏好」的纯函数，
+    `__tests__/daily-cache-test.ts` 对拍「缓存 id == 现算 id」。
+  - 偏好指纹 `key` 对不上（用户改了推送方式 / 作者间隔）就作废重算；
+    只写今天及以后的日期（往回翻的日子不占缓存）；最多留 8 条（`CACHE_KEEP`）。
+  - `daily_picks` **故意不进 `KEPT_SETTINGS`**：换库后旧 id 指向的是旧库的诗。
+  - `prefetchUpcomingDays()` 用 `WeakSet<db>` 做「一整个会话只跑一次」的闸，
+    测试想重跑得先 `resetPrefetchForTest()`。
+  - 首页与诗词详情页都走 `pickForDateCached()`（别绕回去直接调 `pickPoemForDate`，
+    那样缓存永远命中不了）。
 - 首页翻日（`src/app/(tabs)/today.tsx`）：顶栏箭头 + **左右滑动**两条路改的是同一个
   `date` state。滑动用 `PanResponder` 包在 ScrollView 外面（`testID="today-swipe"`），
   判定在 `src/lib/swipe.ts`：`claimsSwipe()` 只在横向明显大于竖向（`|dy|*1.5 < |dx|`）时

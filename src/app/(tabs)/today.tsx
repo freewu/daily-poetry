@@ -7,19 +7,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PoemActions } from '@/components/poem-actions';
 import { PoemCard } from '@/components/poem-card';
-import { gapOf } from '@/lib/daily';
+import { dailyPrefs, pickForDateCached, prefetchUpcomingDays } from '@/lib/daily-cache';
 import {
-  getSetting,
-  pickPoemForDate,
   prettyDate,
   rememberDay,
   shiftDayStr,
   todayStr,
   weekdayOf,
 } from '@/lib/db';
-import { dayInfo, occasionFor, type DayInfo } from '@/lib/lunar';
+import { dayInfo, type DayInfo } from '@/lib/lunar';
 import { claimsSwipe, swipeStep } from '@/lib/swipe';
-import type { Poem, PushPref } from '@/lib/types';
+import type { Poem } from '@/lib/types';
 import { useTheme } from '@/theme';
 
 export default function TodayScreen() {
@@ -35,19 +33,18 @@ export default function TodayScreen() {
     useCallback(() => {
       let alive = true;
       (async () => {
-        const [sp, sg] = await Promise.all([
-          getSetting(db, 'settings_push'),
-          getSetting(db, 'settings_daily_gap'),
-        ]);
-        const push: PushPref = sp === 'occasion' ? 'occasion' : 'classic';
+        const prefs = await dailyPrefs(db);
         const di = dayInfo(date);
         if (!alive) return;
         setInfo(di);
-        const occ = push === 'occasion' ? occasionFor(di) : null;
-        const pick = await pickPoemForDate(db, date, occ, gapOf(sg));
+        // 命中缓存时就是一条 KV + 按 id 取诗（昨天打开时预取好的）
+        const pick = await pickForDateCached(db, date, prefs);
         if (!alive || !pick.poem) return;
         setPoem(pick.poem);
         rememberDay(db, date, pick.poem.id).catch(() => {});
+        // 首屏的诗已经在手上，剩下的时间用来把明后几天的算好，下次打开就快了。
+        // 不要 await：这是背景活（同一库一整个会话只跑一次）。
+        prefetchUpcomingDays(db, prefs).catch(() => {});
       })().catch(() => {});
       return () => {
         alive = false;

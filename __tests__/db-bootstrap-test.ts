@@ -45,6 +45,7 @@ describe('snapshotUserData', () => {
          ('settings_font', 'song'), ('settings_font_size', 'xl'), ('settings_layout', 'vertical'),
          ('settings_tts_rate', 'slow'), ('settings_card_size', '23'),
          ('settings_card_punct', 'space'), ('challenge_log', '[{"at":"2026-11-05"}]'),
+         ('daily_picks', '{"2026-11-06":{"id":3,"key":"classic|7","themed":false}}'),
          ('dataset', 'standard')`,
     );
     const plan = await snapshotUserData(asDb(db));
@@ -61,6 +62,9 @@ describe('snapshotUserData', () => {
       // 挑战战绩也在白名单里：换库不该把战绩清空
       challenge_log: '[{"at":"2026-11-05"}]',
     });
+    // 每日一诗的隔夜缓存**故意不保留**：里面的 id 指向的是旧库的诗
+    expect(plan.settings.daily_picks).toBeUndefined();
+    expect(plan.settings.dataset).toBeUndefined();
   });
 });
 

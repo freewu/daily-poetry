@@ -1,7 +1,8 @@
 import { act, fireEvent, waitFor } from '@testing-library/react-native';
 
 import TodayScreen from '@/app/(tabs)/today';
-import { poemForDay, prettyDate, shiftDayStr, todayStr, weekdayOf } from '@/lib/db';
+import { DAILY_CACHE_KEY, type DailyCache } from '@/lib/daily-cache';
+import { poemForDay, prettyDate, setSetting, shiftDayStr, todayStr, weekdayOf } from '@/lib/db';
 
 import { asDb, renderWithTheme, screen, seedPoems, useMemoryDb } from '../helpers/test-utils';
 
@@ -14,6 +15,14 @@ const POOL = [
 /** 当天该是哪首：直接问 db 层，省得在测试里复刻一遍挑选算法 */
 async function expectedTitle(db: ReturnType<typeof seed>, date: string) {
   return (await poemForDay(asDb(db), date))!.title;
+}
+
+/** meta 里那份隔夜缓存（同步读，方便在 waitFor 里轮询） */
+function cacheOf(db: ReturnType<typeof seed>): DailyCache {
+  const row = db.raw
+    .prepare('SELECT value FROM meta WHERE key = ?')
+    .get(DAILY_CACHE_KEY) as { value?: string } | undefined;
+  return JSON.parse(row?.value ?? '{}');
 }
 
 /**
@@ -87,6 +96,37 @@ describe('<TodayScreen />', () => {
         { date: todayStr() },
       ]),
     );
+  });
+
+  it('今天的诗命中缓存时直接用缓存（不再算一遍应景 / 轮换）', async () => {
+    const db = seed();
+    const today = todayStr();
+    const defaultTitle = await expectedTitle(db, today);
+    // 缓存里故意写一首默认轮换挑不出来的诗
+    const cached = POOL.find((p) => p.title !== defaultTitle)!;
+    await setSetting(
+      asDb(db),
+      DAILY_CACHE_KEY,
+      JSON.stringify({ [today]: { id: cached.id, key: 'classic|7', themed: false } }),
+    );
+
+    await renderWithTheme(<TodayScreen />, { db });
+    await waitFor(() => expect(screen.getByTestId('today-poem')).toBeTruthy());
+    expect(screen.getByText(cached.title)).toBeTruthy();
+    expect(screen.queryByText(defaultTitle)).toBeNull();
+  });
+
+  it('首屏画完后在后台把明后几天的诗预取进 meta', async () => {
+    const db = seed();
+    const today = todayStr();
+    const tomorrow = shiftDayStr(today, 1);
+    const tomorrowId = (await poemForDay(asDb(db), tomorrow))!.id;
+
+    await renderWithTheme(<TodayScreen />, { db });
+    await waitFor(() => expect(screen.getByTestId('today-poem')).toBeTruthy());
+    await waitFor(() => expect(cacheOf(db)[tomorrow]?.id).toBe(tomorrowId));
+    // 预取只铺未来，今天那条是打开时现算完写进来的
+    expect(cacheOf(db)[today]).toBeDefined();
   });
 
   it('前一天 / 后一天切换日期；未来不可前进', async () => {

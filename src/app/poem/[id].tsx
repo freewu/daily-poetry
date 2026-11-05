@@ -8,18 +8,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PoemActions } from '@/components/poem-actions';
 import { PoemCard } from '@/components/poem-card';
 import { ScreenBar } from '@/components/screen-bar';
-import { gapOf } from '@/lib/daily';
-import {
-  getPoem,
-  getSetting,
-  pickPoemForDate,
-  rememberDay,
-  shiftDayStr,
-  todayStr,
-} from '@/lib/db';
-import { dayInfo, occasionFor } from '@/lib/lunar';
+import { dailyPrefs, pickForDateCached } from '@/lib/daily-cache';
+import { getPoem, rememberDay, shiftDayStr, todayStr } from '@/lib/db';
 import { localizePoem } from '@/lib/script';
-import type { Poem, PushPref } from '@/lib/types';
+import type { Poem } from '@/lib/types';
 import { useScript } from '@/script';
 import { useTheme } from '@/theme';
 
@@ -46,13 +38,7 @@ export default function PoemScreen() {
     let alive = true;
     if (dailyMode) {
       (async () => {
-        const [sp, sg] = await Promise.all([
-          getSetting(db, 'settings_push'),
-          getSetting(db, 'settings_daily_gap'),
-        ]);
-        const push: PushPref = sp === 'occasion' ? 'occasion' : 'classic';
-        const occ = push === 'occasion' ? occasionFor(dayInfo(date)) : null;
-        const pick = await pickPoemForDate(db, date, occ, gapOf(sg));
+        const pick = await pickForDateCached(db, date, await dailyPrefs(db));
         if (!alive) return;
         if (pick.poem) {
           setPoem(pick.poem);
