@@ -3,6 +3,7 @@ import { fireEvent, waitFor } from '@testing-library/react-native';
 import CipaiPoemsScreen from '@/app/collection/[id]/cipai/[name]';
 import CollectionCipaiScreen from '@/app/collection/[id]/cipai';
 
+import { seedStats } from '../helpers/stats';
 import { renderWithTheme, screen, seedCollections, seedPoems, useMemoryDb } from '../helpers/test-utils';
 
 const g = globalThis as any;
@@ -25,6 +26,7 @@ function seed() {
     // 名字里带「浣溪沙」但词牌不是它，检索的超集要靠精确比对筛掉
     { id: 16, collection: 'song', name: '全宋词', kind: '词', title: '浣溪沙慢', author: '周邦彦', content: '水竹旧院落' },
   ]);
+  seedStats(db);
   return db;
 }
 

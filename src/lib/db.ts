@@ -1,6 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-import type { AuthorStat } from './authors';
 import {
   CHALLENGE_LOG_KEY,
   parseLog,
@@ -81,22 +80,6 @@ export async function poemsOfCollection(db: SQLiteDatabase, coll: string): Promi
     'SELECT * FROM poems WHERE collection = ? ORDER BY id',
     coll,
   );
-}
-
-/**
- * 某个集子的作者统计（作品数）：语料是按作者排的，GROUP BY 走 collection 索引，
- * 全唐诗 5 万首也只要几毫秒。繁体署名取该组里任意一行的 author_tw（同一作者一致）。
- */
-export async function authorsOfCollection(
-  db: SQLiteDatabase,
-  coll: string,
-): Promise<AuthorStat[]> {
-  const rows = await db.getAllAsync<{ name: string; nameTw: string; count: number }>(
-    `SELECT COALESCE(author, '') AS name, COALESCE(MAX(author_tw), '') AS nameTw, COUNT(*) AS count
-     FROM poems WHERE collection = ? GROUP BY author`,
-    coll,
-  );
-  return rows.map((r) => ({ name: r.name, nameTw: r.nameTw, count: r.count }));
 }
 
 /** 某位作者在某个集子里的作品（按入库顺序，全集里就是编年次序） */

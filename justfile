@@ -26,16 +26,20 @@ data-full:
     bash scripts/fetch-corpus.sh full
 
 # 构建 SQLite 数据库 → assets/poetry.db（约 9.1 万首，简繁双写，约 58MB）
+# 顺带生成预统计 assets/stats.json（作者 / 词牌；页面读它，不现算 SQL）
 db: deps data
     node scripts/build-db.mjs
+    node scripts/build-stats.mjs
 
 # 构建完整语料库（再加杂项，约 9.2 万首）
 db-full: deps data-full
     node scripts/build-db.mjs --full
+    node scripts/build-stats.mjs
 
 # 校验已有数据库（不重建）
 dbcheck:
     node scripts/build-db.mjs --check
+    node scripts/build-stats.mjs --check
 
 # 重新生成品牌图标 / 启动图 / 底栏图标（印章取自根目录 logo.png，换图后跑一遍）
 assets:
@@ -44,7 +48,7 @@ assets:
 # 全套检查：数据库 + 类型检查 + ESLint + 测试
 check:
     test -f assets/poetry.db || just db
-    node scripts/build-db.mjs --check
+    just dbcheck
     npx tsc --noEmit
     npx expo lint
     npx jest

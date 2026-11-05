@@ -9,7 +9,6 @@ import {
   isFavorite,
   listCollections,
   listFavorites,
-  authorsOfCollection,
   pickPoemForDate,
   poemForDay,
   poemForOccasion,
@@ -312,32 +311,6 @@ describe('db/检索与选集', () => {
     expect(byAuthor.map((p: Poem) => p.id)).toEqual([3]);
     const byContent = await searchPoems(asDb(db), '明月');
     expect(byContent.map((p: Poem) => p.id)).toEqual([1, 3]);
-  });
-
-  it('authorsOfCollection 按作者统计作品数（含没署名的）', async () => {
-    const db = seed();
-    await asDb(db).runAsync(
-      "INSERT INTO poems (id, collection, name, kind, author, title, content) VALUES (4,'tang','唐诗三百首','诗','李白','将进酒','君不见')",
-    );
-    await asDb(db).runAsync(
-      "INSERT INTO poems (id, collection, name, kind, author, title, content) VALUES (5,'tang','唐诗三百首','诗','','无题','一片两片')",
-    );
-
-    const authors = await authorsOfCollection(asDb(db), 'tang');
-    expect(authors).toHaveLength(3); // 李白 / 孟浩然 / 佚名
-    const li = authors.find((a) => a.name === '李白');
-    expect(li).toEqual({ name: '李白', nameTw: '', count: 2 });
-    expect(authors.find((a) => a.name === '')?.count).toBe(1);
-    // 别的集子的作者不掺进来
-    expect(authors.some((a) => a.name === '苏轼')).toBe(false);
-    expect(await authorsOfCollection(asDb(db), 'nope')).toEqual([]);
-  });
-
-  it('authorsOfCollection 带上繁体署名', async () => {
-    const db = seed();
-    await asDb(db).runAsync("UPDATE poems SET author_tw = '李白' WHERE author = '李白'");
-    const authors = await authorsOfCollection(asDb(db), 'tang');
-    expect(authors.find((a) => a.name === '李白')?.nameTw).toBe('李白');
   });
 
   it('poemsOfAuthor 只取这位作者在这一集里的作品，按 id 升序', async () => {

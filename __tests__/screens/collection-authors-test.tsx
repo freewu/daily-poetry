@@ -3,6 +3,7 @@ import { SectionList } from 'react-native';
 
 import CollectionAuthorsScreen from '@/app/collection/[id]/authors';
 
+import { seedStats } from '../helpers/stats';
 import { renderWithTheme, screen, seedCollections, seedPoems, useMemoryDb } from '../helpers/test-utils';
 
 const g = globalThis as any;
@@ -22,6 +23,7 @@ function seed() {
     { id: 5, collection: 'tang', title: '无题', author: '', content: '一片两片三四片' },
     { id: 6, collection: 'song', title: '水调歌头', author: '苏轼', content: '明月几时有' },
   ]);
+  seedStats(db);
   return db;
 }
 
@@ -151,6 +153,8 @@ describe('<CollectionAuthorsScreen />', () => {
     const db = seed();
     await db.runAsync("INSERT INTO meta (key, value) VALUES ('settings_script', 'tw')");
     await db.runAsync("UPDATE poems SET author_tw = '蘇軾' WHERE author = '杜甫'");
+    // 统计是随包的：改完库得重新生成一份（真机上对应 `just db`）
+    seedStats(db);
     await renderWithTheme(<CollectionAuthorsScreen />, { db });
 
     await waitFor(() => expect(screen.getByText('蘇軾')).toBeTruthy());
@@ -170,6 +174,7 @@ describe('<CollectionAuthorsScreen />', () => {
     await db.runAsync(
       "INSERT INTO collections (id, name, kind, count, daily) VALUES ('empty', '空集', '诗', 0, 0)",
     );
+    seedStats(db);
     await renderWithTheme(<CollectionAuthorsScreen />, { db });
     await waitFor(() => expect(screen.getByText('这个选集里还没有作者')).toBeTruthy());
   });

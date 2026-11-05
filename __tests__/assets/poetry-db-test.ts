@@ -14,11 +14,11 @@ import {
   poemForOccasion,
   searchPoems,
   shiftDayStr,
-  authorsOfCollection,
   poemsOfAuthor,
 } from '@/lib/db';
 import { compareLetters, groupAuthors } from '@/lib/authors';
 import { dayInfo, occasionFor } from '@/lib/lunar';
+import { statsOf } from '@/lib/stats';
 import type { Poem } from '@/lib/types';
 
 import { asDb, openDbFile, type TestDb } from '../helpers/memory-db';
@@ -254,7 +254,8 @@ describeDb('assets/poetry.db（随包数据）', () => {
   });
 
   it('作者统计：数量对得上选集，名家的首字母也对', async () => {
-    const tang = await authorsOfCollection(asDb(db), 'tangshi');
+    // 页面读的是建库时算好、随包走的 assets/stats.json（见 lib/stats.ts）
+    const tang = statsOf('tangshi')?.authors ?? [];
     const count = await db.getFirstAsync<{ n: number }>(
       "SELECT COUNT(*) n FROM poems WHERE collection = 'tangshi'",
     );
@@ -272,7 +273,7 @@ describeDb('assets/poetry.db（随包数据）', () => {
   });
 
   it('全唐诗的作者统计也扛得住（几千位作者）', async () => {
-    const all = await authorsOfCollection(asDb(db), 'quantangshi');
+    const all = statsOf('quantangshi')?.authors ?? [];
     expect(all.length).toBeGreaterThan(1000);
     // 按作品数排序找得到「杜甫」这种大户
     const top = [...all].sort((a, b) => b.count - a.count)[0];

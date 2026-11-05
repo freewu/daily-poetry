@@ -176,9 +176,10 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
   - 全宋词的词牌**就在题目里**（`ci.song.*.json` 只有 rhythmic，建库时写进了 title），
     花间集 / 南唐词的副题才是 rhythmic。所以别改成只读 `subtitle`，那会让 2 万首全宋词变哑巴。
   - 只有 `kind === '词'` 的集子出词牌页（元曲是曲牌，没做），诗集进去直说「没有词牌」。
-  - 词牌统计、分词牌取作品都是**内存**算的（整集本来就一次装载，全宋词 2.1 万首）。
-    `poemsOfCipai()`（`src/lib/db.ts`）先用 `title/subtitle LIKE '%词牌%'` 抄个超集，
-    再用 `cipaiOf()` **精确比对**删掉误伤 —— 「念奴娇」的 LIKE 超集 608 首里就有 1 首不是它。
+  - 词牌**统计**不在这里现算：建库时就算好写进随包 `assets/stats.json`（见下节「预统计」）。
+    实时算的只剩「某个词牌的作品」——`poemsOfCipai()`（`src/lib/db.ts`）先按
+    `title/subtitle LIKE '%词牌%'` 抄个超集，再用 `cipaiOf()` **精确比对**删掉误伤 ——
+    「念奴娇」的 LIKE 超集 608 首里就有 1 首不是它。
   - 排序复用 `groupAuthors()`（词牌统计的产物形状跟 `AuthorStat` 一模一样），没另写一套分组。
 - 首字母 / 排序全在 `src/lib/authors.ts`，用 `pinyin-pro` 现算（不落库、不加列、不改 schema）：
   - `pinyin(name, { surname: 'all' })` 才能把 曾 / 单 / 仇 / 查 / 乐 按姓氏读；
@@ -186,8 +187,8 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
   - 「佚名」「无名氏」「无名」「不详」在 `ANON_NAMES` 里，**统一进 `#`（其他）**，
     否则会按拼音排进 Y / W 冒充真作者；没署名（空串）同样进 `#`，显示为「佚名」。
   - 组间 A→Z 且 `#` 最后（`compareLetters`）；**组内先比作品数（降序）**，同数再按全拼、
-    再按名字；空串 sortKey 用 `\uffff` 垫底。作品数是这本集子里的收录数
-    （`COUNT(*) GROUP BY author`），不是诗人一生的总量。
+    再按名字；空串 sortKey 用 `\uffff` 垫底。作品数是这本集子里的收录数（建库时
+    `COUNT(*) GROUP BY author` 算好写进 `assets/stats.json`），不是诗人一生的总量。
 - 字母条 `src/components/letter-rail.tsx` 贴在**右侧**（拇指够得着、也不压名字），
   只渲染**实际存在**的字母（分组就是字母表），
   `SectionList` 的 `onViewableItemsChanged` 用 `useCallback([])`（RN 要求常量引用，
@@ -202,6 +203,23 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
   （`ROW_PAD + 行高(字号×1.4)`、`HEAD_H = 26`），列表头部高度靠 `onLayout` 量一次当起点；
   于是 `scrollToLocation` 一次到位，`onScrollToIndexFailed` / 粗滚重试那套全删掉了。
   **改行高必须同时改 `getItemLayout` 的口径**，否则跳转就会歪（`sectionsHeight()` 是它的总和）。
+- **预统计走 JSON，页面不跑运行时 SQL**（`assets/stats.json`，约 280KB / gzip 65KB，**产物入库**）：
+  - 生成 `scripts/build-stats.mjs`：`just db` / `db-full` 建完库顺带跑；只校验不写盘加 `--check`
+    （`just dbcheck`，`just check` 也调它）。算的就是两条 —— `GROUP BY author`（带
+    `MAX(author_tw)`）和拿 `cipaiOf()` 过一遍整集（这就是以前页面里那件「把 2.1 万首正文全读进内存」的事）。
+  - 形状 `{ version, collections: { [id]: { total, authors: [{name,nameTw?,count}], cipai: [...] } } }`；
+    `nameTw` 跟 `name` 一样就**省略**（省几百 KB 的重复）；`version` 对应 `src/lib/stats.ts` 的
+    `STATS_VERSION`。`total` 是集子总首数，**作者 count 之和未必等于它**（没署名的诗算 `''` 这位作者）。
+    只有 `kind === '词'` 的集子算词牌，其余 `cipai: []`。
+  - **建库脚本是 .mjs，只能把 `src/lib/cipai.ts` 的两条规则（`VOLUME` / `·` / `・`）照抄一份**，
+    改词牌规则**必须两处一起改**；`__tests__/assets/stats-test.ts` 会用 TS 那边现算一遍对拍，
+    漏改一条就红（它还校验集子不多不少、`total` 对得上、作者跟 `GROUP BY` 一致）。
+  - 页面侧 `statsOf(coll)`（`src/lib/stats.ts`）**同步**返回，不用 `await`；
+    `collection/[id]/cipai/index.tsx` 因此不再 `poemsOfCollection` 整集装载。
+    `authorsOfCollection()` 已删除 —— 要作者统计就 `statsOf()`。
+  - 组件测试：内存库里造的数据不可能出现在随包 JSON 里，用 `__tests__/helpers/stats.ts` 的
+    `seedStats(db)` 按内存库现算一份塞进 `setStatsForTest()`；**改过库（例如 `UPDATE ... author_tw`）
+    要再调一次**，否则页面读到的是改之前的。
 - 统计页的量：全唐诗 3650 位作者（`quantangshi`）、全宋词 884 个词牌（最多的是浣溪沙 817 首），
   唐诗三百首 75 位，诗经 305 首全是「佚名」→ 只有一个「其他」分组。
   作者作品数之和必须等于集子总首数（测试盯着这条）。

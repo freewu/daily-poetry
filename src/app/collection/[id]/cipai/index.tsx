@@ -7,10 +7,11 @@ import { BarLink, useBackOr } from '@/components/bar-link';
 import { IndexedList } from '@/components/indexed-list';
 import { ScreenBar } from '@/components/screen-bar';
 import { groupAuthors, type AuthorSection } from '@/lib/authors';
-import { countCipai, isCiKind } from '@/lib/cipai';
-import { getCollection, poemsOfCollection } from '@/lib/db';
+import { isCiKind, type CipaiStat } from '@/lib/cipai';
+import { getCollection } from '@/lib/db';
 import { localizeCollection } from '@/lib/script';
-import type { CollectionMeta, Poem } from '@/lib/types';
+import { statsOf } from '@/lib/stats';
+import type { CollectionMeta } from '@/lib/types';
 import { useScript } from '@/script';
 import { useTheme } from '@/theme';
 
@@ -19,7 +20,8 @@ import { useTheme } from '@/theme';
  * 首字母分组、右侧 A–Z 直达、每组里作品多的在前，点词牌进该词牌的全部作品。
  *
  * 词牌不是库里的列，是从题目 / 副题现算的（`src/lib/cipai.ts`），
- * 所以这里要先把这个集子的诗词全读一遍；分组的排序完全复用 `groupAuthors()`。
+ * 但那是建库时的事（`scripts/build-stats.mjs`）—— 这里读的是算好的 `assets/stats.json`，
+ * 不用再把这个集子的两万首正文整份读进内存。分组排序复用 `groupAuthors()`。
  */
 export default function CollectionCipaiScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -29,7 +31,8 @@ export default function CollectionCipaiScreen() {
   const router = useRouter();
 
   const [meta, setMeta] = useState<CollectionMeta | null>(null);
-  const [poems, setPoems] = useState<Poem[]>([]);
+  const [stats, setStats] = useState<CipaiStat[]>([]);
+  const [total, setTotal] = useState(0);
   const [missing, setMissing] = useState(() => !id);
 
   useEffect(() => {
@@ -43,9 +46,10 @@ export default function CollectionCipaiScreen() {
           return;
         }
         setMeta(m);
-        poemsOfCollection(db, coll)
-          .then((ps) => alive && setPoems(ps))
-          .catch(() => {});
+        // 元曲是曲牌、诗根本没有词牌，这两类拿到的永远是空数组
+        const stats = statsOf(coll);
+        setStats(isCiKind(m.kind) ? (stats?.cipai ?? []) : []);
+        setTotal(stats?.total ?? 0);
       })
       .catch(() => {});
     return () => {
@@ -54,9 +58,7 @@ export default function CollectionCipaiScreen() {
   }, [db, id]);
 
   const coll = meta ? localizeCollection(meta, script) : null;
-  // 元曲是曲牌，诗根本没有词牌，这两类进来直说没有
   const isCi = meta ? isCiKind(meta.kind) : false;
-  const stats = useMemo(() => (isCi ? countCipai(poems) : []), [isCi, poems]);
   const sections: AuthorSection[] = useMemo(() => groupAuthors(stats), [stats]);
 
   const backToPoems = useBackOr(() =>
@@ -74,7 +76,7 @@ export default function CollectionCipaiScreen() {
       ) : (
         <IndexedList
           listTestID="cipai-list"
-          summary={`${stats.length} 个词牌 · 共 ${poems.length} 首`}
+          summary={`${stats.length} 个词牌 · 共 ${total} 首`}
           sections={sections}
           labelOf={(row) => (script === 'tw' ? (row.nameTw ?? row.name) : row.name)}
           testIDOf={(row) => `cipai-${row.name}`}

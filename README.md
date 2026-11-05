@@ -32,9 +32,11 @@
   点进去只看这位作者 / 这个词牌的作品（全唐诗 3650 位作者、全宋词 884 个词牌）。
   作者首字母用 `pinyin-pro` 按姓氏读音算（曾 / 单 / 仇 / 查 / 乐 不会被排错），
   「佚名」「无名氏」这类假作者统一进「其他」，不按拼音挤进 Y / W。
-  词牌库里没有这一列，是从题目 / 副题现算的：全宋词的词牌就在题目里，
+  词牌库里没有这一列，是从题目 / 副题现推的：全宋词的词牌就在题目里，
   花间集 / 南唐词 / 纳兰的副题才是词牌；「别名・正名」的写法也认得出来
   （『酹江月・念奴娇』算念奴娇）。
+  **两张统计表都是建库时算好、随包走的 JSON**（`assets/stats.json`），
+  页面打开即渲染，不跑 `GROUP BY`，也不用为了数词牌把两万首正文读进内存。
 - **收藏 / 复制**：喜欢就点亮红心，一键复制全文（含出处落款）。
 - **离线优先**：全部语料打进一个 SQLite 数据库随应用发布（`.db` asset），无需联网。
 - **简繁切换**：每首诗同时收录简体与繁體两套正文（设置 → 正文字体），繁体保留语料原文，
@@ -79,16 +81,19 @@
 ```
 assets/               应用图标 / 启动图 / 底栏图标（由脚本生成）
   poetry.db           SQLite 诗词库（构建产物，不入库）
+  stats.json          每部集子的作者 / 词牌预统计（入库，随 db 一起重新生成）
 scripts/
   fetch-corpus.sh     下载 chinese-poetry 语料（sparse + blob:none）
   build-db.mjs        语料 → poetry.db（适配各 JSON 结构、简繁转换、索引）
+  build-stats.mjs     poetry.db → stats.json（预统计：每部集子的作者 / 词牌）
   make-assets.py      logo.png → 图标 / 启动图（抠纸底、留印泥）+ 底栏图标
 src/
   app/                expo-router 路由（(tabs) + poem/[id] + collection/[id]/{全部诗词,作者统计,词牌统计} +
                       author/[name] + challenge/{选题源,对局}）
   components/         诗卡 / 诗文渲染 / 列表行 / 顶栏 / 操作栏 / 首字母索引表
   lib/                db.ts（查询）· daily.ts（每日挑选 / 作者冷却）· authors.ts（首字母分组）·
-                      cipai.ts（词牌）· challenge.ts（出题 / 评级 / 战绩）· format.ts · types.ts
+                      cipai.ts（词牌）· stats.ts（读随包预统计）· challenge.ts（出题 / 评级 / 战绩）·
+                      format.ts · types.ts
   theme.tsx           纸墨双主题（浅色 / 深色 / 跟随系统）
 __tests__/            Jest 单元 / 组件测试（纯 Node，无需模拟器）
 .maestro/             Maestro E2E 流程（真机 / 模拟器）
@@ -134,7 +139,7 @@ just start
 just envcheck # 先看 node / npm / python3 / node:sqlite 是否就绪
 just deps     # npm install
 just data     # 下载主体语料（约 65MB，sparse clone + 按需取全唐诗）
-just db       # 构建 assets/poetry.db（约 9.1 万首，简繁双写，约 58MB）
+just db       # 构建 assets/poetry.db（约 9.1 万首，简繁双写，约 58MB）+ assets/stats.json
 just assets   # 重新生成图标（换 logo.png 之后跑一遍）
 
 just db-full  # 再加古文观止 / 幽梦影 / 论语 / 四书 / 蒙学等（约 9.2 万首）
@@ -145,8 +150,8 @@ just db-full  # 再加古文观止 / 幽梦影 / 论语 / 四书 / 蒙学等（�
 | 配方 | 说明 |
 | --- | --- |
 | `just data` / `data-full` | 下载语料（sparse clone；全唐诗按需取唐诗部分） |
-| `just db` / `db-full` | 构建 `assets/poetry.db`（简繁双写） |
-| `just dbcheck` | 只校验已有数据库 |
+| `just db` / `db-full` | 构建 `assets/poetry.db`（简繁双写）+ 预统计 `assets/stats.json` |
+| `just dbcheck` | 只校验已有数据库与预统计是否最新 |
 | `just check` | DB 校验 + `tsc` 类型检查 + `expo lint` + `jest` |
 | `just test [模式]` | 单元 / 组件测试，如 `just test 农历` |
 | `just test-cov` | 覆盖率报告（`coverage/`） |
