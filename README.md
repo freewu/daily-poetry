@@ -144,7 +144,7 @@ just start
 手动分步：
 
 ```bash
-just          # 裸跑不带参数 = 列出全部命令（默认目标，不再是 init）
+just          # 裸跑不带参数 = 按功能分类列出全部命令（默认目标，不再是 init）
 just envcheck # 先看 node / npm / python3 / node:sqlite 是否就绪
 just deps     # npm install
 just data     # 下载主体语料（约 65MB，sparse clone + 按需取全唐诗）+ 抓乐府诗集 / 宋词三百首
