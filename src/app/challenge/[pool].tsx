@@ -2,7 +2,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Animated,
+  Easing,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import { useBackOr } from '@/components/bar-link';
 import { ScreenBar } from '@/components/screen-bar';
@@ -202,19 +210,28 @@ function ChallengeRound({
         <ScreenBar title={poolName || '诗词挑战'} onBack={back} />
         <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
           <View style={styles.resultHead}>
-            <Text testID="challenge-score" style={[styles.score, { color: colors.text }]}>
-              {correct}
-              <Text style={{ color: colors.faint, fontSize: 26 }}> / {total}</Text>
-            </Text>
-            <Text
-              testID="challenge-rank"
-              style={[styles.rank, { color: rank.key === 'fail' ? colors.sub : colors.accent }]}>
-              {rank.label}
-            </Text>
-            <Text style={[styles.rankHint, { color: colors.faint }]}>{rank.hint}</Text>
-            <Text testID="challenge-stats" style={[styles.stats, { color: colors.sub }]}>
-              {poolName} · 用时 {formatDuration(ms)}
-            </Text>
+            {/* 分数弹一下，评级 / 提示依次浮上来 —— 结果页就这几行，动效别叠太满 */}
+            <Pop>
+              <Text testID="challenge-score" style={[styles.score, { color: colors.text }]}>
+                {correct}
+                <Text style={{ color: colors.faint, fontSize: 26 }}> / {total}</Text>
+              </Text>
+            </Pop>
+            <Rise delay={120}>
+              <Text
+                testID="challenge-rank"
+                style={[styles.rank, { color: rank.key === 'fail' ? colors.sub : colors.accent }]}>
+                {rank.label}
+              </Text>
+            </Rise>
+            <Rise delay={240}>
+              <Text style={[styles.rankHint, { color: colors.faint }]}>{rank.hint}</Text>
+            </Rise>
+            <Rise delay={340}>
+              <Text testID="challenge-stats" style={[styles.stats, { color: colors.sub }]}>
+                {poolName} · 用时 {formatDuration(ms)}
+              </Text>
+            </Rise>
           </View>
 
           {wrong.length ? (
@@ -243,9 +260,11 @@ function ChallengeRound({
               ))}
             </>
           ) : (
-            <Text testID="challenge-perfect" style={[styles.perfect, { color: colors.accent }]}>
-              全对，一首没错。
-            </Text>
+            <Rise delay={460}>
+              <Text testID="challenge-perfect" style={[styles.perfect, { color: colors.accent }]}>
+                全对，一首没错。
+              </Text>
+            </Rise>
           )}
         </ScrollView>
         <View style={styles.resultActions}>
@@ -383,6 +402,70 @@ function ChallengeRound({
         </Pressable>
       </View>
     </View>
+  );
+}
+
+/**
+ * 结果页入场：淡入 + 从下往上浮一点点。
+ * `delay` 用来错开几行，读起来像被依次放下（不是整块闪出来）。
+ */
+function Rise({ delay = 0, children }: { delay?: number; children: React.ReactNode }) {
+  // `useState` 惰性初始化而不是 `useRef(...).current`：后者读 ref 发生在渲染期，
+  // 会被 `react-hooks/refs` 判错（这个仓库的 lint 是 error 级）
+  const [t] = useState(() => new Animated.Value(0));
+  useEffect(() => {
+    const anim = Animated.timing(t, {
+      toValue: 1,
+      duration: 420,
+      delay,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    });
+    anim.start();
+    return () => anim.stop();
+  }, [t, delay]);
+  return (
+    <Animated.View
+      style={{
+        opacity: t,
+        transform: [{ translateY: t.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
+      }}>
+      {children}
+    </Animated.View>
+  );
+}
+
+/** 大分数的那一下「弹」：略微放大 + 过冲（spring），比纯淡入有“落定”的感觉 */
+function Pop({ children }: { children: React.ReactNode }) {
+  const [t] = useState(() => new Animated.Value(0));
+  useEffect(() => {
+    const anim = Animated.spring(t, {
+      toValue: 1,
+      damping: 11,
+      stiffness: 150,
+      mass: 0.6,
+      useNativeDriver: true,
+    });
+    anim.start();
+    return () => anim.stop();
+  }, [t]);
+  return (
+    <Animated.View
+      style={{
+        // spring 会过冲到 1 以上，opacity / scale 都夹住，免得闪一下白
+        opacity: t.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' }),
+        transform: [
+          {
+            scale: t.interpolate({
+              inputRange: [0, 1],
+              outputRange: [0.82, 1],
+              extrapolate: 'clamp',
+            }),
+          },
+        ],
+      }}>
+      {children}
+    </Animated.View>
   );
 }
 

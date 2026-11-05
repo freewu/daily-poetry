@@ -94,18 +94,6 @@ export default function ChallengeSetupScreen() {
             从所选来源里抽几首，挖掉其中一句，
             {'\n'}四选一补全。答错不扣分，答完即出结果。
           </Text>
-          <View style={styles.ranks}>
-            {[
-              { label: '及格', at: '6 / 10', color: colors.sub },
-              { label: '优秀', at: '8 / 10', color: colors.accent },
-              { label: '诗仙下凡', at: '10 / 10', color: colors.accent },
-            ].map((r) => (
-              <View key={r.label} style={styles.rankItem}>
-                <Text style={[styles.rankLabel, { color: r.color }]}>{r.label}</Text>
-                <Text style={[styles.rankAt, { color: colors.faint }]}>{r.at}</Text>
-              </View>
-            ))}
-          </View>
         </View>
 
         <Text style={[styles.section, { color: colors.sub }]}>题目来源</Text>
@@ -219,10 +207,6 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontSize: 16, fontWeight: '700', letterSpacing: 1 },
   cardBody: { fontSize: 13, lineHeight: 21, marginTop: 8 },
-  ranks: { flexDirection: 'row', marginTop: 14, gap: 18 },
-  rankItem: { alignItems: 'flex-start' },
-  rankLabel: { fontSize: 13, fontWeight: '700' },
-  rankAt: { fontSize: 11, marginTop: 3 },
   section: { fontSize: 12, fontWeight: '600', letterSpacing: 1, marginTop: 22, marginBottom: 8, marginHorizontal: 18 },
   row: {
     marginHorizontal: 16,

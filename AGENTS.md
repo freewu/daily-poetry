@@ -265,7 +265,14 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
 - 池子不足十首时不报错，**一首诗出多题**（每遍重新洗牌挑另一句，遍数给到 `size + 2`），
   实在凑不满就返回少几题，页面照样能玩。
 - 评级 `rankOf()`：6 及格 / 8 优秀 / 10 诗仙下凡（`PASS_RATE` / `GOOD_RATE`），
-  题数不是十题按比例算，全对永远是「诗仙下凡」，`total <= 0` 算不及格。
+  题数不是十题按比例算，全对永远是「诗仙下凡」，`total <= 0` 落到 `fail`。
+- **分数线只活在代码里，不上 UI**：入口页不再列「6 / 10 及格、8 / 10 优秀」，
+  结果页 low 分只给「加油」（`RANKS.fail.label`），`RANKS[*].hint` 里也**不许出现题数**
+  （`challenge-test` 有一条正则盯着）。要加档位就改这里，别把门槛抄回页面。
+- 结果页入场动效在 `[pool].tsx` 内部两个小组件：`Pop`（分数 spring 弹一下）、
+  `Rise`（`delay` 错开的淡入 + 上浮，评级 120 / 提示 240 / 用时 340 / 全对 460）。
+  都用 `useNativeDriver: true` + `clamp`（spring 会过冲，opacity 超出 1 会闪白）。
+  加新行就再包一层 `Rise`，别在 `resultHead` 外面套 ScrollView 动画。
 - 战绩（用时 / 答对数 / 参与时间 / 来源）存 `meta` KV 的 `challenge_log`，**不建表**，
   所以这次没动 `SCHEMA_VERSION`；只留最近 `CHALLENGE_LOG_MAX = 20` 局，新的排最前。
   `challenge_log` 已进 `src/lib/db-bootstrap.ts` 的 `KEPT_SETTINGS`（换库不清战绩）。

@@ -9,6 +9,7 @@ import {
   parseLog,
   pushRecord,
   rankOf,
+  RANKS,
   summarize,
   type ChallengeRecord,
 } from '@/lib/challenge';
@@ -148,7 +149,7 @@ describe('buildChallenge', () => {
   });
 });
 
-describe('rankOf：6 及格 / 8 优秀 / 10 诗仙下凡', () => {
+describe('rankOf：门槛在代码里（6 及格 / 8 优秀 / 10 诗仙下凡）', () => {
   const keys = [0, 3, 5, 6, 7, 8, 9, 10].map((n) => rankOf(n, 10).key);
   it('十题制分档', () => {
     expect(keys).toEqual(['fail', 'fail', 'fail', 'pass', 'pass', 'good', 'good', 'immortal']);
@@ -165,6 +166,21 @@ describe('rankOf：6 及格 / 8 优秀 / 10 诗仙下凡', () => {
     expect(rankOf(6, 10).label).toBe('及格');
     expect(rankOf(8, 10).label).toBe('优秀');
     expect(rankOf(10, 10).label).toBe('诗仙下凡');
+  });
+
+  it('不到五题就只给一句「加油」（不写「不及格」也不写分数线）', () => {
+    for (const n of [0, 1, 2, 3, 4]) {
+      expect(rankOf(n, 10).label).toBe('加油');
+    }
+    // 5 / 10 也没到及格线，同样是「加油」
+    expect(rankOf(5, 10).label).toBe('加油');
+  });
+
+  it('提示语里不出现题数 —— 分数线不上 UI，别从 hint 漏出去', () => {
+    for (const key of ['fail', 'pass', 'good', 'immortal'] as const) {
+      expect(RANKS[key].hint).not.toMatch(/[0-9一二三四五六七八九十]\s*题/);
+      expect(RANKS[key].hint).not.toContain('/');
+    }
   });
 });
 

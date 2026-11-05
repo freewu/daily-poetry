@@ -22,7 +22,13 @@ export const CHALLENGE_MIN_POOL = 4;
 /** 题干里的空位（固定四个全角下划线，不透露答案长短） */
 export const BLANK = '＿＿＿＿';
 
-/** 及格 / 优秀的正确率（十题制即 6 题 / 8 题） */
+/**
+ * 及格 / 优秀的正确率（十题制即 6 题 / 8 题）。
+ *
+ * 门槛只在代码里：页面**不显示**这几档的分数线，低分一律只给一句「加油」——
+ * 说清「几题算及格」等于把规则摆到玩家脸上，玩起来像考试。
+ * 所以 `RANKS[*].hint` 里也别写题数（`challenge-test` 盯着这条）。
+ */
 export const PASS_RATE = 0.6;
 export const GOOD_RATE = 0.8;
 
@@ -30,15 +36,17 @@ export type RankKey = 'fail' | 'pass' | 'good' | 'immortal';
 
 export interface Rank {
   key: RankKey;
+  /** 结果页的大字 */
   label: string;
+  /** 结果页的小字 */
   hint: string;
 }
 
 export const RANKS: Record<RankKey, Rank> = {
-  fail: { key: 'fail', label: '不及格', hint: '六题及格，再读几首' },
+  fail: { key: 'fail', label: '加油', hint: '多读几首，下一局再来' },
   pass: { key: 'pass', label: '及格', hint: '腹中已有几分诗书' },
-  good: { key: 'good', label: '优秀', hint: '八题在握，可称才子' },
-  immortal: { key: 'immortal', label: '诗仙下凡', hint: '十题全中，谪仙人也' },
+  good: { key: 'good', label: '优秀', hint: '只差一两句，可称才子' },
+  immortal: { key: 'immortal', label: '诗仙下凡', hint: '谪仙人也，一气呵成' },
 };
 
 export interface ChallengeQuestion {
@@ -211,7 +219,7 @@ export function buildChallenge(
   return out;
 }
 
-/** 评级：十题制就是 6 及格 / 8 优秀 / 10 诗仙下凡，题数不同按比例走 */
+/** 评级：题数不同按比例走（阈值见 `PASS_RATE` / `GOOD_RATE`，UI 上不展示） */
 export function rankOf(correct: number, total: number): Rank {
   if (total <= 0) return RANKS.fail;
   if (correct >= total) return RANKS.immortal;

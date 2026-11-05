@@ -43,6 +43,13 @@ describe('<ChallengeSetupScreen />（选题源 + 战绩）', () => {
     expect(screen.getByText('选一个来源')).toBeTruthy();
   });
 
+  it('不把及格 / 优秀的分数线摆在页面上', async () => {
+    await renderWithTheme(<ChallengeSetupScreen />, { db: seed(4) });
+    await waitFor(() => expect(screen.getByText('十题填空')).toBeTruthy());
+    expect(screen.queryByText(/6\s*\/\s*10|8\s*\/\s*10/)).toBeNull();
+    expect(screen.queryByText('诗仙下凡')).toBeNull();
+  });
+
   it('收藏够四首就默认选收藏，按钮可以开局', async () => {
     const db = seed(3);
     seedFavorites(db, []);

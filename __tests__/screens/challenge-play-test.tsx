@@ -121,7 +121,7 @@ describe('<ChallengePlayScreen />（出题 → 作答 → 结果）', () => {
     expect((await challengeLog(asDb(db)))[0].correct).toBe(8);
   });
 
-  it('一题不对：不及格，错题回顾列满十题', async () => {
+  it('一题不对：只提示「加油」（不显示及格线），错题回顾列满十题', async () => {
     const db = seed();
     const qs = await expected(db);
     g.__ROUTE_PARAMS__ = { pool: 'tang', seed: String(SEED) };
@@ -131,7 +131,9 @@ describe('<ChallengePlayScreen />（出题 → 作答 → 结果）', () => {
     await answerAll(qs.map((q) => (q.answerIndex + 1) % q.options.length));
 
     expect(screen.getByTestId('challenge-score').props.children[0]).toBe(0);
-    expect(screen.getByText('不及格')).toBeTruthy();
+    expect(screen.getByText('加油')).toBeTruthy();
+    // 规则不上 UI：结果页也不写「几题及格」
+    expect(screen.queryByText(/及格/)).toBeNull();
     expect(screen.getAllByTestId('challenge-wrong')).toHaveLength(10);
     await waitFor(async () => expect((await challengeLog(asDb(db)))[0].correct).toBe(0));
   });
