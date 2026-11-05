@@ -88,12 +88,7 @@ describe('<ChallengeSetupScreen />（选题源 + 战绩）', () => {
     });
   });
 
-  it('没打过就说没打过', async () => {
-    await renderWithTheme(<ChallengeSetupScreen />, { db: seed(0) });
-    await waitFor(() => expect(screen.getByTestId('challenge-log-empty')).toBeTruthy());
-  });
-
-  it('打过就显示局数 / 最佳 / 平均，以及最近几局的时间与用时', async () => {
+  it('战绩挪到右上角：入口上带局数，页面上不再摊开明细', async () => {
     const db = seed(0);
     await saveChallengeRecord(asDb(db), {
       at: new Date(2026, 10, 5, 14, 32).toISOString(),
@@ -105,11 +100,18 @@ describe('<ChallengeSetupScreen />（选题源 + 战绩）', () => {
     });
     await renderWithTheme(<ChallengeSetupScreen />, { db });
 
-    await waitFor(() => expect(screen.getByTestId('challenge-log-row')).toBeTruthy());
-    const row = within(screen.getByTestId('challenge-log-row'));
-    expect(row.getByTestId('challenge-log-score').props.children.join('')).toBe('8/10');
-    expect(row.getByText('唐诗三百首')).toBeTruthy();
-    expect(row.getByText('11月5日 14:32 · 用时 1 分 35 秒')).toBeTruthy();
-    expect(within(screen.getByTestId('challenge-summary')).getByText('平均答对')).toBeTruthy();
+    await waitFor(() => expect(screen.getByText('战绩 1')).toBeTruthy());
+    // 明细在 challenge/log.tsx，这里只有入口
+    expect(screen.queryByTestId('challenge-log-row')).toBeNull();
+    expect(screen.queryByTestId('challenge-summary')).toBeNull();
+
+    await fireEvent.press(screen.getByTestId('challenge-log-entry'));
+    expect(g.__ROUTER__.push).toHaveBeenCalledWith('/challenge/log');
+  });
+
+  it('没打过时入口只写「战绩」，不带 0', async () => {
+    await renderWithTheme(<ChallengeSetupScreen />, { db: seed(0) });
+    await waitFor(() => expect(screen.getByText('战绩')).toBeTruthy());
+    expect(screen.queryByText('战绩 0')).toBeNull();
   });
 });

@@ -248,10 +248,12 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
 
 # 诗词挑战（填空十题）
 
-- 入口在收藏页标题右边那块（`testID="challenge-entry"`）→ `src/app/challenge/index.tsx`（选题源 + 战绩）
-  → `src/app/challenge/[pool].tsx`（对局）。`pool` 是 `favorites` 或集子 id，可带 `?seed=` 复现某局；
-  两个新路由都得在 `_layout.tsx` 里 `Stack.Screen`。选题源名「我的收藏」来自常量
-  `CHALLENGE_FAVORITES = 'favorites'`（`src/lib/db.ts`）。
+- 入口在收藏页标题右边那块（`testID="challenge-entry"`）→ `src/app/challenge/index.tsx`（选题源）
+  → `src/app/challenge/[pool].tsx`（对局）；战绩在 `src/app/challenge/log.tsx`
+  （入口页**右上角** `challenge-log-entry`，只显示「战绩 N」徽标，明细全在这页）。
+  `pool` 是 `favorites` 或集子 id，可带 `?seed=` 复现某局；
+  **三个路由都得在 `_layout.tsx` 里 `Stack.Screen`**（`challenge/index` / `challenge/[pool]` / `challenge/log`）。
+  选题源名「我的收藏」来自常量 `CHALLENGE_FAVORITES = 'favorites'`（`src/lib/db.ts`）。
 - 出题全在 `src/lib/challenge.ts`（纯函数，可单测）：抽诗 → 按行断句 → 挑一句挖成 `BLANK` → 配三个干扰项。
   种子走 `src/lib/random.ts` 的 `rng()`，**同一天同一来源出同一份题**，重开一局才换种子。
   挖空只从 `content`（简体正文）派生，要繁体就让调用方先 `localizePoem()` 再传进来。
@@ -273,7 +275,8 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
   `Rise`（`delay` 错开的淡入 + 上浮，评级 120 / 提示 240 / 用时 340 / 全对 460）。
   都用 `useNativeDriver: true` + `clamp`（spring 会过冲，opacity 超出 1 会闪白）。
   加新行就再包一层 `Rise`，别在 `resultHead` 外面套 ScrollView 动画。
-- 战绩（用时 / 答对数 / 参与时间 / 来源）存 `meta` KV 的 `challenge_log`，**不建表**，
+- 战绩（用时 / 答对数 / 参与时间 / 来源）存 `meta` KV 的 `challenge_log`，**不建表**；
+  入口页只查「有几局」（给右上角徽标），明细页 `challenge/log.tsx` 才整份读，用它自己的 `useFocusEffect`；
   所以这次没动 `SCHEMA_VERSION`；只留最近 `CHALLENGE_LOG_MAX = 20` 局，新的排最前。
   `challenge_log` 已进 `src/lib/db-bootstrap.ts` 的 `KEPT_SETTINGS`（换库不清战绩）。
   将来要按月统计之类再建表，那时才需要升 schema。

@@ -49,6 +49,7 @@ function RootNavigator() {
         <Stack.Screen name="card/[id]" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="challenge/index" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="challenge/[pool]" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="challenge/log" options={{ animation: 'slide_from_right' }} />
       </Stack>
     </>
   );

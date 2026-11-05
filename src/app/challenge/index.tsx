@@ -6,14 +6,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ScreenBar } from '@/components/screen-bar';
-import {
-  CHALLENGE_MIN_POOL,
-  CHALLENGE_SIZE,
-  formatDuration,
-  formatStamp,
-  summarize,
-  type ChallengeRecord,
-} from '@/lib/challenge';
+import { CHALLENGE_MIN_POOL, CHALLENGE_SIZE } from '@/lib/challenge';
 import {
   CHALLENGE_FAVORITES,
   favoriteCount,
@@ -32,12 +25,10 @@ interface PoolOpt {
   count: number;
 }
 
-/** 战绩里显示的最近几局 */
-const RECENT = 5;
-
 /**
- * 挑战入口页：挑一个来源（收藏 / 某个集子）就能开局。
- * 出题、判分、计时的活都在 `lib/challenge.ts` 与 `challenge/[pool].tsx` 里。
+ * 挑战入口页：挑一个来源（收藏 / 某个集子）就能开局，右上角进战绩。
+ * 出题、判分、计时的活都在 `lib/challenge.ts` 与 `challenge/[pool].tsx` 里，
+ * 战绩明细在 `challenge/log.tsx`。
  */
 export default function ChallengeSetupScreen() {
   const db = useSQLiteContext();
@@ -47,7 +38,8 @@ export default function ChallengeSetupScreen() {
   const insets = useSafeAreaInsets();
 
   const [pools, setPools] = useState<PoolOpt[] | null>(null);
-  const [log, setLog] = useState<ChallengeRecord[]>([]);
+  // 右上角「战绩 N」只关心有几局，明细在 challenge/log.tsx
+  const [games, setGames] = useState<number | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
 
   useFocusEffect(
@@ -56,6 +48,7 @@ export default function ChallengeSetupScreen() {
       Promise.all([listCollections(db), favoriteCount(db), challengeLog(db)])
         .then(([colls, favs, records]) => {
           if (!alive) return;
+          setGames(records.length);
           const opts = [
             { id: CHALLENGE_FAVORITES, name: '我的收藏', kind: '收藏', count: favs },
             ...colls
@@ -63,7 +56,6 @@ export default function ChallengeSetupScreen() {
               .map((c) => ({ id: c.id, name: c.name, kind: c.kind, count: c.count })),
           ];
           setPools(opts);
-          setLog(records);
           // 默认选第一个够出题的来源：收藏够就用收藏，否则退回第一个集子
           setPicked((prev) => prev ?? opts.find((p) => p.count >= CHALLENGE_MIN_POOL)?.id ?? null);
         })
@@ -77,7 +69,6 @@ export default function ChallengeSetupScreen() {
   const list = pools ?? [];
   const pool = list.find((p) => p.id === picked) ?? null;
   const enough = !!pool && pool.count >= CHALLENGE_MIN_POOL;
-  const stat = summarize(log);
 
   const start = () => {
     if (!pool || !enough) return;
@@ -86,7 +77,26 @@ export default function ChallengeSetupScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <ScreenBar title="诗词挑战" />
+      <ScreenBar
+        title="诗词挑战"
+        right={
+          <Pressable
+            testID="challenge-log-entry"
+            accessibilityRole="button"
+            accessibilityLabel="战绩"
+            hitSlop={8}
+            onPress={() => router.push('/challenge/log')}
+            style={({ pressed }) => [
+              styles.logBtn,
+              { borderColor: colors.line, opacity: pressed ? 0.6 : 1 },
+            ]}>
+            <Ionicons name="stats-chart" size={13} color={colors.sub} />
+            <Text style={[styles.logBtnText, { color: colors.sub }]}>
+              {games ? `战绩 ${games}` : '战绩'}
+            </Text>
+          </Pressable>
+        }
+      />
       <ScrollView contentContainerStyle={{ paddingBottom: 110 + insets.bottom }}>
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.line }]}>
           <Text style={[styles.cardTitle, { color: colors.text }]}>十题填空</Text>
@@ -129,45 +139,6 @@ export default function ChallengeSetupScreen() {
             </Pressable>
           );
         })}
-
-        <Text style={[styles.section, { color: colors.sub }]}>战绩</Text>
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.line }]}>
-          {stat.games === 0 ? (
-            <Text testID="challenge-log-empty" style={[styles.empty, { color: colors.faint }]}>
-              还没打过。开局后这里记下用时、答对几题和参与时间。
-            </Text>
-          ) : (
-            <>
-              <View testID="challenge-summary" style={styles.summary}>
-                <Text style={[styles.summaryMain, { color: colors.text }]}>{stat.games}</Text>
-                <Text style={[styles.summaryLabel, { color: colors.sub }]}>局</Text>
-                <View style={[styles.dot, { backgroundColor: colors.line }]} />
-                <Text style={[styles.summaryMain, { color: colors.accent }]}>
-                  {stat.best?.correct ?? 0}/{stat.best?.total ?? CHALLENGE_SIZE}
-                </Text>
-                <Text style={[styles.summaryLabel, { color: colors.sub }]}>最佳</Text>
-                <View style={[styles.dot, { backgroundColor: colors.line }]} />
-                <Text style={[styles.summaryMain, { color: colors.text }]}>{stat.avgCorrect}</Text>
-                <Text style={[styles.summaryLabel, { color: colors.sub }]}>平均答对</Text>
-              </View>
-              {log.slice(0, RECENT).map((r, i) => (
-                <View key={`${r.at}-${i}`} testID="challenge-log-row" style={[styles.logRow, { borderTopColor: colors.line }]}>
-                  <Text testID="challenge-log-score" style={[styles.logScore, { color: colors.text }]}>
-                    {r.correct}/{r.total}
-                  </Text>
-                  <View style={{ flex: 1 }}>
-                    <Text numberOfLines={1} style={[styles.logPool, { color: colors.sub }]}>
-                      {r.poolName}
-                    </Text>
-                    <Text style={[styles.logAt, { color: colors.faint }]}>
-                      {formatStamp(r.at)} · 用时 {formatDuration(r.ms)}
-                    </Text>
-                  </View>
-                </View>
-              ))}
-            </>
-          )}
-        </View>
       </ScrollView>
 
       <View
@@ -221,15 +192,17 @@ const styles = StyleSheet.create({
   },
   rowName: { fontSize: 15, fontWeight: '600' },
   rowSub: { fontSize: 11, marginTop: 4 },
-  empty: { fontSize: 13, lineHeight: 21 },
-  summary: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
-  summaryMain: { fontSize: 20, fontWeight: '800' },
-  summaryLabel: { fontSize: 11, marginRight: 6 },
-  dot: { width: 1, height: 14, marginHorizontal: 6, alignSelf: 'center' },
-  logRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, marginTop: 10 },
-  logScore: { fontSize: 15, fontWeight: '700', minWidth: 42 },
-  logPool: { fontSize: 13 },
-  logAt: { fontSize: 11, marginTop: 3 },
+  // 顶栏右上角：战绩入口（带局数徽标）
+  logBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    height: 30,
+    paddingHorizontal: 10,
+    borderRadius: 15,
+    borderWidth: 1,
+  },
+  logBtnText: { fontSize: 12, fontWeight: '600', letterSpacing: 0.5 },
   footer: {
     position: 'absolute',
     left: 0,
