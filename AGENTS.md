@@ -20,113 +20,13 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
    `android/app/build.gradle` 的 release 用模板自带的 `debug.keystore` 签名，
    所以能直接 `adb install -r` 覆盖装上去，收藏 / 设置都留着）。上架 AAB 仍走 EAS。
    产物统一收进 `dist/`（已 gitignore）：`just apk` → `daily-poetry-<版本>-vc<N>.apk`；
-   `just pkg` 一次出 APK + IPA + HAP（缺工具链的平台自动跳过并提示）。iOS 的 `.ipa` 只能在 macOS 上本地打（`just ipa`，
+   `just pkg` 一次出 APK + IPA。iOS 的 `.ipa` 只能在 macOS 上本地打（`just ipa`，
    **关掉 code signing** 归档再把 `.app` 塞进 `Payload/` 打成 zip，装设备要自签），
    Windows 上走 `just ipa-eas`（EAS 云端签名，下完自动落 `dist/`）。
 3. **ccache**：`ReactNative-application.cmake` 会自动 `find_program(ccache)` 并设为编译器启动器；
    Cygwin/MSYS 版 ccache 认不了 `C:\...\clang++.exe`，NDK 编译会整片
    `ccache: FATAL: Could not find compiler ... in PATH`。用原生版（`choco install ccache`），
    或禁用那个 ccache.exe。
-
-# 鸿蒙（RNOH）
-
-工具链在 `tool/harmony.sh`（子命令）+ `tool/harmony-env.sh`（探测 DevEco / SDK / hdc / ohpm /
-hvigor）+ `tool/harmony-render.mjs`（渲染 `tool/harmony-template/` → `harmony/`）。
-`just harmony-doctor | harmony-setup | harmony | harmony-emulator | harmony-start | hap | harmony-log | harmony-clean`。
-
-- **`harmony/` 是生成物，不进版本库**（`.gitignore`）。模板里是 `__BUNDLE_NAME__` 这类占位符，
-  `app.json` 的 `android.package` / `version` / `versionCode` 与**本机 SDK**（`5.0.0(12)` 这种，
-  同时推导 hvigor 的 `modelVersion`）渲染进去。渲染**只补缺不覆盖**（DevEco 里配的签名 / 改过的
-  `module.json5` 不能丢），`--force` 才整份重来 —— 别改成无条件覆盖。
-- **构建跑在 Windows 侧**：DevEco 的工具一律经 `win_run()` 写 `.bat` 再 `cmd.exe /c` 调
-  （`C:\Program Files\Huawei\DevEco Studio` 有空格，内联 `cd /d` 会被拆开）；bat 里同时注入
-  `DEVECO_SDK_HOME` 与 `OHOS_HDC_SERVER_PORT`（默认 8710，避开 adb 的 5037）。
-  **hdc 只认 `OHOS_HDC_SERVER_PORT`** —— 早先写的 `HDC_SERVER_PORT=7035` 是误配，
-  hdc 根本不看那个名字，结果是设备“消失”（两边服务端口打架）。
-- **模拟器也是 Windows GUI**（`{DevEco}/tools/emulator/Emulator.exe`）：`just harmony-emulator`
-  用 PowerShell 的 `Start-Process` 拉起它，再轮询 `param get bootevent.boot.completed`。
-  它自己往 hdc 服务（8710）注册成 `127.0.0.1:5555`，WSL 这边不需要端口映射。
-  实例名 / 实例目录 / 镜像目录都**现读**，不硬编码：
-  `deviceManager.xml` 的 `openharmonyDeployPath` / `imageDeployPath` + `Emulator.exe -list`，
-  可用 `HVD_HOME` / `HVD_IMAGE_ROOT` / `AHarmonyOS_HVD_HOME` 覆盖。
-  - **`-path` 传的是部署根目录（`HVD_HOME`），不是实例目录**：`Emulator.exe` 自己拼
-    `<path>/<hvd 名>`。传成实例目录它就去找 `<实例>/<实例>`，只往 stderr 丢一句
-    `"Mate 80 Pro Max" is not found. Please create the device(folder): …/<名字>/<名字>`，
-    再加一句 `Unable to start the emulator` 就退出 —— 而 **`Emulator.log` 一个字都不写**。
-    这一句就是「模拟器起不来」的真原因（不关 Windows 状态、跟实例 / 镜像完整性都无关，
-    `-version` / `-list` 都正常）。
-  - 因此**不能**用 bat + `start ""` 拉起：模拟器会继承 WSL 这边的 stdout/stderr，
-    GUI 进程不死管道就永远读不到 EOF，`just harmony-emulator` 会一直卡到模拟器关闭。
-    `Start-Process` 不重定向时会脱离父进程 stdio，2 秒返回；而**加上
-    `-RedirectStandardOutput` 反而会挂住**（实测 6 分钟不返回），所以重定向只用在
-    失败后重跑一次捞 stderr 的 `win_emu_probe`（带 `-Wait`，进程已退不会卡）。
-  - `{APPDATA}/Huawei/DevEcoStudio<版本>/options/deviceManager.xml` 是唯一记录这两个目录的地方；
-    `{LOCALAPPDATA}/Huawei/Emulator/deployed/` 下常有一份**指向 C: 的同名残壳**（只有 config.ini，
-    没有镜像），别被它误导 —— 真实例在 `openharmonyDeployPath` 里。
-  - `start_emulator` 起完 5 秒查一次 `tasklist`，进程秒退就报错（并打印 `emu-start.log` /
-    `emu-err.log` 里抓到的那两行），`wait_device` 也会在进程消失时提前返回（返回码 2），
-    不让人白等五分钟。`wait_device` 的**超时算墙钟**、每次 `hdc shell` 包 `timeout -k`：
-    hdc 是 Windows 进程，只发 SIGTERM 杀不掉，否则「超时」会变成永久挂起。
-- **RNOH 依赖故意不进 `package.json`**：`install_rnoh()` 一次 `npm install --no-save` 装三个包
-  —— `react-native-harmony`（alias 到 `@react-native-oh/react-native-harmony`，含 140MB 的 `.har`）、
-  RNOH CLI、**`@react-native-community/cli`**（Expo 工程默认没有它，而 `bundle-harmony` 只能走
-  RN CLI）。装完还原 `package-lock.json`。
-  - 三个必须**同一条命令**装：npm 每次 `--no-save` 都会把上一轮装上的 extraneous 包剪掉
-    （只装 CLI 的话，140MB 的 RNOH 会被删掉）。
-  - 版本按 RN 大版本推导（`0.86` → `0.86-stable` → `0.86-rc` → `latest`），因为 `latest`
-    dist-tag 还停在 `0.72.146`；结果缓存在 `.data/harmony/version`，`HARMONY_VERSION` 可覆盖。
-- **Metro 靠环境变量切**：`just harmony*` 带 `RNOH_METRO=1`，`metro.config.js` 里那段才
-  `require('react-native-harmony/metro.config')`（harmony 平台下 `react-native` 重定向、
-  `assetRegistryPath` 换成 harmony 版、`platforms` 加 `harmony`）。
-  **没有单独的 `metro.config.harmony.js`** —— `npx react-native start` 只认根目录的
-  `metro.config.js`，没有传 Metro 配置的入口；写第二个文件反而要维护两份。
-  不带这个环境变量时 `just start` / `expo export` / Android / iOS / Web 完全不受影响。
-- **根目录 `index.js` 是鸿蒙调试的垫片**：RNOH 的 `MetroJSBundleProvider` 把 URL 写死成
-  `http://localhost:8081/index.bundle?platform=harmony&dev=true&minify=false`，而 Expo 的入口是
-  `package.json` 的 `main = expo-router/entry` —— 没有这个文件调试就是 404。它只 `require('expo-router/entry')`。
-- **`react-native.config.js`（根目录）** 只为把 RNOH 的命令挂进 RN CLI（社区 CLI 只从
-  `package.json` 的 dependencies 找命令插件，而 RNOH 是 `--no-save` 装的）—— 用 `try/require`，
-  没装鸿蒙工具链时 `commands` 为空，别的平台照旧。
-- **Debug / Release 的 JS 来源**：Debug 走 Metro（`hdc rport tcp:8081 tcp:8081`，**不是** `adb reverse`），
-  Release 必须 `bundle_harmony false` 把 `bundle.harmony.js` 打进 `entry/src/main/resources/rawfile/`。
-  `Index.ets` 的 `AnyJSBundleProvider` 按 Metro → 沙箱文件 → rawfile 三级兜底。
-- **tsconfig / eslint 都要排掉** `harmony/` 与 `tool/harmony-template/`（ArkTS 不归 tsc 管，
-  `hvigorfile.ts` import 的 `@ohos/hvigor-ohos-plugin` 本机没有类型）。
-- **已知阻塞（还没真正跑起来）**：模拟器 / 编译 / 装机 / Metro / 设备日志都通了，**卡在 Expo
-  模块没有鸿蒙实现**。`expo-modules-core` 的原生侧负责启动时把 `globalThis.expo` 装进 JS 运行时，
-  鸿蒙上没有，于是模块求值第一步就挂：
-  `W TurboModuleFactory: Turbo Module 'ExpoModulesCore' not found` →
-  `E RNOH_JS: [TypeError: Cannot read property 'EventEmitter' of undefined]`
-  （出错点 `expo-modules-core/src/EventEmitter.ts:22`；dev bundle 里 `globalThis.expo.*` 被读
-  21 次、赋值 0 次）。`expo-sqlite`（60MB 诗词库）同源。
-  - **社区端口 `@expo-harmony/*`（renbaoshuo/expo-harmony）只到 Expo SDK 55**：
-    peer 钉死 `expo 55.0.31` / `expo-modules-core 55.0.26` / RNOH `0.84.1` /
-    `@react-native-ohos/*` reanimated `4.0.2`、gesture-handler `2.30.2`、worklets `1.0.1`；
-    本工程是 `expo ~57.0.19` / RN `0.86.3` / RNOH `0.86.1` / reanimated `4.5.1` /
-    gesture-handler `2.32.0`。要真上鸿蒙得**整工程降到 SDK 55**（Android / iOS 跟着回归）
-    或把端口往 56/57 迁（上游没做）。写 `globalThis.expo` 桩只能挪走报错位置，
-    `expo-sqlite` 依旧没实现，别往这个方向花时间。
-- **构建期四个已经绕过、但换个环境会重现的坑**（详见 `tool/harmony-template/README.md`）：
-  模板里的 `.json` 必须严格 JSON（restool 不认 JSON5，报 `11203002` 还不说哪个文件）；
-  `abiFilters` 必须带 `x86_64`（模拟器是 x86_64 镜像，只编 arm64 装上去秒退，
-  hilog 只有 `libRNOHApp is undefined`）；多 ABI 时 hvigor 只给第一个 ABI 生成
-  `summary.cmake`，第二个 ABI 报 `ffrt::ffrt_cpp but the target was not found`（在模板的
-  `CMakeLists.txt` 里自己按 `CMAKE_FIND_ROOT_PATH` 找）；RNOH 0.86.1 的
-  `WebSocketTurboModule.ts` 引用了 API 26 才有的 `WebSocketOpenInfo`，API 21 的 SDK 下
-  ArkTS 类型检查不过 → `patch_rnoh_sdk_compat()` 删掉那一支（幂等，`ohpm install` 后重打）。
-- **Metro 不能被原生构建目录搞死**：CMake 在 `harmony/entry/.cxx/**` 里反复建 / 删
-  `CMakeScratch`，`metro-file-map` 的 fallback watcher 撞 ENOENT 直接退出（表现是装上去白屏）。
-  `metro.config.js` 把 `harmony/**` 的构建产物加进 `resolver.blockList`。
-- **Debug 不走 `bundle-harmony`**：`bundle-harmony --dev true` 把 `sourceMap` / `sourceMapUrl`
-  传成同一个文件，metro-source-map 断言 `Unexpected module with full source map found` 抛错。
-  Debug 直接起 Metro（`just harmony-start` / `just harmony`）；Release 的 `--dev false` 正常。
-- **别用 `npx` 起 RN CLI**：本机 WSL 里 `npx` 会把 `RNOH_METRO=1` 丢掉（`metro.config.js`
-  读到 `undefined`，鸿蒙解析规则整段不生效）。脚本里用 `node_modules/.bin/react-native`。
-- **`'vp2px' has been deprecated` 不用管**：编译期只有四处、全在 RNOH 的 har 里
-  （`RNViewBase.ets:113-115` + `RNSurface.ets:285`），本工程自己的 `.ets` 没用过。
-  `vp2px` 从 API 18 起弃用，替代品要组件上下文（`UIContext.vp2px()`）或改走
-  `display.getDefaultDisplaySync().densityPixels`；第三方代码 + 当前 App 渲染不了 = 改完没法验证，
-  留给上游。
 
 # 数据与简繁
 

@@ -8,19 +8,10 @@
 #   · data 判「已存在」时点名抽查宋词 / 元曲 / 全唐诗：只看目录会在旧语料上一直 skip，
 #     于是 build-db 静默地「缺哪块跳哪块」（宋词 / 元曲就是这么“没”的）。
 #   · Debug 包的 JS 是 Metro 现喂的（adb reverse 8081）：拔线 / 关 just start 打开就是白屏，
-#     要脱机验证就 apk / hap。apk 用模板的 debug.keystore 签名，够自用，上架仍走 EAS。
+#     要脱机验证就 apk。apk 用模板的 debug.keystore 签名，够自用，上架仍走 EAS。
 #   · android/ 已存在时 expo run 不会重跑 prebuild —— 改图标 / 启动图 / app.json 原生配置后
 #     先跑 native-reset。
 #   · ipa 只有 macOS 能本地打且未签名（装设备要自签）；Windows / WSL 上走 ipa-eas。
-#   · 鸿蒙构建跑在 Windows 侧（DevEco Studio 只有 Windows / macOS 版），
-#     RNOH 依赖用 `npm --no-save` 装、不进 package.json。
-#   · 鸿蒙模拟器也是 Windows GUI（{DevEco}/tools/emulator/Emulator.exe）：
-#     `just harmony-emulator` 从 WSL 拉起它并等到开机完成（设备注册成 127.0.0.1:5555，
-#     hdc 服务在 8710 —— 别再写 HDC_SERVER_PORT=7035，hdc 认的是 OHOS_HDC_SERVER_PORT）。
-#     `just harmony` 发现没设备会自动走这一步，不用开 DevEco 点 Device Manager。
-#   · 模拟器起不来时 Windows 侧只丢一句 `Unable to start the emulator`，`Emulator.log` 一个字
-#     都不写 —— 真原因（`-path` 传错目录）只在 stderr 上：脚本失败时会重跑一次把 stderr 抓出来。
-#     脚本在进程秒退时 5 秒内报错，不会白等五分钟。
 #   · 毛泽东诗词没有可抓的 URL（知乎 403），语料是 data/mao-poems.json（跟着仓库走）；
 #     要重做就把存档页放 .data/mao/mao.html 再跑 node scripts/fetch-mao.mjs。
 
@@ -164,12 +155,6 @@ e2e *args:
 android-doctor:
     bash tool/android.sh doctor
 
-# 鸿蒙工具链自检：DevEco Studio / SDK / hdc / ohpm / hvigor / 设备 / RNOH 依赖
-[group('3. 检查')]
-[group('5. 鸿蒙')]
-harmony-doctor:
-    bash tool/harmony.sh doctor
-
 # ==================================================================== 4. 打包
 
 # 打**离线可用**的 Release APK → dist/daily-poetry-<版本>-vc<N>.apk（设备在线时顺带覆盖安装）
@@ -187,60 +172,18 @@ ipa: check
 ipa-eas:
     bash tool/ios.sh eas
 
-# 打 Release HAP（JS 打进包里，脱机可用）→ dist/daily-poetry-<版本>-<versionCode>.hap
-[group('4. 打包')]
-[group('5. 鸿蒙')]
-hap: check
-    bash tool/harmony.sh hap
-
-# 一次出三个包到 dist/：APK / IPA / HAP 本地打，缺工具链的平台只提示不报错
+# 一次出两个包到 dist/：APK 本地打，IPA 本地（macOS）或跳过并提示走 just ipa-eas
 [group('4. 打包')]
 pkg: check
     bash tool/android.sh apk
     bash tool/ios.sh ipa --soft
-    bash tool/harmony.sh hap --soft
 
 # 打 JS bundle 至 dist/（验证打包与资源是否齐全，不生成安装包）
 [group('4. 打包')]
 export: check
     npx expo export --platform android --output-dir dist
 
-# 打包提示：本地出包用 pkg / apk / ipa / hap，上架用 EAS
+# 打包提示：本地出包用 just pkg（APK + IPA）/ just apk / just ipa，上架用 EAS
 [group('4. 打包')]
 build:
-    @echo "本地出包：just pkg（APK + IPA + HAP）｜安卓：just apk｜iOS：just ipa 或 just ipa-eas｜鸿蒙：just hap"
-
-# ==================================================================== 5. 鸿蒙（RNOH）
-# 版本对齐：RNOH 的 npm 包跟 RN 大版本绑定（RN 0.86.3 → 0.86.1），
-# 三方鸿蒙化库（@react-native-oh-tpl/*）普遍落后，且 expo-sqlite 没有鸿蒙版 ——
-# 见 tool/harmony-template/README.md 的「没做的部分」。
-
-# 初始化鸿蒙工程：装 RNOH 依赖（约 140MB，不进 package.json）+ 生成 harmony/（可重复跑；--force 重写已存在的）
-[group('5. 鸿蒙')]
-harmony-setup *args:
-    bash tool/harmony.sh setup {{args}}
-
-# 编译 Debug HAP + 装到真机 / 模拟器 + 起 Metro（没设备会自动起模拟器；改 JS 热加载）
-[group('5. 鸿蒙')]
-harmony: harmony-setup
-    bash tool/harmony.sh run
-
-# 起 HarmonyOS 模拟器（已在跑就复用；--list 看实例，--stop 关掉，可传实例名）
-[group('5. 鸿蒙')]
-harmony-emulator *args:
-    bash tool/harmony.sh emulator {{args}}
-
-# 只起鸿蒙用的 Metro（platform = harmony，端口仍是 8081）
-[group('5. 鸿蒙')]
-harmony-start:
-    bash tool/harmony.sh start
-
-# 看设备日志（hilog；默认过滤 RN 相关 tag，可传关键字：just harmony-log MyTag）
-[group('5. 鸿蒙')]
-harmony-log *args:
-    bash tool/harmony.sh log {{args}}
-
-# 清鸿蒙构建产物（保留 harmony/ 工程本身）
-[group('5. 鸿蒙')]
-harmony-clean:
-    bash tool/harmony.sh clean
+    @echo "本地出包：just pkg（APK + IPA）｜只要安卓：just apk｜只要 iOS：just ipa 或 just ipa-eas"

@@ -174,19 +174,11 @@ just db-full  # 再加古文观止 / 幽梦影 / 论语 / 四书 / 蒙学等（�
 | `just apk` | 打离线可用的 Release APK → `dist/daily-poetry-<版本>-vc<N>.apk`（设备在线时顺带安装） |
 | `just ipa` | macOS 本地归档 → `dist/daily-poetry-<版本>-b<N>.ipa`（未签名，需自签才装得上） |
 | `just ipa-eas` | EAS 云端打 iOS `.ipa` 并下载到 `dist/`（Windows 也能跑，需 Apple 凭证） |
-| `just pkg` | 一次出三个包到 `dist/`（非 macOS / 无 DevEco 时对应平台自动跳过并提示） |
+| `just pkg` | 一次出两个包到 `dist/`（非 macOS 时 IPA 自动跳过并提示） |
 | `just e2e [流程]` | 跑 Maestro E2E（全部或单条 `.maestro/*.yaml`） |
 | `just android-doctor` | Android 工具链自检（SDK / adb / 设备 / Maestro） |
-| `just harmony-doctor` | 鸿蒙工具链自检（DevEco / SDK / hdc / ohpm / hvigor / 设备 / RNOH 依赖） |
-| `just harmony-setup` | 装 RNOH 工具链（`--no-save`，不进锁文件）+ 生成 `harmony/` 工程 |
-| `just harmony` | 编译 Debug HAP → 装设备 → 起 Metro（改 JS 热加载；没设备会自动起模拟器） |
-| `just harmony-emulator [--list\|--stop\|实例名]` | 从 WSL 拉起 / 停止 / 列出鸿蒙模拟器，并等到开机完成 |
-| `just harmony-start` | 只起鸿蒙用的 Metro（platform = harmony，端口仍 8081） |
-| `just hap` | 打离线可用的 Release HAP → `dist/daily-poetry-<版本>-<vc>.hap` |
-| `just harmony-log [过滤]` | 看设备日志（hilog，默认过滤 RN 相关 tag） |
-| `just harmony-clean` | 清鸿蒙构建产物（保留 `harmony/` 工程） |
 | `just export` | 打 Android JS bundle 至 `dist/`（验证打包） |
-| `just build` | 提示：本地出包用 `just pkg` / `apk` / `ipa` / `hap`，上架用 EAS Build |
+| `just build` | 提示：本地出包用 `just pkg` / `apk` / `ipa`，上架用 EAS Build |
 | `just envcheck` | 环境自检 |
 
 > **为什么拔了 USB 就打不开**：`just android` / `android-install` 装的是 **Debug 包**，
@@ -209,50 +201,8 @@ just db-full  # 再加古文观止 / 幽梦影 / 论语 / 四书 / 蒙学等（�
 >
 > **本地能出什么包**：`just apk` 出安卓（Gradle，本地签名，能直接装）；`just ipa` 只在
 > macOS + Xcode 上能跑，且产物**未签名**（关掉 code signing 归档后把 `.app` 塞进 `Payload/`
-> 打成 zip），装设备要过 AltStore / Sideloadly 自签；`just hap` 出鸿蒙（hvigor，需 Windows /
-> macOS 上的 DevEco Studio）；`just pkg` 一次出三个。产物统一落在 `dist/`（已在 `.gitignore`
-> 里，不进库）。
-
-### 鸿蒙（React Native for OpenHarmony）
-
-```bash
-just harmony-doctor   # 先看缺什么（DevEco Studio / SDK / hdc / ohpm / hvigor）
-just harmony-setup    # 装 RNOH 依赖 + 生成 harmony/ 工程
-just harmony-emulator # 起模拟器（没设备时 just harmony 会自动走这一步）
-just harmony          # 编译 Debug HAP → 装真机 / 模拟器 → 起 Metro
-just hap              # Release HAP → dist/
-```
-
-- **构建跑在 Windows 侧**：DevEco Studio（hvigor / ohpm / hdc）只有 Windows / macOS 版，
-  WSL 里经 `cmd.exe` 调 `tool/harmony.sh` 生成的 `.bat`（`DEVECO_HOME` 路径含空格，不能内联
-  `cd /d`）。hdc 服务用 `OHOS_HDC_SERVER_PORT`（默认 **8710**，不跟 adb 的 5037 打架；
-  早先写的 `HDC_SERVER_PORT=7035` 是误配，hdc 根本不看那个名字）。
-- **模拟器也是 Windows GUI**：`just harmony-emulator` 用 PowerShell 的 `Start-Process` 拉起
-  `Emulator.exe`，起完等 `bootevent.boot.completed`。它自己注册成 `127.0.0.1:5555`，WSL 这边
-  不需要端口映射；实例名 / 实例目录 / 镜像目录都从 `deviceManager.xml` 与 `Emulator.exe -list`
-  现读。两个坑：`-path` 要传**部署根目录**（它会自己拼 `<path>/<实例名>`，传成实例目录就报
-  `Unable to start the emulator`，`Emulator.log` 一个字不写）；不能用 bat + `start ""` 拉起
-  （模拟器继承 WSL 的 stdout/stderr，脚本会卡到它关闭）。
-- **`harmony/` 是生成物**：`tool/harmony-template/` 存模板，`tool/harmony-render.mjs` 按
-  `app.json` 与本机 SDK 渲染（`__BUNDLE_NAME__` 之类占位符）。已存在时**只补缺、不覆盖**
-  （保护你在 DevEco 里配的签名），`just harmony-setup --force` 才整份重来。
-- **RNOH 依赖不进 `package.json`**：`just harmony-setup` 用 `npm install --no-save` 装
-  `react-native-harmony`（含 140MB 的 `.har`）+ RNOH CLI + `@react-native-community/cli`
-  （Expo 工程默认没有它，而 `bundle-harmony` 只能走 RN CLI），装完还原 `package-lock.json`。
-  版本按 RN 大版本推导（0.86 → `0.86-stable` → `0.86-rc` → `latest`），`HARMONY_VERSION` 可覆盖。
-- **Metro 靠环境变量切**：`just harmony*` 带 `RNOH_METRO=1`，`metro.config.js` 里那段
-  才把 `react-native` 重定向到 `react-native-harmony`（`npx react-native start` 只认根目录的
-  `metro.config.js`，没有传配置的入口）。别的平台完全不受影响。
-- **根目录 `index.js`**：RNOH 的 `MetroJSBundleProvider` 把 URL 写死成 `/index.bundle`，
-  而 Expo 的入口是 `package.json` 的 `main = expo-router/entry` —— 这个垫片文件只是让
-  `/index.bundle` 能命中（Android / iOS / Web 不走它）。
-
-> ⚠️ **现在还不能真正跑起来**：鸿蒙侧的生态没跟上。`expo-sqlite` **没有鸿蒙版**
-> （诗词库全靠它），`react-native-screens` 4.x 只发了 `.android/.ios` 文件
-> （`just hap` 会在 bundle 阶段报 `Unable to resolve module ./TabsHost`），
-> `reanimated 4` / `gesture-handler 2` 也远高于 `@react-native-oh-tpl` 的版本。
-> 工具链（工程生成 / hvigor 构建 / hdc 安装 / Metro / 打包）已就位，等这些库补上
-> 或自己做抽象层替换就能用。细节见 `tool/harmony-template/README.md`。
+> 打成 zip），装设备要过 AltStore / Sideloadly 自签；`just pkg` 一次出两个。产物统一落在
+> `dist/`（已在 `.gitignore` 里，不进库）。
 
 ## 测试
 

@@ -38,8 +38,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
-# 鸿蒙工程（tool/harmony-render.mjs 从 tool/harmony-template 生成）
-/harmony
 
 # project specific
 # raw corpus checkout (downloaded by `just fetch`)
