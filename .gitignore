@@ -60,3 +60,5 @@ __pycache__/
 # 本地调试产物（metro 日志、卡片截图之类）
 .shots/
 .metro-win.*
+# pi 多智能体的本地产物（dispatch.log 等）
+.pi-multi-agent/
