@@ -108,6 +108,20 @@ describe('<CardScreen />', () => {
     );
   });
 
+  it('节日 / 节气当天（带 date）卡片抬头写上那个日子', async () => {
+    mockParams = { id: '1', date: '2026-11-07' };
+    await renderWithTheme(<CardScreen />, { db: seeded() });
+    await waitFor(() => expect(screen.getByTestId('share-card-occasion')).toBeTruthy());
+    expect(screen.getByText('立冬')).toBeTruthy();
+    expect(screen.getByText('节气')).toBeTruthy();
+  });
+
+  it('收藏 / 详情页进来没 date，不凭空冒节气抬头', async () => {
+    await renderWithTheme(<CardScreen />, { db: seeded() });
+    await waitFor(() => expect(screen.getByTestId('share-card')).toBeTruthy());
+    expect(screen.queryByTestId('share-card-occasion')).toBeNull();
+  });
+
   it('没有相册权限时给提示', async () => {
     mockMl.Asset.create.mockRejectedValue(new Error('no permission'));
     mockMl.requestPermissionsAsync.mockResolvedValue({ granted: false, status: 'denied' });

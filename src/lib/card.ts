@@ -1,4 +1,4 @@
-import { dayInfo } from './lunar';
+import { dayInfo, occasionTag } from './lunar';
 import { isPunctKey } from './punct';
 import { bodySizeOf } from './typography';
 import type { Poem, PunctKey, Script } from './types';
@@ -20,6 +20,24 @@ export function cardStamp(date?: string | null): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec((date ?? '').trim());
   if (!m) return '';
   return `${m[1]}年${Number(m[2])}月${Number(m[3])}日`;
+}
+
+/**
+ * 卡片抬头上的应景标签：当天是节日 / 节气就是 `{ label: '立冬', kind: '节气' }`，
+ * 平日 / 没传日期 → null（那一行整块不画）。
+ *
+ * 只认日期，**不认「今天」**：卡片是从收藏 / 详情页打开的（没有 date 参数），
+ * 那时不该凭空冒出一个节气；只有每日一诗带 `?date=` 才印。
+ * 名字跟着农历库走（简体），不随卡片「用字」转换 —— 语料才有繁体侧，农历库没有。
+ */
+export function cardOccasion(
+  date?: string | null,
+): { label: string; kind: '节日' | '节气' } | null {
+  const raw = (date ?? '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
+  const tag = occasionTag(dayInfo(raw));
+  if (!tag) return null;
+  return { label: tag.label, kind: tag.kind === 'festival' ? '节日' : '节气' };
 }
 
 /**

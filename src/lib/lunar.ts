@@ -93,6 +93,27 @@ const TERM_OCCASIONS: Occasion[] = TERM_NAMES.map((name) => ({
   keywords: [name],
 }));
 
+/** 展示用的应景抬头（卡片 / 分享图上那一行「立冬 · 节气」） */
+export interface OccasionTag {
+  label: string;
+  kind: 'festival' | 'term';
+}
+
+/**
+ * 某天的应景抬头：先认已收录的节日 / 节气（跟「应景优先」推送用的是同一套，
+ * 所以两边不会串：二月二 既是龙头节也是春分，两边都说春分）；
+ * 农历库还认得出我们没收录的节日（腊八节 / 中元节…），那些也照名字显示 ——
+ * 卡片上多一行「腊八节」比空着强。所以这里不能只写 `occasionFor()`。
+ */
+export function occasionTag(info: DayInfo): OccasionTag | null {
+  const known = occasionFor(info);
+  if (known) return { label: known.label, kind: known.kind };
+  const other = info.festivals.map((f) => f.trim()).find(Boolean);
+  if (other) return { label: other, kind: 'festival' };
+  const term = info.jieqi.trim();
+  return term ? { label: term, kind: 'term' } : null;
+}
+
 /** 某天是否落在已收录的节日 / 节气上；没有则返回 null */
 export function occasionFor(info: DayInfo): Occasion | null {
   for (const name of info.festivals) {

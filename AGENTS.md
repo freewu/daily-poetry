@@ -204,6 +204,16 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
 - 卡片顶部是一行抬头：`CARD_MARK`（「每日诗词 APP」）+ 体裁芯片（`poem.kind`：诗 / 词 / 曲 / 文 / 蒙学）。
   两者在同一个 `styles.head` 里（`testID="share-card-head"`，横排居中、gap 8），
   别再拆成上下两行；芯片原来单占一行，2026-11 那版把它挪到抬头右边。
+- **节日 / 节气抬头**：带 `?date=` 的每日一诗，如果那天是节日 / 节气，题目**上方**多一行
+  `testID="share-card-occasion"` 的「立冬 · 节气」—— 名字用印泥红（`ACCENT`）、字号是正文的
+  **1.5 倍（比题目还大）**，因为那张图主要是给「今天是什么日子」看的，正文反倒次要。
+  判定在 `src/lib/lunar.ts` 的 `occasionTag()`，卡片侧包一层 `cardOccasion(date)`：
+  先认 `occasionFor()` 那一套（跟应景推送同一口径 —— 二月二 既是龙头节又是春分，两边都说春分，
+  不会「诗是春分写的、抬头写龙头节」），农历库认得而我们没收录的节日（腊八节 / 中元节）
+  再照名字显示。名字是农历库给的**简体**，不随卡片「用字」转换（语料才有繁体侧）。
+  - 底部日期戳 `cardDateLine()` **不复述**节气（抬头已经写了），平凡日子那行照样不画。
+  - 只认 `date`，不认「今天」：收藏 / 详情页进卡片没有 `date`，不会凭空冒出一个节气。
+  - 抬头跟字号无关地等比缩放（`size * 1.5`），拖字号滑块时它也跟着走。
 - 卡片页底部的**字号 / 用字（简繁）/ 标点（空·符）会记住上次的选择**：存在 meta 的
   `settings_card_size` / `settings_card_script` / `settings_card_punct`（三个键都在
   `KEPT_SETTINGS` 白名单里，换库不丢），读写都走 `src/lib/card.ts` 的

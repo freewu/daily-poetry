@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { PoemLines } from '@/components/poem-lines';
-import { CARD_MARK, cardDateLine } from '@/lib/card';
+import { CARD_MARK, cardDateLine, cardOccasion } from '@/lib/card';
 import { attributionOf, sourceOf } from '@/lib/format';
 import { localizePoem } from '@/lib/script';
 import type { Poem, PunctKey, Script } from '@/lib/types';
@@ -24,7 +24,7 @@ export const CARD_BODY = 18;
 
 interface Props {
   poem: Poem;
-  /** 每日一诗的那天，印在卡片底部（`2026年11月3日 · 农历九月廿五`）；不传就不印 */
+  /** 每日一诗的那天：节日 / 节气会在题目上方抬头，日期戳印在底部；不传就都不印 */
   date?: string;
   /** 卡片宽度（按屏幕宽度算，导出即物理像素） */
   width: number;
@@ -41,6 +41,9 @@ interface Props {
  * 可保存的诗词卡片：笺纸底 + 双线框，题目 / 作者 / 正文 / 出处 + 日期戳。
  * 字族跟随设置；正文字号 / 简繁 / 标点可以在卡片页现场改（不传就用设置里的），
  * 排版固定横排（竖排长诗塞不进方寸）。
+ *
+ * 当天是节日 / 节气（只有带 `date` 的每日一诗才有）时，题目上方多一行「立冬 · 节气」，
+ * 用印泥色、比题目还大一号 —— 那一张图主要是给「今天是什么日子」看的。
  */
 export function ShareCard({
   poem: raw,
@@ -58,9 +61,13 @@ export function ShareCard({
   const size = bodySize ?? CARD_BODY;
   const attr = attributionOf(poem);
   const stamp = cardDateLine(date);
+  const occ = cardOccasion(date);
   // 题目 / 作者按正文等比走：正文拉大时标题不至于显得没长
   const titleSize = Math.round(size * 1.4);
   const attrSize = Math.round(size * 0.72);
+  // 应景抬头比题目还大一号：节日 / 节气当天，卡片的主角是那个日子
+  const occSize = Math.round(size * 1.5);
+  const occKindSize = Math.round(size * 0.62);
 
   return (
     <View testID={testID} style={[styles.card, { width, backgroundColor: PAPER }]}>
@@ -69,6 +76,17 @@ export function ShareCard({
           <Text style={[styles.brand, { color: INK_FAINT }]}>{CARD_MARK}</Text>
           <Text style={[styles.chip, { borderColor: LINE, color: INK_SUB }]}>{poem.kind}</Text>
         </View>
+        {occ ? (
+          <View testID="share-card-occasion" style={styles.occ}>
+            <Text
+              style={[styles.occLabel, { color: ACCENT, fontFamily: family, fontSize: occSize }]}>
+              {occ.label}
+            </Text>
+            <Text style={[styles.occKind, { color: INK_SUB, fontSize: occKindSize }]}>
+              {occ.kind}
+            </Text>
+          </View>
+        ) : null}
         <Text style={[styles.title, { color: INK, fontFamily: family, fontSize: titleSize }]}>
           {poem.title || poem.name}
         </Text>
@@ -122,6 +140,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     letterSpacing: 3,
   },
+  // 节日 / 节气那一行：印泥色的大字 + 字号小一号的「节日 / 节气」后缀，跟首页胶囊一个口径
+  occ: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 16,
+  },
+  occLabel: { fontWeight: '700', letterSpacing: 4 },
+  occKind: { letterSpacing: 2, marginBottom: 4 },
   attr: { marginTop: 10, textAlign: 'center', letterSpacing: 1 },
   rule: { height: 2, width: 46, alignSelf: 'center', marginTop: 16, marginBottom: 18, opacity: 0.8 },
   src: { marginTop: 24, fontSize: 11, textAlign: 'center', letterSpacing: 0.5 },

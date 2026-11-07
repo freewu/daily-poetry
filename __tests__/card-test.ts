@@ -22,7 +22,7 @@ jest.mock('expo-file-system', () => {
   return { File: MockFile, Paths: { cache: 'file:///cache' } };
 });
 
-import { cardDateLine, cardFileName, cardStamp, CARD_ALBUM } from '@/lib/card';
+import { cardDateLine, cardFileName, cardOccasion, cardStamp, CARD_ALBUM } from '@/lib/card';
 import { saveImageToLibrary, shareImage } from '@/lib/card-save';
 
 // 工厂在 require 时才跑，所以 mock 里拿不到外面定义的常量，取出来用
@@ -69,6 +69,21 @@ describe('cardDateLine', () => {
     expect(cardDateLine('  ')).toBe('');
     expect(cardDateLine('2026-1-3')).toBe('');
     expect(cardDateLine('2026/11/03')).toBe('');
+  });
+});
+
+describe('cardOccasion', () => {
+  it('节日 / 节气当天给出抬头（节气 / 节日两个字分开）', () => {
+    expect(cardOccasion('2026-11-07')).toEqual({ label: '立冬', kind: '节气' });
+    expect(cardOccasion('2026-02-17')).toEqual({ label: '春节', kind: '节日' });
+    expect(cardOccasion('2026-09-25')).toEqual({ label: '中秋节', kind: '节日' });
+  });
+
+  it('平日 / 没日期 / 格式不对 → null（那一行不画）', () => {
+    expect(cardOccasion('2026-11-03')).toBeNull();
+    expect(cardOccasion()).toBeNull();
+    expect(cardOccasion(null)).toBeNull();
+    expect(cardOccasion('2026-1-3')).toBeNull();
   });
 });
 

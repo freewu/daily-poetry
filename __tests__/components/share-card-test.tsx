@@ -59,8 +59,45 @@ describe('<ShareCard />', () => {
     await renderWithTheme(<ShareCard poem={poem} width={340} />, { db: await dbWith() });
     expect(screen.getByText('每日诗词 APP')).toBeTruthy();
     expect(screen.queryByTestId('share-card-stamp')).toBeNull();
+    expect(screen.queryByTestId('share-card-occasion')).toBeNull();
     expect(screen.queryByText(/\d{4}年\d{1,2}月\d{1,2}日/)).toBeNull();
     expect(screen.queryByText('每日一诗')).toBeNull();
+  });
+
+  it('节日 / 节气当天，题目上方抬头显示那个日子（比题目还大）', async () => {
+    // 2026-11-07 立冬
+    await renderWithTheme(<ShareCard poem={poem} date="2026-11-07" width={340} />, {
+      db: await dbWith(),
+    });
+    const banner = screen.getByTestId('share-card-occasion');
+    expect(within(banner).getByText('立冬')).toBeTruthy();
+    expect(within(banner).getByText('节气')).toBeTruthy();
+    const occ = StyleSheet.flatten(within(banner).getByText('立冬').props.style) as {
+      fontSize?: number;
+    };
+    const title = StyleSheet.flatten(screen.getByText('静夜思').props.style) as {
+      fontSize?: number;
+    };
+    expect(occ.fontSize).toBeGreaterThan(title.fontSize as number);
+  });
+
+  it('节日当天抬头是节日名 + 「节日」', async () => {
+    // 2026-09-25 中秋节
+    await renderWithTheme(<ShareCard poem={poem} date="2026-09-25" width={340} />, {
+      db: await dbWith(),
+    });
+    const banner = screen.getByTestId('share-card-occasion');
+    expect(within(banner).getByText('中秋节')).toBeTruthy();
+    expect(within(banner).getByText('节日')).toBeTruthy();
+  });
+
+  it('平日不冒抬头（只有日期戳）', async () => {
+    // 2026-11-03 只是个普通日子
+    await renderWithTheme(<ShareCard poem={poem} date="2026-11-03" width={340} />, {
+      db: await dbWith(),
+    });
+    expect(screen.queryByTestId('share-card-occasion')).toBeNull();
+    expect(screen.getByTestId('share-card-stamp')).toBeTruthy();
   });
 
   it('跟着简繁设置走（繁体用 title_tw / content_tw）', async () => {
