@@ -101,6 +101,46 @@ detect_avd() {
   printf '%s' "$avds" | awk 'NF { print; exit }'
 }
 
+# ---------------------------------------------------------------- AVD 位置
+# emulator 认 AVD 看的是 <user home>/avd/*.ini（默认 %USERPROFILE%\.android）。
+# 整块搬到别的盘（比如 D:\env\.android）之后，%USERPROFILE%\.android\avd 里往往
+# 只剩个**空壳目录**，`emulator -list-avds` 就一个都列不出来（只有 .ini 才是户口本），
+# 于是 just emulator 报「没有可用 AVD」。所以这里按「哪儿的 *.ini 才算数」去找。
+#
+# 找到还得让 Windows 侧的 emulator.exe 看见：WSL 的变量默认**不**传给 Windows 进程，
+# 要挂在 WSLENV 上（`/p` = 传值时把 /mnt/d/... 翻成 D:\...）。
+dir_has_avd() {
+  [ -d "$1" ] || return 1
+  for f in "$1"/*.ini; do
+    [ -f "$f" ] && return 0
+  done
+  return 1
+}
+
+detect_avd_dir() {
+  for dir in \
+    "${ANDROID_AVD_HOME:-}" \
+    "${ANDROID_USER_HOME:+$ANDROID_USER_HOME/avd}" \
+    "${ANDROID_USER_HOME:-}" \
+    "$HOME/.android/avd" \
+    "$HOME/.android" \
+    /mnt/*/env/.android/avd \
+    /mnt/*/env/.android \
+    /mnt/c/Users/*/.android/avd \
+    /mnt/c/Users/*/.android; do
+    [ -n "$dir" ] && dir_has_avd "$dir" && { printf '%s' "$dir"; return 0; }
+  done
+  return 1
+}
+
+# 把变量也交给 Windows 侧进程（已挂过就不重复挂）
+share_to_windows() {
+  case ":${WSLENV:-}:" in
+    *":$1:"* | *":$1/p:"*) return 0 ;;
+  esac
+  WSLENV="${WSLENV:+$WSLENV:}$1/p"
+}
+
 command -v wslpath >/dev/null 2>&1 || true
 
 ANDROID_HOME="$(detect_sdk)" || ANDROID_HOME=""
@@ -116,6 +156,37 @@ fi
 
 EMULATOR="$(detect_emulator)" || EMULATOR=""
 [ -n "$EMULATOR" ] && export EMULATOR
+
+# AVD 的「家」可能被搬走（D:\env\.android 之类）：认出哪个目录里真有 *.ini，
+# 再把它同时交给 WSL 侧和 Windows 侧（emulator.exe / Gradle 都是 Windows 进程）。
+AVD_DIR="$(detect_avd_dir)" || AVD_DIR=""
+if [ -n "$AVD_DIR" ]; then
+  case "$AVD_DIR" in
+    */avd)
+      ANDROID_AVD_HOME="$AVD_DIR"
+      ANDROID_USER_HOME="${AVD_DIR%/avd}"
+      ;;
+    *) ANDROID_AVD_HOME="$AVD_DIR" ;;
+  esac
+  if on_windows && command -v cygpath >/dev/null 2>&1; then
+    # MSYS/Cygwin 里的 /d/env/... 交给原生 exe 会认不得，先翻成 D:\...
+    ANDROID_AVD_HOME="$(cygpath -w "$ANDROID_AVD_HOME")"
+    [ -n "${ANDROID_USER_HOME:-}" ] && ANDROID_USER_HOME="$(cygpath -w "$ANDROID_USER_HOME")"
+    export ANDROID_AVD_HOME
+    [ -n "${ANDROID_USER_HOME:-}" ] && export ANDROID_USER_HOME
+  else
+    export ANDROID_AVD_HOME
+    if [ -n "${ANDROID_USER_HOME:-}" ]; then
+      export ANDROID_USER_HOME
+    fi
+    if on_wsl; then
+      share_to_windows ANDROID_AVD_HOME
+      [ -n "${ANDROID_USER_HOME:-}" ] && share_to_windows ANDROID_USER_HOME
+      export WSLENV
+    fi
+  fi
+fi
+
 AVD="$(detect_avd)" || AVD=""
 [ -n "$AVD" ] && export AVD
 
@@ -152,7 +223,10 @@ if [ "${1:-}" = "doctor" ]; then
   [ -n "$ADB" ] && ok "adb=$ADB" || bad "没找到 adb（见 just android-setup）"
   [ -n "${ADB_SERVER_SOCKET:-}" ] && ok "复用 Windows adb server：$ADB_SERVER_SOCKET"
   [ -n "$EMULATOR" ] && ok "emulator=$EMULATOR" || bad "没找到 emulator"
-  [ -n "$AVD" ] && ok "默认 AVD=$AVD" || bad "没有可用 AVD（avdmanager create avd 建一个）"
+  [ -n "${ANDROID_AVD_HOME:-}" ] && ok "AVD 目录=$ANDROID_AVD_HOME" \
+    || bad "没找到 AVD 目录（默认 ~/.android/avd）"
+  [ -n "$AVD" ] && ok "默认 AVD=$AVD" \
+    || bad "没有可用 AVD（avdmanager create avd 建一个；把 .android 搬到别的盘就设 ANDROID_USER_HOME）"
 
   # ---- Gradle / JDK 17
   # RN 的 gradle-plugin 用 jvmToolchain(17)，而 Gradle 不会自动扫 IDEA 的 jdks/，

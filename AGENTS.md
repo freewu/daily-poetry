@@ -6,7 +6,7 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
 
 `just android` 的 Gradle 构建跑在 Windows 侧（WSL 通过 `cmd.exe` 调 `gradlew.bat`），
 失败时只看 `exit code 1` 没用，要翻 `%USERPROFILE%\.gradle\daemon\9.3.1\daemon-*.out.log`。
-三个已知坑（`just android-doctor` / `just envcheck` 会自检前两个）：
+四个已知坑（`just android-doctor` / `just envcheck` 会自检前两个）：
 
 1. **JDK 17**：`@react-native/gradle-plugin` 用 `jvmToolchain(17)` + foojay resolver，
    而 Gradle 不扫 IDEA 的 `%USERPROFILE%\jdks`，找不到就去 GitHub 自动下载（国内常卡死在
@@ -27,6 +27,15 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
    Cygwin/MSYS 版 ccache 认不了 `C:\...\clang++.exe`，NDK 编译会整片
    `ccache: FATAL: Could not find compiler ... in PATH`。用原生版（`choco install ccache`），
    或禁用那个 ccache.exe。
+4. **AVD 搬家**：模拟器的 AVD 家默认是 `%USERPROFILE%\.android`，认的是 `avd\*.ini` 里的
+   `path=`。整块挪到别的盘（`D:\env\.android`）之后老位置往往只剩个**空壳** `*.avd` 目录
+   —— `-list-avds` 照样列出名字，真启动却退回 arm 引擎
+   （`FATAL: CPU Architecture 'arm' is not supported by the QEMU2 emulator`）。现在
+   `tool/android-env.sh` 按「哪个目录里真有 `*.ini`」找 AVD 家
+   （`ANDROID_AVD_HOME` / `ANDROID_USER_HOME` / `~/.android` / `/mnt/*/env/.android`），
+   再挂到 `WSLENV`（`/p`）上交给 Windows 的 emulator.exe —— **WSL 的变量默认不传给
+   Windows 进程**，光 `export` 没用。`tool/android.sh boot` 还会检 `.ini` 里的 `path=`
+   是否还指着老地方，指错了直接把该改成什么打出来。
 
 # 数据与简繁
 

@@ -21,6 +21,7 @@ cd "$ROOT"
 . tool/android-env.sh sourced
 
 info() { printf '  %s\n' "$*"; }
+warn() { printf '! %s\n' "$*" >&2; }
 die() { printf '✗ %s\n' "$*" >&2; exit 1; }
 
 on_wsl() { grep -qi microsoft /proc/version 2>/dev/null; }
@@ -46,6 +47,27 @@ require_adb() {
 device_serial() {
   require_adb
   "$ADB" devices -l 2>/dev/null | python3 tool/android_target.py device
+}
+
+# AVD 的 `.ini` 里 `path=` 才指向真正的 `.avd` 目录。整块搬到别的盘之后 ini 常常
+# 没跟着改（名字还能列出来、真启动却说找不到），这里只提醒 + 给改法，不替人改文件。
+check_avd_path() {
+  local avd="$1" ini target udir real esc
+  [ -n "${ANDROID_AVD_HOME:-}" ] || return 0
+  command -v wslpath >/dev/null 2>&1 || return 0
+  ini="$ANDROID_AVD_HOME/$avd.ini"
+  [ -f "$ini" ] || return 0
+  target="$(sed -n 's/^path=//p' "$ini" | tr -d '\r' | head -1)"
+  [ -n "$target" ] || return 0
+  udir="$(wslpath -u "$target" 2>/dev/null)" || return 0
+  # 指针打到的地方真有 config.ini 才算没坏（搬完家留在老地方的往往是个空壳）
+  [ -n "$udir" ] && [ -f "$udir/config.ini" ] && return 0
+  real="$(wslpath -w "$ANDROID_AVD_HOME/$avd.avd")"
+  # sed 的替换段里 `\` 是转义符，Windows 路径要双写才不会被吃
+  esc="$(printf '%s' "$real" | sed 's/\\/\\\\/g')"
+  warn "AVD「$avd」的 $ini 里 path= 还指着老地方：$target"
+  warn "真身在 $real，改一行就好："
+  warn "  sed -i 's|^path=.*|path=$esc|' \"$ini\""
 }
 
 wait_boot() {
@@ -108,6 +130,7 @@ cmd_boot() {
   fi
   [ -n "$avd" ] || die "没有可用 AVD。用 avdmanager create avd 建一个，或 just emulator <名字>"
   [ -n "${EMULATOR:-}" ] || die "没找到 emulator 可执行文件"
+  check_avd_path "$avd"
   info "启动 AVD：$avd"
   if on_wsl; then
     # start 让模拟器在 Windows 侧独立运行，不阻塞当前 shell
