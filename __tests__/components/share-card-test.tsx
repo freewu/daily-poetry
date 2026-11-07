@@ -64,26 +64,38 @@ describe('<ShareCard />', () => {
     expect(screen.queryByText('每日一诗')).toBeNull();
   });
 
-  it('节日 / 节气当天，底部日期行里多一段（日期 · 立冬 · 农历）', async () => {
+  it('节日 / 节气当天：底部日期行末尾多一个红框红字的小芯片', async () => {
     // 2026-11-07 立冬
     await renderWithTheme(<ShareCard poem={poem} date="2026-11-07" width={340} />, {
       db: await dbWith(),
     });
-    const stamp = screen.getByTestId('share-card-stamp');
-    expect(stamp).toHaveTextContent('2026年11月7日 · 立冬 · 农历九月廿九');
-    // 那一段单独上印泥色
-    expect(within(stamp).getByTestId('share-card-occasion').props.children).toBe('立冬');
+    // 日期行本身不带那一段（它是个独立的框，不是日期文字）
+    expect(screen.getByTestId('share-card-stamp')).toHaveTextContent(
+      '2026年11月7日 · 农历九月廿九',
+    );
+    const chip = screen.getByTestId('share-card-occasion');
+    expect(chip).toHaveTextContent('立冬');
+    const style = StyleSheet.flatten(chip.props.style) as {
+      color?: string;
+      borderColor?: string;
+      borderWidth?: number;
+    };
+    // 红框红字
+    expect(style.color).toBe(style.borderColor);
+    expect(style.borderWidth).toBe(1);
     // 节日 / 节气不再单占题目上方那一行
     expect(screen.queryByText('节气')).toBeNull();
   });
 
-  it('节日当天同样夹在日期行里（中秋节）', async () => {
+  it('节日当天同样挂在日期行末尾（中秋节）', async () => {
     // 2026-09-25 中秋节
     await renderWithTheme(<ShareCard poem={poem} date="2026-09-25" width={340} />, {
       db: await dbWith(),
     });
-    const occ = within(screen.getByTestId('share-card-stamp')).getByTestId('share-card-occasion');
-    expect(occ.props.children).toBe('中秋节');
+    expect(screen.getByTestId('share-card-occasion')).toHaveTextContent('中秋节');
+    expect(screen.getByTestId('share-card-stamp')).toHaveTextContent(
+      '2026年9月25日 · 农历八月十五',
+    );
   });
 
   it('平日不冒节日 / 节气，只有日期戳', async () => {

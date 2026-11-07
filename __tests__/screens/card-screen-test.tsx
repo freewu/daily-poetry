@@ -108,13 +108,14 @@ describe('<CardScreen />', () => {
     );
   });
 
-  it('节日 / 节气当天（带 date）底部日期行多一段', async () => {
+  it('节日 / 节气当天（带 date）底部日期行末尾多一个红框', async () => {
     mockParams = { id: '1', date: '2026-11-07' };
     await renderWithTheme(<CardScreen />, { db: seeded() });
     await waitFor(() => expect(screen.getByTestId('share-card-occasion')).toBeTruthy());
     expect(screen.getByTestId('share-card-stamp')).toHaveTextContent(
-      '2026年11月7日 · 立冬 · 农历九月廿九',
+      '2026年11月7日 · 农历九月廿九',
     );
+    expect(screen.getByTestId('share-card-occasion')).toHaveTextContent('立冬');
   });
 
   it('收藏 / 详情页进来没 date，不凭空冒节气抬头', async () => {

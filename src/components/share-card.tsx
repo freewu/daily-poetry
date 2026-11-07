@@ -93,22 +93,21 @@ export function ShareCard({
         {stamp ? (
           <>
             <View style={[styles.footRule, { backgroundColor: LINE }]} />
-            <Text
-              testID="share-card-stamp"
-              // 多一段就要多占一个字宽，窄机上把字距收一收，别拆成两行
-              style={[styles.stamp, { color: INK_SUB, letterSpacing: occasion ? 1 : 2 }]}>
+            <View style={styles.stampRow}>
+              <Text
+                testID="share-card-stamp"
+                // 末尾还要挂一个节日 / 节气的框，字距收一点，窄机上别拆成两行
+                style={[styles.stamp, { color: INK_SUB, letterSpacing: occasion ? 1 : 2 }]}>
+                {`${stamp} · 农历${lunar}`}
+              </Text>
               {occasion ? (
-                <>
-                  {`${stamp} · `}
-                  <Text testID="share-card-occasion" style={{ color: ACCENT }}>
-                    {occasion}
-                  </Text>
-                  {` · 农历${lunar}`}
-                </>
-              ) : (
-                `${stamp} · 农历${lunar}`
-              )}
-            </Text>
+                <Text
+                  testID="share-card-occasion"
+                  style={[styles.occ, { color: ACCENT, borderColor: ACCENT }]}>
+                  {occasion}
+                </Text>
+              ) : null}
+            </View>
           </>
         ) : null}
       </View>
@@ -143,4 +142,21 @@ const styles = StyleSheet.create({
   src: { marginTop: 24, fontSize: 11, textAlign: 'center', letterSpacing: 0.5 },
   footRule: { height: 1, marginTop: 16, marginBottom: 12, opacity: 0.9 },
   stamp: { fontSize: 11, textAlign: 'center' },
+  // 日期行末尾那个节日 / 节气：红框红字，跟印泥同一个色（不填底，卡片还是浅笺纸的底）
+  stampRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  occ: {
+    fontSize: 11,
+    letterSpacing: 1,
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    overflow: 'hidden',
+  },
 });

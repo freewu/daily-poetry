@@ -69,10 +69,10 @@ describe('cardDateLine', () => {
     expect(cardDateLine('2026-01-19')).toBe('2026年1月19日 · 农历腊月初一');
   });
 
-  it('节日 / 节气当天夹在日期与农历之间', () => {
-    expect(cardDateLine('2026-11-07')).toBe('2026年11月7日 · 立冬 · 农历九月廿九');
-    expect(cardDateLine('2026-01-20')).toBe('2026年1月20日 · 大寒 · 农历腊月初二');
-    expect(cardDateLine('2026-09-25')).toBe('2026年9月25日 · 中秋节 · 农历八月十五');
+  it('节日 / 节气当天追在最后（红框红字那一段）', () => {
+    expect(cardDateLine('2026-11-07')).toBe('2026年11月7日 · 农历九月廿九 · 立冬');
+    expect(cardDateLine('2026-01-20')).toBe('2026年1月20日 · 农历腊月初二 · 大寒');
+    expect(cardDateLine('2026-09-25')).toBe('2026年9月25日 · 农历八月十五 · 中秋节');
   });
 
   it('没有日期 / 格式不对 → 空串（底部整块不画）', () => {

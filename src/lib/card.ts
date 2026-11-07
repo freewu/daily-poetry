@@ -47,14 +47,15 @@ export function cardDateParts(date?: string | null): CardDateParts {
 }
 
 /**
- * 卡片底部那一行：`2026年11月3日 · 农历九月廿五`，应景日多一段
- * `2026年11月7日 · 立冬 · 农历九月廿九`。
+ * 卡片底部那一行：`2026年11月3日 · 农历九月廿五`，应景日在**末尾**多一段
+ * `2026年11月7日 · 农历九月廿九 · 立冬`（卡片上那一段是红框红字的小芯片）。
  * 日期没传 / 格式不对 → 空串，调用方据此整块不画（别只留条空横线）。
  */
 export function cardDateLine(date?: string | null): string {
   const { stamp, occasion, lunar } = cardDateParts(date);
   if (!stamp) return '';
-  return [stamp, occasion, `农历${lunar}`].filter(Boolean).join(' · ');
+  // 节日 / 节气放最后：用户要的是「日期 · 农历 [立冬]」，不是夹在中间
+  return [stamp, `农历${lunar}`, occasion].filter(Boolean).join(' · ');
 }
 
 /** 相册里看到的名字：`每日一诗-静夜思`，去掉空格与路径非法字符 */
