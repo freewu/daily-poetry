@@ -64,40 +64,36 @@ describe('<ShareCard />', () => {
     expect(screen.queryByText('每日一诗')).toBeNull();
   });
 
-  it('节日 / 节气当天，题目上方抬头显示那个日子（比题目还大）', async () => {
+  it('节日 / 节气当天，底部日期行里多一段（日期 · 立冬 · 农历）', async () => {
     // 2026-11-07 立冬
     await renderWithTheme(<ShareCard poem={poem} date="2026-11-07" width={340} />, {
       db: await dbWith(),
     });
-    const banner = screen.getByTestId('share-card-occasion');
-    expect(within(banner).getByText('立冬')).toBeTruthy();
-    expect(within(banner).getByText('节气')).toBeTruthy();
-    const occ = StyleSheet.flatten(within(banner).getByText('立冬').props.style) as {
-      fontSize?: number;
-    };
-    const title = StyleSheet.flatten(screen.getByText('静夜思').props.style) as {
-      fontSize?: number;
-    };
-    expect(occ.fontSize).toBeGreaterThan(title.fontSize as number);
+    const stamp = screen.getByTestId('share-card-stamp');
+    expect(stamp).toHaveTextContent('2026年11月7日 · 立冬 · 农历九月廿九');
+    // 那一段单独上印泥色
+    expect(within(stamp).getByTestId('share-card-occasion').props.children).toBe('立冬');
+    // 节日 / 节气不再单占题目上方那一行
+    expect(screen.queryByText('节气')).toBeNull();
   });
 
-  it('节日当天抬头是节日名 + 「节日」', async () => {
+  it('节日当天同样夹在日期行里（中秋节）', async () => {
     // 2026-09-25 中秋节
     await renderWithTheme(<ShareCard poem={poem} date="2026-09-25" width={340} />, {
       db: await dbWith(),
     });
-    const banner = screen.getByTestId('share-card-occasion');
-    expect(within(banner).getByText('中秋节')).toBeTruthy();
-    expect(within(banner).getByText('节日')).toBeTruthy();
+    const occ = within(screen.getByTestId('share-card-stamp')).getByTestId('share-card-occasion');
+    expect(occ.props.children).toBe('中秋节');
   });
 
-  it('平日不冒抬头（只有日期戳）', async () => {
+  it('平日不冒节日 / 节气，只有日期戳', async () => {
     // 2026-11-03 只是个普通日子
     await renderWithTheme(<ShareCard poem={poem} date="2026-11-03" width={340} />, {
       db: await dbWith(),
     });
     expect(screen.queryByTestId('share-card-occasion')).toBeNull();
     expect(screen.getByTestId('share-card-stamp')).toBeTruthy();
+    expect(screen.getByText('2026年11月3日 · 农历九月廿五')).toBeTruthy();
   });
 
   it('跟着简繁设置走（繁体用 title_tw / content_tw）', async () => {

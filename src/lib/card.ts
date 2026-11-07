@@ -22,33 +22,39 @@ export function cardStamp(date?: string | null): string {
   return `${m[1]}年${Number(m[2])}月${Number(m[3])}日`;
 }
 
-/**
- * 卡片抬头上的应景标签：当天是节日 / 节气就是 `{ label: '立冬', kind: '节气' }`，
- * 平日 / 没传日期 → null（那一行整块不画）。
- *
- * 只认日期，**不认「今天」**：卡片是从收藏 / 详情页打开的（没有 date 参数），
- * 那时不该凭空冒出一个节气；只有每日一诗带 `?date=` 才印。
- * 名字跟着农历库走（简体），不随卡片「用字」转换 —— 语料才有繁体侧，农历库没有。
- */
-export function cardOccasion(
-  date?: string | null,
-): { label: string; kind: '节日' | '节气' } | null {
+/** 卡片底部日期行的三段（拆开是为了把节日 / 节气单独上色） */
+export interface CardDateParts {
+  /** `2026年11月7日`；日期没传 / 格式不对是空串 */
+  stamp: string;
+  /** 节日 / 节气名（`立冬`）；不是应景日就是空串 */
+  occasion: string;
+  /** 农历月日（`九月廿九`），不带「农历」两个字 */
+  lunar: string;
+}
+
+/** 卡片底部日期行的三段：日期 / 节日或节气 / 农历 */
+export function cardDateParts(date?: string | null): CardDateParts {
   const raw = (date ?? '').trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
-  const tag = occasionTag(dayInfo(raw));
-  if (!tag) return null;
-  return { label: tag.label, kind: tag.kind === 'festival' ? '节日' : '节气' };
+  const stamp = cardStamp(raw);
+  if (!stamp) return { stamp: '', occasion: '', lunar: '' };
+  return {
+    stamp,
+    // 只认日期，**不认「今天」**：收藏 / 详情页打开的卡片没有 date 参数，
+    // 那时不该凭空冒出一个节气；名字是农历库的简体，不随卡片「用字」转换。
+    occasion: occasionTag(dayInfo(raw))?.label ?? '',
+    lunar: dayInfo(raw).lunarDate,
+  };
 }
 
 /**
- * 卡片底部那一行：`2026年11月3日 · 农历九月廿五`。
+ * 卡片底部那一行：`2026年11月3日 · 农历九月廿五`，应景日多一段
+ * `2026年11月7日 · 立冬 · 农历九月廿九`。
  * 日期没传 / 格式不对 → 空串，调用方据此整块不画（别只留条空横线）。
  */
 export function cardDateLine(date?: string | null): string {
-  const raw = (date ?? '').trim();
-  const stamp = cardStamp(raw);
+  const { stamp, occasion, lunar } = cardDateParts(date);
   if (!stamp) return '';
-  return `${stamp} · 农历${dayInfo(raw).lunarDate}`;
+  return [stamp, occasion, `农历${lunar}`].filter(Boolean).join(' · ');
 }
 
 /** 相册里看到的名字：`每日一诗-静夜思`，去掉空格与路径非法字符 */

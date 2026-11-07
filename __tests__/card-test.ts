@@ -22,7 +22,13 @@ jest.mock('expo-file-system', () => {
   return { File: MockFile, Paths: { cache: 'file:///cache' } };
 });
 
-import { cardDateLine, cardFileName, cardOccasion, cardStamp, CARD_ALBUM } from '@/lib/card';
+import {
+  cardDateLine,
+  cardDateParts,
+  cardFileName,
+  cardStamp,
+  CARD_ALBUM,
+} from '@/lib/card';
 import { saveImageToLibrary, shareImage } from '@/lib/card-save';
 
 // 工厂在 require 时才跑，所以 mock 里拿不到外面定义的常量，取出来用
@@ -60,7 +66,13 @@ describe('cardStamp', () => {
 describe('cardDateLine', () => {
   it('日期后接农历月日（卡片底部唯一一行）', () => {
     expect(cardDateLine('2026-11-03')).toBe('2026年11月3日 · 农历九月廿五');
-    expect(cardDateLine('2026-01-20')).toBe('2026年1月20日 · 农历腊月初二');
+    expect(cardDateLine('2026-01-19')).toBe('2026年1月19日 · 农历腊月初一');
+  });
+
+  it('节日 / 节气当天夹在日期与农历之间', () => {
+    expect(cardDateLine('2026-11-07')).toBe('2026年11月7日 · 立冬 · 农历九月廿九');
+    expect(cardDateLine('2026-01-20')).toBe('2026年1月20日 · 大寒 · 农历腊月初二');
+    expect(cardDateLine('2026-09-25')).toBe('2026年9月25日 · 中秋节 · 农历八月十五');
   });
 
   it('没有日期 / 格式不对 → 空串（底部整块不画）', () => {
@@ -72,18 +84,24 @@ describe('cardDateLine', () => {
   });
 });
 
-describe('cardOccasion', () => {
-  it('节日 / 节气当天给出抬头（节气 / 节日两个字分开）', () => {
-    expect(cardOccasion('2026-11-07')).toEqual({ label: '立冬', kind: '节气' });
-    expect(cardOccasion('2026-02-17')).toEqual({ label: '春节', kind: '节日' });
-    expect(cardOccasion('2026-09-25')).toEqual({ label: '中秋节', kind: '节日' });
+describe('cardDateParts', () => {
+  it('拆成日期 / 节日或节气 / 农历三段（节日那段要单独上色）', () => {
+    expect(cardDateParts('2026-11-07')).toEqual({
+      stamp: '2026年11月7日',
+      occasion: '立冬',
+      lunar: '九月廿九',
+    });
+    expect(cardDateParts('2026-11-03')).toEqual({
+      stamp: '2026年11月3日',
+      occasion: '',
+      lunar: '九月廿五',
+    });
   });
 
-  it('平日 / 没日期 / 格式不对 → null（那一行不画）', () => {
-    expect(cardOccasion('2026-11-03')).toBeNull();
-    expect(cardOccasion()).toBeNull();
-    expect(cardOccasion(null)).toBeNull();
-    expect(cardOccasion('2026-1-3')).toBeNull();
+  it('没有日期 / 格式不对 → 三段全空（底部整块不画）', () => {
+    const empty = { stamp: '', occasion: '', lunar: '' };
+    expect(cardDateParts()).toEqual(empty);
+    expect(cardDateParts('2026-1-3')).toEqual(empty);
   });
 });
 
