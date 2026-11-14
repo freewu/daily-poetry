@@ -187,3 +187,20 @@ export: check
 [group('4. 打包')]
 build:
     @echo "本地出包：just pkg（APK + IPA）｜只要安卓：just apk｜只要 iOS：just ipa 或 just ipa-eas"
+
+# ==================================================================== 5. 官网
+
+# 本地预览官网（docs/ → http://localhost:8080）
+[group('5. 官网')]
+docs-serve port='8080':
+    python3 -m http.server {{port}} --directory docs
+
+# 重新生成官网的简繁对照表（docs/assets/i18n.js）：改完 docs/index.html 的文案就跑一遍
+[group('5. 官网')]
+docs-i18n:
+    node tool/docs-i18n.mjs
+
+# 校验对照表是否过期（只读，过期退出码 1）
+[group('5. 官网')]
+docs-check:
+    node tool/docs-i18n.mjs --check

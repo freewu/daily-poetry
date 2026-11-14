@@ -1,0 +1,771 @@
+<!doctype html>
+<html lang="zh-Hans" data-lang="hans" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>每日诗词 · 同一天，遇见同一首诗</title>
+    <meta
+      name="description"
+      content="每日诗词 —— 离线 95,435 首中文诗词，每天确定性推送一首，作者七天内不重复，节日节气应景优先；简繁双写、宋体楷体、横排竖排、朗读、诗词卡片与十题填空挑战。"
+    />
+    <link rel="icon" href="assets/favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="assets/icon.png" />
+    <link rel="stylesheet" href="style.css" />
+    <meta name="theme-color" content="#f4edda" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#181510" media="(prefers-color-scheme: dark)" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="每日诗词 · 同一天，遇见同一首诗" />
+    <meta
+      property="og:description"
+      content="离线 95,435 首中文诗词，每天确定性推送一首；作者不连庄、节气应景、简繁双写、横排竖排、朗读与诗词卡片。"
+    />
+    <meta property="og:image" content="assets/screenshots/today.png" />
+    <script>
+      /* 主题：先按「上次手动选择 → 系统 → 深色」定下来，避免首屏闪白。
+         取不到系统偏好（老浏览器 / 不支持 matchMedia）时按深色处理。 */
+      (function () {
+        var root = document.documentElement;
+        var theme = "dark";
+        try {
+          var saved = localStorage.getItem("dp-theme");
+          if (saved === "light" || saved === "dark") {
+            theme = saved;
+          } else if (window.matchMedia) {
+            var mq = window.matchMedia("(prefers-color-scheme: dark)");
+            theme = mq && mq.matches ? "dark" : mq ? "light" : "dark";
+          }
+        } catch (e) {
+          theme = "dark";
+        }
+        root.setAttribute("data-theme", theme);
+
+        /* 语言：上次选择 → 系统中文变体（zh-Hant / TW / HK / MO 走繁体）→ 简体 */
+        try {
+          var lang = localStorage.getItem("dp-lang");
+          if (lang !== "hans" && lang !== "hant") {
+            var tags = navigator.languages && navigator.languages.length
+              ? navigator.languages
+              : [navigator.language || ""];
+            lang = "hans";
+            for (var i = 0; i < tags.length; i++) {
+              var tag = String(tags[i] || "").toLowerCase();
+              if (!tag || tag.indexOf("zh") !== 0) continue;
+              lang =
+                tag.indexOf("hant") >= 0 ||
+                /-(tw|hk|mo)\b/.test(tag) ||
+                tag === "zh-tw" || tag === "zh-hk" || tag === "zh-mo"
+                  ? "hant"
+                  : "hans";
+              break;
+            }
+          }
+          root.setAttribute("data-lang", lang);
+          root.setAttribute("lang", lang === "hant" ? "zh-Hant" : "zh-Hans");
+        } catch (e) {
+          root.setAttribute("data-lang", "hans");
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <a class="skip" href="#main">跳到正文</a>
+
+    <header class="topbar" id="topbar">
+      <div class="wrap topbar__inner">
+        <a class="brand" href="#top" aria-label="每日诗词 首页">
+          <img class="brand__seal" src="assets/icon.png" alt="每日诗词印章图标" width="72" height="72" />
+          <span>
+            <span class="brand__name">每日诗词</span>
+            <span class="brand__sub">Daily Poetry</span>
+          </span>
+        </a>
+
+        <nav class="nav" id="nav" aria-label="页面导航">
+          <a href="#daily">每日</a>
+          <a href="#reading">阅读</a>
+          <a href="#card">卡片</a>
+          <a href="#library">诗词库</a>
+          <a href="#challenge">挑战</a>
+          <a href="#data">语料</a>
+          <a href="#tech">技术</a>
+        </nav>
+
+        <div class="tools">
+          <button
+            class="ghost-btn ghost-btn--lang"
+            id="lang-toggle"
+            type="button"
+            aria-label="切换到繁體中文"
+            data-no-i18n
+          >
+            <span class="ghost-btn__label" id="lang-label">繁體</span>
+          </button>
+          <button
+            class="ghost-btn"
+            id="theme-toggle"
+            type="button"
+            aria-label="切换主题"
+            data-no-i18n
+          >
+            <svg id="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+              <circle cx="12" cy="12" r="4" />
+              <path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4" stroke-linecap="round" />
+            </svg>
+            <span class="ghost-btn__label" id="theme-label">跟随系统</span>
+          </button>
+          <a class="btn btn--primary btn--sm" href="#download">下载</a>
+        </div>
+      </div>
+    </header>
+
+    <main id="main">
+      <!-- ------------------------------------------------------------ 首屏 -->
+      <section class="hero" id="top">
+        <div class="wrap hero__inner">
+          <div class="hero__copy">
+            <p class="eyebrow">每日一诗 · 离线诗词库</p>
+            <h1>同一天，<br /><span class="accent">遇见同一首诗</span></h1>
+            <p class="lede">
+              「每日诗词」把 <strong>95,435 首</strong>经典装进手机。按日期确定性地挑一首，
+              七天内同一位诗人不重复；逢节日、节气优先推应景之作 —— 全部离线，飞行模式里也能读。
+            </p>
+            <div class="hero__actions">
+              <a class="btn btn--primary" href="#download">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                  <path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5" stroke-linecap="round" stroke-linejoin="round" />
+                  <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke-linecap="round" />
+                </svg>
+                下载 Android 版
+              </a>
+              <a class="btn btn--ghost" href="https://github.com/freewu/daily-poetry" rel="noopener">
+                查看源码
+              </a>
+            </div>
+            <dl class="facts">
+              <div><dt>95,435</dt><dd>首诗词</dd></div>
+              <div><dt>14</dt><dd>部集子</dd></div>
+              <div><dt>1,966</dt><dd>首每日池</dd></div>
+              <div><dt>0</dt><dd>次联网请求</dd></div>
+            </dl>
+          </div>
+
+          <div class="hero__shot">
+            <figure class="shot">
+              <button class="phone" type="button" data-shot="today" aria-label="查看今日页大图">
+                <img
+                  src="assets/screenshots/today.png"
+                  alt="今日页：2026年11月14日，农历十月初六，诗题《夏日》，宋·张文潜"
+                  width="720"
+                  height="1600"
+                  fetchpriority="high"
+                  decoding="async"
+                />
+              </button>
+              <figcaption>今日 · 《夏日》宋 · 张文潜</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------------------ 特性 -->
+      <section class="section" id="features">
+        <div class="wrap">
+          <div class="sec-head reveal">
+            <h2>安静的一页，背后是几条笨功夫</h2>
+            <p class="intro">
+              没有推荐流、没有热搜、不联网。打开就是今天的诗，翻页只到「今天」为止。
+            </p>
+          </div>
+
+          <div class="features">
+            <article class="feature reveal">
+              <span class="feature__icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+                  <rect x="3" y="5" width="18" height="16" rx="2" />
+                  <path d="M8 3v4M16 3v4M3 10h18" stroke-linecap="round" />
+                </svg>
+              </span>
+              <h3>日期就是种子</h3>
+              <p>
+                以 1960 年元旦为起点逐日往前推，当天的日期做随机种子。同一台设备、同一天，
+                永远是同一首；换手机也一样。
+              </p>
+            </article>
+
+            <article class="feature reveal" data-delay="1">
+              <span class="feature__icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+                  <circle cx="9" cy="8" r="3.2" />
+                  <path d="M3.5 20c.6-3.4 2.8-5.4 5.5-5.4S14 16.6 14.6 20" stroke-linecap="round" />
+                  <path d="M16 7.5h5M18.5 5v5" stroke-linecap="round" />
+                </svg>
+              </span>
+              <h3>作者不连庄</h3>
+              <p>
+                先挑诗人，再从名下抽一首诗，七天内同一位作者整位跳过（可调 不限 / 3 / 7 / 14 / 30 天）。
+                语料按作者排，不然会连着好几天都是温庭筠。
+              </p>
+            </article>
+
+            <article class="feature reveal" data-delay="2">
+              <span class="feature__icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+                  <path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z" />
+                  <path d="M12 3c2.5 2.4 3.8 5.4 3.8 9s-1.3 6.6-3.8 9c-2.5-2.4-3.8-5.4-3.8-9s1.3-6.6 3.8-9Z" />
+                  <path d="M3.4 9h17.2M3.4 15h17.2" stroke-linecap="round" />
+                </svg>
+              </span>
+              <h3>节日节气应景</h3>
+              <p>
+                清明、中秋、立秋当天，用节日名字在全库检索，题目命中的优先，其次诗句；
+                全库都没有，就悄悄回到平日的作者轮换。
+              </p>
+            </article>
+
+            <article class="feature reveal">
+              <span class="feature__icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+                  <path d="M13 2 4.5 13.5H11L10 22l8.5-11.5H12L13 2Z" stroke-linejoin="round" />
+                </svg>
+              </span>
+              <h3>打开即见诗</h3>
+              <p>
+                首屏画完之后，后台把往后三天的诗算好存进本地库。下次启动只读一条缓存、按 id 取一首诗：
+                0.03ms，现算要 27–75ms。
+              </p>
+            </article>
+
+            <article class="feature reveal" data-delay="1">
+              <span class="feature__icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+                  <ellipse cx="12" cy="6" rx="8" ry="3" />
+                  <path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6" />
+                  <path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" />
+                </svg>
+              </span>
+              <h3>九万首在包里</h3>
+              <p>
+                一个 SQLite 数据库随应用发布，题目、作者、诗句全文检索，简体繁体双写。
+                飞行模式、地铁、山里，一样翻得到。
+              </p>
+            </article>
+
+            <article class="feature reveal" data-delay="2">
+              <span class="feature__icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+                  <path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z" />
+                  <path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z" />
+                </svg>
+              </span>
+              <h3>纸墨双主题</h3>
+              <p>
+                宣纸底、朱砂印，配一个夜读用的深色。跟随系统，也可以自己钉住；
+                应用图标就是那枚印章。
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------------------ 诗句带 -->
+      <section class="verse-band">
+        <div class="wrap reveal">
+          <p>晚来天欲雪，能饮一杯无？</p>
+          <small>白居易 · 问刘十九</small>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------------------ 每日 -->
+      <section class="section" id="daily">
+        <div class="wrap">
+          <div class="split split--reverse">
+            <div class="split__text reveal">
+              <span class="sec-num">一</span>
+              <h2>一天一首，不赶时间</h2>
+              <p class="intro">
+                打开就是今天的诗：日期、农历、干支年，题目、朝代与诗人，正文一句一行。
+                顶栏箭头或左右滑动能翻看前后几天 —— 到今天就停，不会翻到还没到的日子。
+              </p>
+              <ul class="points">
+                <li><b>作者冷却</b>：先挑诗人再挑他的诗，冷却期内的作者整位跳过；诗人不够多时自动退化成轮流。</li>
+                <li><b>应景优先</b>：节日与节气当天先按名字检索（《元日》《清明》《中秋月》…），同一天永远同一首，来年换一首。</li>
+                <li><b>隔夜预取</b>：往后三天的诗提前算好写进本地 KV，下次启动只读缓存。</li>
+                <li><b>滑动翻页</b>：横向手势才接管，竖向永远留给滚动 —— 上下滚诗不会被吃掉。</li>
+              </ul>
+            </div>
+            <div class="split__media shots shots--2 reveal" data-delay="1">
+              <figure class="shot">
+                <button class="phone" type="button" data-shot="today" aria-label="查看今日页大图">
+                  <img src="assets/screenshots/today.png" alt="今日页：宣纸色背景、竖排印章、今日诗《夏日》" width="720" height="1600" loading="lazy" decoding="async" />
+                </button>
+                <figcaption>今日 · 宣纸</figcaption>
+              </figure>
+              <figure class="shot">
+                <button class="phone" type="button" data-shot="today-dark" aria-label="查看深色今日页大图">
+                  <img src="assets/screenshots/today-dark.png" alt="同一首诗的深色模式" width="720" height="1600" loading="lazy" decoding="async" />
+                </button>
+                <figcaption>夜读 · 深色</figcaption>
+              </figure>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------------------ 阅读 -->
+      <section class="section" id="reading">
+        <div class="wrap">
+          <div class="split">
+            <div class="split__text reveal">
+              <span class="sec-num">二</span>
+              <h2>一页纸，怎么读由你</h2>
+              <p class="intro">
+                正文可在系统字体、宋体（衬线，近刻本）、楷体之间切换；字号 10–24 号用滑块调，
+                题目、作者、列表按基准等比缩放。排版可横排，也可竖排 —— 仿古籍「一行一列、自右向左」。
+              </p>
+              <ul class="points">
+                <li><b>竖排</b>：原文一行即一列，逐字竖直堆叠，从最右一列读起；行内空白换成全角，标点隐去时也占整格。</li>
+                <li><b>标点</b>：保留原文，或把每个标点原位换成空格（连着的「」，不合并）—— 只影响显示，复制与朗读仍是原文。</li>
+                <li><b>简繁</b>：每首诗同时存简体与繁体正文，检索两列都匹配，朗读、复制跟着切换。</li>
+                <li><b>朗读</b>：系统 TTS 念题目、作者、正文，慢 / 标准 / 快三档；设备没有语音引擎时入口整段收起。</li>
+              </ul>
+            </div>
+            <div class="split__media shots shots--2 reveal" data-delay="1">
+              <figure class="shot">
+                <button class="phone" type="button" data-shot="poem-detail" aria-label="查看诗篇详情大图">
+                  <img src="assets/screenshots/poem-detail.png" alt="诗篇详情：登鹳雀楼，唐·王之涣，底部收藏、朗读、复制、分享" width="720" height="1600" loading="lazy" decoding="async" />
+                </button>
+                <figcaption>诗篇详情 · 横排</figcaption>
+              </figure>
+              <figure class="shot">
+                <button class="phone" type="button" data-shot="poem-detail-vertical" aria-label="查看竖排大图">
+                  <img src="assets/screenshots/poem-detail-vertical.png" alt="竖排版式：诗句逐字竖排、自右向左" width="720" height="1600" loading="lazy" decoding="async" />
+                </button>
+                <figcaption>竖排 · 一行一列</figcaption>
+              </figure>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------------------ 卡片 -->
+      <section class="section" id="card">
+        <div class="wrap">
+          <div class="split split--reverse split--wide-text">
+            <div class="split__text reveal">
+              <span class="sec-num">三</span>
+              <h2>把一首诗，排成一张笺</h2>
+              <p class="intro">
+                一键成笺：题目、作者、正文、出处，底部一行日期、农历，若当天是节日或节气，
+                末尾还会多一枚小红印。存进相册「每日诗词」，随即弹出系统分享面板。
+              </p>
+              <ul class="points">
+                <li><b>版式固定</b>：卡片不跟夜间模式，导出给别人看永远是宣纸色。</li>
+                <li><b>局部调整</b>：卡片页可单独调字号、简繁、空白断句，只改这一张，不动阅读设置。</li>
+                <li><b>记得上次</b>：用字、标点、字号会记住上次的选择，下一张直接沿用。</li>
+              </ul>
+            </div>
+            <div class="split__media shots reveal" data-delay="1">
+              <figure class="shot">
+                <button class="phone" type="button" data-shot="card" aria-label="查看诗词卡片大图">
+                  <img src="assets/screenshots/card.png" alt="诗词卡片编辑页：正文用宣纸色排成一张笺，底部日期与农历，可调字号、简繁、标点" width="720" height="1600" loading="lazy" decoding="async" />
+                </button>
+                <figcaption>诗词卡片 · 存相册 / 系统分享</figcaption>
+              </figure>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------------------ 收藏 -->
+      <section class="section" id="favorites">
+        <div class="wrap">
+          <div class="split">
+            <div class="split__text reveal">
+              <span class="sec-num">四</span>
+              <h2>喜欢的，收在一处</h2>
+              <p class="intro">
+                读到合意的按一下「收藏」，收藏页就把它们排好队 —— 题目、作者、首句一目了然，
+                点进去还是同一页详情。标题右边那只奖杯，就是诗词挑战的入口。
+              </p>
+              <ul class="points">
+                <li><b>存在本机</b>：随包的 SQLite 里，不联网也不上传。</li>
+                <li><b>换库不丢</b>：语料升级后按「题目 + 作者 + 首句」逐条写回。</li>
+                <li><b>也能出题</b>：收藏本身就是挑战题源，不足四首时入口禁用。</li>
+                <li><b>读过多少天</b>：累计读诗天数记在设置页的「数据」里。</li>
+              </ul>
+            </div>
+            <div class="split__media shots reveal" data-delay="1">
+              <figure class="shot">
+                <button class="phone" type="button" data-shot="favorites" aria-label="查看收藏页大图">
+                  <img src="assets/screenshots/favorites.png" alt="收藏页：已收藏的诗排在列表里，标题右边是「挑战」入口" width="720" height="1600" loading="lazy" decoding="async" />
+                </button>
+                <figcaption>我的收藏 · 挑战入口在标题右边</figcaption>
+              </figure>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------------------ 诗词库 -->
+      <section class="section" id="library">
+        <div class="wrap">
+          <div class="band-head reveal">
+            <div>
+              <span class="sec-num">五</span>
+              <h2>十四部集子，随心翻</h2>
+              <p class="intro">
+                点开集子就是它的全部作品，右上角两个入口：「按作者」，词集还有「按词牌」。
+                两张表同一个样子 —— 首字母 A–Z 分组，右侧字母条直达，同一字母下作品多的在前。
+              </p>
+            </div>
+            <ul class="points">
+              <li><b>作者</b>：全唐诗 3,650 位，按姓氏读音算首字母（曾、单、仇、查、乐 不会排错），「佚名」统一进「其他」。</li>
+              <li><b>词牌</b>：全宋词 884 个，最多的浣溪沙 817 首；「别名・正名」的写法也会归到正名。</li>
+              <li><b>预统计</b>：作者 / 词牌统计在建库时算好、写进随包 JSON，页面打开即渲染，不跑 GROUP BY。</li>
+              <li><b>全文检索</b>：题目、作者、诗句都能搜，简体繁体输入都命中。</li>
+            </ul>
+          </div>
+          <div class="shots shots--row">
+              <figure class="shot">
+                <button class="phone" type="button" data-shot="library" aria-label="查看诗词库大图">
+                  <img src="assets/screenshots/library.png" alt="诗词库：搜索框与十四部集子的卡片" width="720" height="1600" loading="lazy" decoding="async" />
+                </button>
+                <figcaption>诗词库</figcaption>
+              </figure>
+              <figure class="shot">
+                <button class="phone" type="button" data-shot="collection-tangshi" aria-label="查看唐诗三百首大图">
+                  <img src="assets/screenshots/collection-tangshi.png" alt="唐诗三百首列表，右上角有按作者入口" width="720" height="1600" loading="lazy" decoding="async" />
+                </button>
+                <figcaption>唐诗三百首</figcaption>
+              </figure>
+              <figure class="shot">
+                <button class="phone" type="button" data-shot="collection-authors" aria-label="查看作者统计大图">
+                  <img src="assets/screenshots/collection-authors.png" alt="按作者：首字母分组、右侧字母条、名字后跟收录数" width="720" height="1600" loading="lazy" decoding="async" />
+                </button>
+                <figcaption>按作者 · 全唐诗 3,650 位</figcaption>
+              </figure>
+              <figure class="shot">
+                <button class="phone" type="button" data-shot="collection-cipai" aria-label="查看词牌统计大图">
+                  <img src="assets/screenshots/collection-cipai.png" alt="按词牌：884 个词牌，按首字母分组" width="720" height="1600" loading="lazy" decoding="async" />
+                </button>
+                <figcaption>按词牌 · 全宋词 884 个</figcaption>
+              </figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------------------ 挑战 -->
+      <section class="section" id="challenge">
+        <div class="wrap">
+          <div class="band-head reveal">
+            <div>
+              <span class="sec-num">六</span>
+              <h2>十道填空，考考记性</h2>
+              <p class="intro">
+                从「我的收藏」或任意一部集子里抽十首，每首挖掉一句，四选一填回去 ——
+                干扰项按字数挑，看着都像。答完当场出分、回顾错题。
+              </p>
+            </div>
+            <ul class="points">
+              <li><b>日期种子</b>：同一天、同一来源出同一份题；想换一份，重开一局。</li>
+              <li><b>只给评价</b>：评级是一句话（加油 / 及格 / 优秀 / 诗仙下凡），分数线不上界面。</li>
+              <li><b>战绩</b>：用时、答对数、时间与来源，留最近 20 局。</li>
+              <li><b>题源</b>：我的收藏或任意集子，池子不足十首就一首出多题。</li>
+            </ul>
+          </div>
+          <div class="shots shots--row">
+              <figure class="shot">
+                <button class="phone" type="button" data-shot="challenge-pools" aria-label="查看挑战入口大图">
+                  <img src="assets/screenshots/challenge-pools.png" alt="挑战入口：选择题目来源，底部开始挑战十题" width="720" height="1600" loading="lazy" decoding="async" />
+                </button>
+                <figcaption>选择来源</figcaption>
+              </figure>
+              <figure class="shot">
+                <button class="phone" type="button" data-shot="challenge-question" aria-label="查看答题页大图">
+                  <img src="assets/screenshots/challenge-question.png" alt="答题页：题目进度、原诗、四个选项" width="720" height="1600" loading="lazy" decoding="async" />
+                </button>
+                <figcaption>对局 · 四选一</figcaption>
+              </figure>
+              <figure class="shot">
+                <button class="phone" type="button" data-shot="challenge-result" aria-label="查看成绩页大图">
+                  <img src="assets/screenshots/challenge-result.png" alt="成绩页：分数、评级、用时与错题回顾" width="720" height="1600" loading="lazy" decoding="async" />
+                </button>
+                <figcaption>成绩 · 错题回顾</figcaption>
+              </figure>
+              <figure class="shot">
+                <button class="phone" type="button" data-shot="challenge-log" aria-label="查看战绩页大图">
+                  <img src="assets/screenshots/challenge-log.png" alt="战绩页：局数、最佳、平均答对与每局明细" width="720" height="1600" loading="lazy" decoding="async" />
+                </button>
+                <figcaption>战绩 · 最近 20 局</figcaption>
+              </figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------------------ 设置 -->
+      <section class="section" id="settings">
+        <div class="wrap">
+          <div class="band-head reveal">
+            <div>
+              <span class="sec-num">七</span>
+              <h2>该藏的藏，该调的调</h2>
+              <p class="intro">
+                每日推送、正文字体、外观、朗读语速、数据都在一处。每日精选是一个多选框：
+                勾了全唐诗，5.7 万首就全是候选。
+              </p>
+            </div>
+            <ul class="points">
+              <li><b>每日精选</b>：至少留一部；诗词库卡片上的「每日精选」小字跟着它变。</li>
+              <li><b>推送方式</b>：经典轮换 / 应景优先。</li>
+              <li><b>作者间隔</b>：不限 / 3 / 7 / 14 / 30 天。</li>
+              <li><b>正文字体</b>：字体、排版、字号、标点、简繁，带实时预览。</li>
+            </ul>
+          </div>
+          <div class="shots shots--row">
+              <figure class="shot">
+                <button class="phone" type="button" data-shot="settings" aria-label="查看设置页大图">
+                  <img src="assets/screenshots/settings.png" alt="设置：每日推送、每日精选 9/15、推送方式、作者间隔" width="720" height="1600" loading="lazy" decoding="async" />
+                </button>
+                <figcaption>设置 · 每日推送</figcaption>
+              </figure>
+              <figure class="shot">
+                <button class="phone" type="button" data-shot="settings-scope" aria-label="查看每日精选多选大图">
+                  <img src="assets/screenshots/settings-scope.png" alt="每日精选多选弹层：十五部集子带收录数" width="720" height="1600" loading="lazy" decoding="async" />
+                </button>
+                <figcaption>每日精选 · 多选</figcaption>
+              </figure>
+              <figure class="shot">
+                <button class="phone" type="button" data-shot="settings-lower" aria-label="查看正文字体设置大图">
+                  <img src="assets/screenshots/settings-lower.png" alt="正文字体设置：字体、排版、字号滑块、标点、简繁与预览" width="720" height="1600" loading="lazy" decoding="async" />
+                </button>
+                <figcaption>正文字体 · 实时预览</figcaption>
+              </figure>
+              <figure class="shot">
+                <button class="phone" type="button" data-shot="settings-dark" aria-label="查看深色设置页大图">
+                  <img src="assets/screenshots/settings-dark.png" alt="深色主题下的设置页" width="720" height="1600" loading="lazy" decoding="async" />
+                </button>
+                <figcaption>外观 · 深色</figcaption>
+              </figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------------------ 语料 -->
+      <section class="section" id="data">
+        <div class="wrap">
+          <div class="split__text reveal sec-head">
+            <span class="sec-num">八</span>
+            <h2>语料从哪来</h2>
+            <p class="intro">
+              十四部集子共 95,435 首。主体取自开源的 chinese-poetry；乐府诗集从中文维基文库抓一百卷，
+              宋词三百首取自古文岛，毛泽东诗词由存档页解析。繁体保留语料原文，简体由 OpenCC 转写。
+            </p>
+          </div>
+
+          <div class="corpus">
+            <div class="corpus__text reveal">
+              <p class="intro">
+                每日池只收「选本」：唐诗三百首、千家诗、宋词三百首、诗经、楚辞、花间集、
+                南唐词、纳兰性德词、曹操诗集。乐府与毛泽东诗词不进池 ——
+                郊庙乐章和残篇联句不适合当每日一诗。
+              </p>
+              <div class="corpus__total">
+                <b>95,435</b>
+                <span>首 · 简体与繁體双写 · 一个 60MB 的 SQLite 文件</span>
+              </div>
+            </div>
+
+            <div class="reveal" data-delay="1">
+              <div class="table-wrap">
+                <table class="corpus-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">集子</th>
+                      <th scope="col">体裁</th>
+                      <th scope="col" class="bar"></th>
+                      <th scope="col" style="text-align: right">收录</th>
+                      <th scope="col" style="text-align: center">每日池</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>全唐诗</td><td>诗</td><td class="bar"><span style="width: 100%"></span></td><td class="num">57,599</td><td style="text-align: center"><span class="pool-dash">—</span></td></tr>
+                    <tr><td>全宋词</td><td>词</td><td class="bar"><span style="width: 60.5%"></span></td><td class="num">21,049</td><td style="text-align: center"><span class="pool-dash">—</span></td></tr>
+                    <tr><td>元曲</td><td>曲</td><td class="bar"><span style="width: 43.5%"></span></td><td class="num">10,906</td><td style="text-align: center"><span class="pool-dash">—</span></td></tr>
+                    <tr><td>乐府诗集</td><td>乐府</td><td class="bar"><span style="width: 25.6%"></span></td><td class="num">3,770</td><td style="text-align: center"><span class="pool-dash">—</span></td></tr>
+                    <tr><td>花间集</td><td>词</td><td class="bar"><span style="width: 8.8%"></span></td><td class="num">447</td><td style="text-align: center"><span class="pool-dot"></span></td></tr>
+                    <tr><td>唐诗三百首</td><td>诗</td><td class="bar"><span style="width: 7.5%"></span></td><td class="num">320</td><td style="text-align: center"><span class="pool-dot"></span></td></tr>
+                    <tr><td>诗经</td><td>诗</td><td class="bar"><span style="width: 7.3%"></span></td><td class="num">305</td><td style="text-align: center"><span class="pool-dot"></span></td></tr>
+                    <tr><td>宋词三百首</td><td>词</td><td class="bar"><span style="width: 7%"></span></td><td class="num">286</td><td style="text-align: center"><span class="pool-dot"></span></td></tr>
+                    <tr><td>纳兰性德词</td><td>词</td><td class="bar"><span style="width: 6.7%"></span></td><td class="num">258</td><td style="text-align: center"><span class="pool-dot"></span></td></tr>
+                    <tr><td>千家诗</td><td>诗</td><td class="bar"><span style="width: 6.1%"></span></td><td class="num">214</td><td style="text-align: center"><span class="pool-dot"></span></td></tr>
+                    <tr><td>毛泽东诗词</td><td>诗词</td><td class="bar"><span style="width: 5%"></span></td><td class="num">145</td><td style="text-align: center"><span class="pool-dash">—</span></td></tr>
+                    <tr><td>楚辞</td><td>楚辞</td><td class="bar"><span style="width: 3.4%"></span></td><td class="num">65</td><td style="text-align: center"><span class="pool-dot"></span></td></tr>
+                    <tr><td>南唐词</td><td>词</td><td class="bar"><span style="width: 2.8%"></span></td><td class="num">45</td><td style="text-align: center"><span class="pool-dot"></span></td></tr>
+                    <tr><td>曹操诗集</td><td>诗</td><td class="bar"><span style="width: 2.1%"></span></td><td class="num">26</td><td style="text-align: center"><span class="pool-dot"></span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <p class="legend">
+                条形按首数的平方根画，不然两万首和二十六首不好放在一张表里。
+                <span class="pool-dot"></span> = 进每日池，共九部、1,966 首。
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------------------ 技术 -->
+      <section class="section" id="tech">
+        <div class="wrap">
+          <div class="sec-head reveal">
+            <span class="sec-num">九</span>
+            <h2>怎么做的</h2>
+            <p class="intro">
+              一个 Expo 应用，一条 just 命令从语料走到安装包。没有服务端，所有计算都在本机。
+            </p>
+          </div>
+
+          <dl class="stack reveal">
+            <div class="stack__item"><dt>框架</dt><dd><strong>React Native 0.86 · Expo SDK 57 · expo-router</strong>（Stack + NativeTabs）</dd></div>
+            <div class="stack__item"><dt>存储</dt><dd><strong>expo-sqlite</strong>，内置库走 assetSource，离线可用</dd></div>
+            <div class="stack__item"><dt>农历</dt><dd><strong>lunar-javascript</strong>：节气、节日、干支换算</dd></div>
+            <div class="stack__item"><dt>作者索引</dt><dd><strong>pinyin-pro</strong>：姓氏多音字、首字母与全拼排序</dd></div>
+            <div class="stack__item"><dt>朗读</dt><dd><strong>expo-speech</strong>：系统 TTS，不打包语音包</dd></div>
+            <div class="stack__item"><dt>卡片</dt><dd><strong>react-native-view-shot</strong> + <strong>expo-media-library</strong> + <strong>expo-sharing</strong></dd></div>
+            <div class="stack__item"><dt>挑战</dt><dd><strong>纯函数出题</strong>（mulberry32 定种子）+ meta KV 存战绩</dd></div>
+            <div class="stack__item"><dt>构建</dt><dd><strong>Node ≥ 22</strong> 的 node:sqlite、OpenCC-js、Python / Pillow（图标）</dd></div>
+          </dl>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------------------ 下载 -->
+      <section class="section download" id="download">
+        <div class="wrap">
+          <div class="sec-head reveal">
+            <span class="sec-num">十</span>
+            <h2>装上就读</h2>
+            <p class="intro">
+              语料在安装包里，装完不用联网。Android 可以直接装 Release APK；iOS 需要 macOS 自签，
+              或者用 EAS 云端签名。
+            </p>
+          </div>
+
+          <div class="dl-cards">
+            <article class="dl-card reveal">
+              <div class="dl-card__head">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+                  <rect x="6" y="2.5" width="12" height="19" rx="2.5" />
+                  <path d="M10.5 18.5h3" stroke-linecap="round" />
+                </svg>
+                <h3>Android</h3>
+              </div>
+              <p>
+                Release APK，约 70MB（大头是随包语料），本地 debug.keystore 签名，可直接覆盖安装。
+                装到设备上用 adb：
+              </p>
+              <code class="code">adb install -r dist/daily-poetry-*.apk</code>
+              <a class="btn btn--primary" href="https://github.com/freewu/daily-poetry/releases" rel="noopener">下载 APK</a>
+            </article>
+
+            <article class="dl-card reveal" data-delay="1">
+              <div class="dl-card__head">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+                  <path d="M15.5 2.5c.3 1.6-.5 3-1.5 3.9-1 1-2.3 1.6-3.6 1.5-.3-1.5.5-3 1.6-3.9 1-.9 2.4-1.5 3.5-1.5Z" />
+                  <path d="M17 12.6c0-2.4 1.9-3.6 2-3.7-1.1-1.6-2.7-1.8-3.3-1.8-1.4-.1-2.6.8-3.3.8-.7 0-1.7-.8-2.9-.8-1.5 0-2.9.9-3.7 2.3-1.6 2.8-.4 6.9 1.1 9.1.7 1.1 1.6 2.3 2.8 2.2 1.1 0 1.5-.7 2.9-.7 1.3 0 1.7.7 2.9.7 1.2 0 2-1.1 2.7-2.2.9-1.3 1.3-2.6 1.3-2.7-.1 0-2.5-1-2.5-3.9Z" />
+                </svg>
+                <h3>iOS</h3>
+              </div>
+              <p>
+                只能在 macOS 上本地打包（未签名，需自签后安装），或者在 Windows 上用 EAS 云端签名出包。
+              </p>
+              <code class="code">just ipa        <span class="c"># macOS：未签名 .ipa</span>
+just ipa-eas    <span class="c"># 任意平台：EAS 云端签名</span></code>
+              <a class="btn btn--ghost" href="https://github.com/freewu/daily-poetry#readme" rel="noopener">查看构建说明</a>
+            </article>
+
+            <article class="dl-card reveal" data-delay="2">
+              <div class="dl-card__head">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+                  <path d="m8.5 8.5-5 3.5 5 3.5M15.5 8.5l5 3.5-5 3.5M13.5 5l-3 14" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <h3>自己构建</h3>
+              </div>
+              <p>前置只要 git、Node ≥ 22.5、npm、just；语料脚本会自动抓取并建库。</p>
+              <code class="code">git clone https://github.com/freewu/daily-poetry
+cd daily-poetry
+just init    <span class="c"># 装依赖 → 下语料 → 建库 → 生成图标</span>
+just start   <span class="c"># Expo dev server</span>
+just apk     <span class="c"># 出离线 APK</span></code>
+              <a class="btn btn--ghost" href="https://github.com/freewu/daily-poetry" rel="noopener">GitHub</a>
+            </article>
+          </div>
+
+          <p class="note">
+            代码以 MIT 许可开源；语料版权归原作者与整理方（chinese-poetry、中文维基文库、古文岛），
+            仅供学习与个人阅读。<a href="https://github.com/freewu/daily-poetry" rel="noopener">问题与新功能请提到仓库 issue</a>。
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="wrap">
+        <div class="footer__inner">
+          <div class="footer__brand">
+            <a class="brand" href="#top" aria-label="回到顶部">
+              <img class="brand__seal" src="assets/icon.png" alt="每日诗词印章图标" width="72" height="72" loading="lazy" />
+              <span class="brand__name">每日诗词</span>
+            </a>
+            <p>同一天，遇见同一首诗。宣纸底、朱砂印，离线可用，不收集任何数据。</p>
+          </div>
+          <div>
+            <h4>项目</h4>
+            <ul>
+              <li><a href="https://github.com/freewu/daily-poetry" rel="noopener">GitHub 仓库</a></li>
+              <li><a href="https://github.com/freewu/daily-poetry/issues" rel="noopener">问题反馈</a></li>
+              <li><a href="https://github.com/freewu/daily-poetry/blob/main/LICENSE" rel="noopener">MIT 许可</a></li>
+            </ul>
+          </div>
+          <div>
+            <h4>语料</h4>
+            <ul>
+              <li><a href="https://github.com/chinese-poetry/chinese-poetry" rel="noopener">chinese-poetry</a></li>
+              <li><a href="https://zh.wikisource.org/wiki/樂府詩集" rel="noopener">维基文库 · 乐府诗集</a></li>
+              <li><a href="https://www.guwendao.net/gushi/songsan.aspx" rel="noopener">古文岛 · 宋词三百首</a></li>
+            </ul>
+          </div>
+        </div>
+        <div class="footer__bottom">
+          <span>© 2026 bluefrog · 每日诗词 v1.1.0</span>
+          <span>React Native · Expo SDK 57 · SQLite</span>
+        </div>
+      </div>
+    </footer>
+
+    <!-- ------------------------------------------------------------ 灯箱 -->
+    <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="截图预览" data-open="false">
+      <button class="lightbox__btn lightbox__close" id="lb-close" type="button" aria-label="关闭预览" data-no-i18n>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+          <path d="M6 6l12 12M18 6 6 18" stroke-linecap="round" />
+        </svg>
+      </button>
+      <button class="lightbox__btn" id="lb-prev" type="button" aria-label="上一张" data-no-i18n>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+          <path d="M15 5 8 12l7 7" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
+      <div class="lightbox__stage">
+        <img id="lb-img" src="" alt="" />
+      </div>
+      <button class="lightbox__btn" id="lb-next" type="button" aria-label="下一张" data-no-i18n>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+          <path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
+      <figcaption id="lb-cap"></figcaption>
+    </div>
+
+    <script src="assets/i18n.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
