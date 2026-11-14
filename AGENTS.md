@@ -381,3 +381,49 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
   深红印泥贴在 `#181510` 上几乎看不见，得换成纸色的「反白印」`CREAM_INK`。
 - `logo.png` 是**源图**，得跟着仓库走（`just assets` 依赖它）；`tab/*.png` 仍从
   `@expo/vector-icons` 的 Ionicons.ttf 渲染，跟 `(tabs)/_layout.tsx` 里的图标名对得上。
+
+# 官网（`docs/`）
+
+- 纯静态三件套，无构建步骤：`docs/index.html`（**简体是唯一真相**）+ `docs/style.css` + `docs/app.js`，
+  资源在 `docs/assets/`。GitHub Pages 直接把 Pages 源指到 `/docs` 即可，预览 `just docs-serve`。
+- **简繁不是逐字转换，是整串对照表**：`tool/docs-i18n.mjs` 把 index.html 里每个文本节点 /
+  `alt` / `aria-label` / `content` 的简体原文（trim 后）当键，用 OpenCC `cn→twp` 转出臺灣正體当值，
+  写进 `docs/assets/i18n.js`（约 200 条，23KB）。`app.js` 在 DOM 上按 trim 后的整串查表替换 ——
+  所以**改完 HTML 文案必须 `just docs-i18n`**，否则繁体模式里新句子原样露出简体；
+  `just docs-check` 只校验不写盘（对不上退出码 1）。
+  - 别把逐字转换塞进运行时（`opencc-js` 的浏览器包 2.3MB，且会翻坏「后台 / 里面 / 皇后」这类词）。
+  - 键里带换行 / 缩进也能对上（两边都从同一份 HTML 抠），但整段重排过就要重跑。
+  - 动态文案（三态主题、按钮 aria）写在 `app.js` 里自己维护，**不进对照表**；
+    它们所在的元素挂 `data-no-i18n`，`collect()` 会跳过。
+- **主题三态**：`跟随系统 / 浅色 / 深色`，循环切换，selection 存 `localStorage.dp-theme`
+  （`auto` 是**删键**，不是写 `"auto"`）。首屏 `<head>` 里的内联脚本先定一次
+  `data-theme`（避免刷新闪白），`app.js` 再接管按钮与 `matchMedia` 的 `change`。
+  **取不到系统偏好**（没有 `matchMedia`、或读不到）一律按**深色**——深色是纸墨主题的主场。
+  注意 Chrome `--headless` 默认报 `prefers-color-scheme: dark`，别看错成「跟随系统没生效」。
+- **语言**：`localStorage.dp-lang`（`hans|hant`）；首屏内联脚本按 `navigator.languages`
+  挑第一个 `zh` 的变体（`Hant` / `-TW|-HK|-MO` 走繁体），没存过就跟随浏览器。
+  `data-theme` / `data-lang` 都挂在 `<html>` 上，CSS 靠 `:root[data-theme="dark"]` 换 token
+  （颜色照抄 `src/theme.tsx` 的宣纸 / 夜读两套）。
+- **截图**：全部来自 Release APK（Debug 变体没有 JS bundle，拔线即白屏），
+  由 `tool/screenshots.sh shoot-all` 出原图再压成 **720×1600 / 256 色**（`webp` 子命令只做压缩），
+  放 `docs/assets/screenshots/`。`index.html` 里每张图都包在
+  `<button class="phone" data-shot="名字">` 里 —— **灯箱就是遍历所有 `[data-shot]`**，
+  按 DOM 顺序翻页，说明取同级 `<figcaption>`。新截图不加 `data-shot` 就进不了灯箱。
+- 版式：`.split`（图文左右交替，放 1–2 张）× `.band-head` + `.shots--row`（文字在上、
+  四部手机并排，放 3–4 张）。四张挤进半栏会缩到 200px 宽、字全糊，所以那几个区块用横贯版式。
+  `figure.shot` 的 `figcaption` 是给人看的一句话说明，别写成文件名。
+- 验证排版：`just docs-serve` 后浏览器打开即可；WSL 里 **Windows 侧 Chrome 连不上 WSL 的
+  http 端口**（NAT），但 `file:///E:/work/github/daily-poetry/docs/index.html` 能直接打开，
+  headless 截图 + `--virtual-time-budget` 足够查溢出（截图窗口给得越矮，`loading="lazy"`
+  的图越可能在截屏时还没画完，看到黑块不是样式坏了，把 budget 加到 20s）。
+
+# 提交与推送
+
+- **每次开发收尾（功能做完 / 修完 bug / 写完文档）都要 `git commit` 并 `git push` 到
+  `origin/main`**（<https://github.com/freewu/daily-poetry>），别把改动留一堆在工作区里。
+  提交前跑 `just check`（DB 校验 + `tsc` + `expo lint` + `jest`）；只动文档 / 官网时至少跑
+  `just docs-check`。
+- 提交信息用 `type(scope): 中文一句话`（现有历史：`feat(card): …`、`fix(tool): …`、`docs: …`），
+  正文写「为什么」而不是复述 diff。
+- 工作区里常有别处正在改的东西：**只 `git add` 本次相关的路径**，别 `git add -A`；
+  同一个文件里混着两件事时用 `git add -p` 挑 hunk（`AGENTS.md` 就常这样）。

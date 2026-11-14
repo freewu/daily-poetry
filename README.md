@@ -5,6 +5,31 @@
 
 > 同一日期，无论何时打开，都会遇见同一首诗 —— 推送算法与日期一一对应、完全可复现。
 
+## 截图
+
+<table>
+  <tr>
+    <td align="center" width="25%"><img src="docs/assets/screenshots/today.png" alt="每日一诗" width="210"><br><sub>每日一诗 · 农历与节气<br>左右滑动翻日子</sub></td>
+    <td align="center" width="25%"><img src="docs/assets/screenshots/poem-detail-vertical.png" alt="竖排阅读" width="210"><br><sub>竖排 · 空白断句<br>仿古籍自右向左</sub></td>
+    <td align="center" width="25%"><img src="docs/assets/screenshots/card.png" alt="诗词卡片" width="210"><br><sub>诗词卡片<br>存相册 / 直接分享</sub></td>
+    <td align="center" width="25%"><img src="docs/assets/screenshots/favorites.png" alt="我的收藏" width="210"><br><sub>我的收藏<br>右上角进挑战</sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="25%"><img src="docs/assets/screenshots/library.png" alt="诗词库" width="210"><br><sub>诗词库<br>十四部集子 · 9.5 万首</sub></td>
+    <td align="center" width="25%"><img src="docs/assets/screenshots/collection-authors.png" alt="作者索引" width="210"><br><sub>作者统计<br>首字母分组 + 右侧索引</sub></td>
+    <td align="center" width="25%"><img src="docs/assets/screenshots/challenge-question.png" alt="诗词挑战" width="210"><br><sub>填空挑战<br>十题一局，当场出分</sub></td>
+    <td align="center" width="25%"><img src="docs/assets/screenshots/settings.png" alt="设置" width="210"><br><sub>阅读设置<br>字体 / 字号 / 排版 / 语速</sub></td>
+  </tr>
+</table>
+
+深色主题有独立的一套配色（跟随系统 / 浅色 / 深色三态）。完整截图 —— 深色首页、词牌统计、
+挑战战绩、语料统计 —— 见 **官网 [`docs/index.html`](docs/index.html)**（简繁双语）：
+
+```bash
+just docs-serve          # → http://localhost:8080
+docs/index.html          # 或直接双击打开（file:// 也能跑，无需构建）
+```
+
 ## 特性
 
 - **每日一诗**：从精选池（唐诗三百首、千家诗、宋词三百首、诗经、楚辞、花间集、南唐词、
@@ -111,6 +136,12 @@ __tests__/            Jest 单元 / 组件测试（纯 Node，无需模拟器）
 tool/
   android-env.sh      adb / emulator / Maestro 环境探测
   android.sh          doctor · setup · boot · install · e2e
+  screenshots.sh      驱动模拟器里的 Release 包截图 → docs/assets/screenshots/（720x1600）
+  docs-i18n.mjs       官网简繁对照表生成（docs/index.html → docs/assets/i18n.js）
+docs/                 官网（纯静态三件套，简体是唯一真相，繁體由脚本派生）
+  index.html · style.css · app.js
+  assets/i18n.js      简繁整串对照表（生成物，改完文案跑 just docs-i18n）
+  assets/screenshots/ 官网 + README 用的截图
 justfile              常用开发命令
 ```
 
@@ -180,6 +211,9 @@ just db-full  # 再加古文观止 / 幽梦影 / 论语 / 四书 / 蒙学等（�
 | `just export` | 打 Android JS bundle 至 `dist/`（验证打包） |
 | `just build` | 提示：本地出包用 `just pkg` / `apk` / `ipa`，上架用 EAS Build |
 | `just envcheck` | 环境自检 |
+| `just docs-serve [端口]` | 本地预览官网（`docs/` → 默认 8080） |
+| `just docs-i18n` | 重新生成官网的简繁对照表（改了 HTML 文案就跑） |
+| `just docs-check` | 校验官网对照表是否过期（只读，过期退出码 1） |
 
 > **为什么拔了 USB 就打不开**：`just android` / `android-install` 装的是 **Debug 包**，
 > JS bundle 不在 APK 里，启动时走 `adb reverse tcp:8081` 向 Metro 要 —— 线一拔（或
