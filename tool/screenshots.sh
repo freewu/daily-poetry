@@ -4,6 +4,7 @@
 #   bash tool/screenshots.sh doctor          # 看设备 / 包名 / 分辨率是否就绪
 #   bash tool/screenshots.sh install         # 装 dist/ 里最新的 Release APK（离线可用）
 #   bash tool/screenshots.sh shoot-all       # 一键跑完「主要页面」的截图序列
+#   DP_DARK=1 bash tool/screenshots.sh shoot-all  # 同一套序列再跑一遗深色版（产物带 -dark 后缀）
 #   bash tool/screenshots.sh shot <名字>     # 只截当前屏 → docs/assets/screenshots/<名字>.png
 #   bash tool/screenshots.sh dump            # 打印当前屏可点元素（resource-id / 文本 / 坐标）
 #   bash tool/screenshots.sh tap <文本或 id> [等待秒数]
@@ -11,8 +12,15 @@
 #   bash tool/screenshots.sh back | home
 #   bash tool/screenshots.sh webp            # 1080x2400 PNG → 720x1600 索引色（官网用）
 #
+# 列表太长、脚本滚动不稳时，可以直接深链跳过去（比一层层点稳）：
+#   adb shell am start -a android.intent.action.VIEW -d "dailypoetry://collection/ci"
+#   adb shell am start -a android.intent.action.VIEW -d "dailypoetry://poem/2"
+# 路径就是 expo-router 的路由（collection/[id] · collection/[id]/cipai · poem/[id] · settings …）。
+#
 # 说明：截图必须用 Release 包（JS 打进 APK），Debug 包离了 Metro 就是白屏。
 # 坐标是按 1080x2400 / 420dpi 的 AVD（Pixel 7）量的；换机型先用 dump 对一次坐标。
+# WSL 里 Linux 版 adb 连不上 Windows 的 server 时，把 ADB 指过去就行：
+#   ADB=/mnt/c/Users/xxx/AppData/Local/Android/Sdk/platform-tools/adb.exe bash tool/screenshots.sh ...
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -34,7 +42,9 @@ need_adb() { [ -n "${ADB:-}" ] || die "没找到 adb，先跑 just android-setup
 
 serial() {
   need_adb
-  "$ADB" devices | awk 'NR > 1 && $2 == "device" { print $1; exit }'
+  # Windows 侧的 adb.exe 输出是 CRLF，
+  # 不剥 \r 的话 $2 永远不等于 device（这里会用 Linux / Windows 两个 adb）
+  "$ADB" devices | tr -d '\r' | awk 'NR > 1 && $2 == "device" { print $1; exit }'
 }
 
 need_device() {
@@ -138,8 +148,9 @@ el_tap_scrolled() {
 shot() {
   need_device
   sleep "${2:-0.6}"
-  "$ADB" -s "$S" exec-out screencap -p > "$OUT/$1.png"
-  info "docs/assets/screenshots/$1.png"
+  # 深色序列（DP_DARK=1）给同一套名字加后缀：today.png / today-dark.png 成对
+  "$ADB" -s "$S" exec-out screencap -p > "$OUT/$1${SHOT_SUFFIX:-}.png"
+  info "docs/assets/screenshots/$1${SHOT_SUFFIX:-}.png"
 }
 
 back() { "$ADB" -s "$S" shell input keyevent KEYCODE_BACK; sleep "${1:-1.1}"; }
@@ -151,7 +162,12 @@ import glob, os, sys
 from PIL import Image
 out = sys.argv[1]
 for f in sorted(glob.glob(os.path.join(out, '*.png'))):
-    im = Image.open(f).convert('RGB').resize((720, 1600), Image.LANCZOS)
+    im = Image.open(f).convert('RGB')
+    if im.size == (720, 1600):
+        # 已经是网页尺寸就不再重压：反复过一遍 LANCZOS 只会把字糊掉
+        print('%-34s %6d B  (已就绪)' % (os.path.basename(f), os.path.getsize(f)))
+        continue
+    im = im.resize((720, 1600), Image.LANCZOS)
     im = im.quantize(colors=256, method=Image.MEDIANCUT, dither=Image.FLOYDSTEINBERG)
     im.save(f, optimize=True)
     print('%-34s %6d B' % (os.path.basename(f), os.path.getsize(f)))
@@ -165,11 +181,27 @@ PY
 shoot_all() {
   need_device
   info "设备：$S"
+  if [ "${DP_DARK:-0}" = "1" ]; then
+    SHOT_SUFFIX="-dark"
+    info "深色序列：产物一律带 -dark 后缀"
+  fi
 
   "$ADB" -s "$S" shell am force-stop com.bluefrog.dailypoetry
   "$ADB" -s "$S" shell monkey -p com.bluefrog.dailypoetry \
     -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
   sleep 9
+
+  # 深色序列先把主题切成深色（存进 meta，重启也不丢），再从头开始跑
+  if [ "${DP_DARK:-0}" = "1" ]; then
+    info "切到深色主题"
+    tap_xy 945 2230 1.4
+    el_tap_scrolled theme-dark 6 1.4
+    "$ADB" -s "$S" shell am force-stop com.bluefrog.dailypoetry
+    "$ADB" -s "$S" shell monkey -p com.bluefrog.dailypoetry \
+      -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
+    sleep 9
+  fi
+
   shot today 1
 
   # --- 诗词库：列表 + 集子（唐诗三百首）+ 作者统计
@@ -182,8 +214,10 @@ shoot_all() {
   back
 
   # --- 词牌统计（只有词集才有）：回诗词库 → 全宋词
+  # 全宋词的集子 id 是 ci（不是 quansongci）；诗词库网格只渲染前 10 张卡片，
+  # 再往后的集子滚不到（FlatList 窗口化 + 内容高度≈视口），所以这里必须挑首页就有的
   back
-  el_tap_scrolled 'collection-quansongci' 6 1.8
+  el_tap_scrolled 'collection-ci' 6 1.8
   el_tap collection-cipai-link 1.8
   shot collection-cipai
   back
@@ -211,9 +245,14 @@ shoot_all() {
   shot card
   back
 
-  # --- 收藏：先点亮今天的红心，列表才不是空的
-  el_tap act-favorite 1.2
-  tap_xy 675 2230 1.6
+  # --- 收藏：浅色序列先点亮今天的红心，列表才不是空的；
+  #     深色序列不能再点（那一下是取消收藏，两次的列表就对不上了）
+  if [ "${DP_DARK:-0}" = "1" ]; then
+    tap_xy 675 2230 1.6
+  else
+    el_tap act-favorite 1.2
+    tap_xy 675 2230 1.6
+  fi
   shot favorites
 
   # --- 挑战：入口 → 对局（十题盲选，只为拿到结果页）→ 战绩
@@ -247,13 +286,17 @@ shoot_all() {
   "$ADB" -s "$S" shell input swipe 540 1700 540 800 600; sleep 0.8
   shot settings-lower
 
-  # --- 深色主题（截完切回跟随系统）
-  el_tap theme-dark 1.6
-  shot settings-dark
-  tap_xy 135 2230 1.6
-  shot today-dark
-  tap_xy 945 2230 1.2
-  el_tap theme-auto 1.4
+  # --- 深色主题（浅色序列的收尾；深色序列开头就切好了，只要把主题还回去）
+  if [ "${DP_DARK:-0}" = "1" ]; then
+    el_tap_scrolled theme-auto 6 1.4
+  else
+    el_tap theme-dark 1.6
+    shot settings-dark
+    tap_xy 135 2230 1.6
+    shot today-dark
+    tap_xy 945 2230 1.2
+    el_tap theme-auto 1.4
+  fi
 
   info "完成 ✓ 接着跑 bash tool/screenshots.sh webp 压到 720 宽"
 }

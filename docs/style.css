@@ -20,11 +20,14 @@
   --frame: #33291b;
   --shadow-lg: 0 40px 80px -40px rgba(74, 52, 28, 0.55);
   --shadow-md: 0 18px 40px -24px rgba(74, 52, 28, 0.5);
-  --serif: "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC",
+  --serif:
+    "Songti SC", "STSong", "Noto Serif CJK SC", "Source Han Serif SC",
     "Source Han Serif", "SimSun", Georgia, serif;
-  --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+  --sans:
+    -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
     "Microsoft YaHei", "Noto Sans CJK SC", "Segoe UI", Roboto, sans-serif;
-  --mono: "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  --mono:
+    "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
   --max: 1160px;
   --pad: clamp(20px, 5vw, 40px);
   --radius: 18px;
@@ -159,7 +162,9 @@ button {
   -webkit-backdrop-filter: blur(14px) saturate(1.2);
   background: color-mix(in srgb, var(--bg) 82%, transparent);
   border-bottom: 1px solid transparent;
-  transition: border-color 0.3s, background 0.3s;
+  transition:
+    border-color 0.3s,
+    background 0.3s;
 }
 
 .topbar.stuck {
@@ -217,7 +222,9 @@ button {
   font-size: 14.5px;
   color: var(--sub);
   white-space: nowrap;
-  transition: color 0.2s, background 0.2s;
+  transition:
+    color 0.2s,
+    background 0.2s;
 }
 
 .nav a:hover {
@@ -258,7 +265,10 @@ button {
   border: 1px solid var(--line-strong);
   color: var(--sub);
   font-size: 13.5px;
-  transition: color 0.2s, border-color 0.2s, background 0.2s;
+  transition:
+    color 0.2s,
+    border-color 0.2s,
+    background 0.2s;
 }
 
 .ghost-btn:hover {
@@ -290,19 +300,25 @@ button {
   font-size: 15px;
   font-weight: 500;
   white-space: nowrap;
-  transition: transform 0.18s, box-shadow 0.25s, background 0.25s, color 0.25s,
+  transition:
+    transform 0.18s,
+    box-shadow 0.25s,
+    background 0.25s,
+    color 0.25s,
     border-color 0.25s;
 }
 
 .btn--primary {
   background: var(--accent);
   color: var(--on-accent);
-  box-shadow: 0 12px 26px -14px color-mix(in srgb, var(--accent) 90%, transparent);
+  box-shadow: 0 12px 26px -14px
+    color-mix(in srgb, var(--accent) 90%, transparent);
 }
 
 .btn--primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 18px 32px -14px color-mix(in srgb, var(--accent) 95%, transparent);
+  box-shadow: 0 18px 32px -14px
+    color-mix(in srgb, var(--accent) 95%, transparent);
 }
 
 .btn--ghost {
@@ -430,9 +446,45 @@ button {
 .hero__shot {
   position: relative;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
+  gap: 12px;
   min-height: 0;
+}
+/* 八张预览叠在同一格里，靠 .is-on 切换（叠着而不是 display:none，容器高度才不跳） */
+.hero__frames {
+  display: grid;
+  place-items: center;
+}
+.hero__frames > .hero__frame {
+  grid-area: 1 / 1;
+  opacity: 0;
+  visibility: hidden;
+  transform: scale(0.985);
+  transition:
+    opacity 0.34s ease,
+    transform 0.34s ease,
+    visibility 0.34s;
+}
+.hero__frames > .hero__frame.is-on {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+}
+.hero__hint {
+  margin: 0;
+  max-width: 22em;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--faint);
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+.hero__hint::before {
+  content: "↑";
+  margin-right: 0.35em;
+  color: var(--accent);
 }
 
 /* 首屏右下的印章水印 */
@@ -461,9 +513,15 @@ button {
   flex: 0 0 auto;
   padding: 7px;
   border-radius: 34px;
-  background: linear-gradient(160deg, color-mix(in srgb, var(--frame) 92%, #fff 8%), var(--frame));
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--frame) 92%, #fff 8%),
+    var(--frame)
+  );
   box-shadow: var(--shadow-lg);
-  transition: transform 0.4s cubic-bezier(0.2, 0.7, 0.2, 1), box-shadow 0.4s;
+  transition:
+    transform 0.4s cubic-bezier(0.2, 0.7, 0.2, 1),
+    box-shadow 0.4s;
 }
 
 .phone::after {
@@ -688,7 +746,10 @@ figure.shot figcaption {
   border-radius: var(--radius);
   background: var(--card);
   border: 1px solid var(--line);
-  transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s;
+  transition:
+    transform 0.3s,
+    border-color 0.3s,
+    box-shadow 0.3s;
 }
 
 .feature:hover {
@@ -1097,7 +1158,9 @@ table.corpus-table {
   backdrop-filter: blur(8px);
   opacity: 0;
   visibility: hidden;
-  transition: opacity 0.25s, visibility 0.25s;
+  transition:
+    opacity 0.25s,
+    visibility 0.25s;
 }
 
 .lightbox[data-open="true"] {
@@ -1140,7 +1203,9 @@ table.corpus-table {
   border-radius: 50%;
   color: rgba(255, 255, 255, 0.85);
   background: rgba(255, 255, 255, 0.1);
-  transition: background 0.2s, transform 0.2s;
+  transition:
+    background 0.2s,
+    transform 0.2s;
 }
 
 .lightbox__btn:hover {
@@ -1162,7 +1227,8 @@ table.corpus-table {
 .reveal {
   opacity: 0;
   transform: translateY(20px);
-  transition: opacity 0.75s cubic-bezier(0.2, 0.7, 0.2, 1),
+  transition:
+    opacity 0.75s cubic-bezier(0.2, 0.7, 0.2, 1),
     transform 0.75s cubic-bezier(0.2, 0.7, 0.2, 1);
   will-change: opacity, transform;
 }
@@ -1172,9 +1238,15 @@ table.corpus-table {
   transform: none;
 }
 
-.reveal[data-delay="1"] { transition-delay: 0.08s; }
-.reveal[data-delay="2"] { transition-delay: 0.16s; }
-.reveal[data-delay="3"] { transition-delay: 0.24s; }
+.reveal[data-delay="1"] {
+  transition-delay: 0.08s;
+}
+.reveal[data-delay="2"] {
+  transition-delay: 0.16s;
+}
+.reveal[data-delay="3"] {
+  transition-delay: 0.24s;
+}
 
 @media (prefers-reduced-motion: reduce) {
   html {
@@ -1186,6 +1258,7 @@ table.corpus-table {
     transition: none;
   }
   .phone,
+  .hero__frame,
   .feature,
   .btn {
     transition: none;
@@ -1225,6 +1298,10 @@ table.corpus-table {
   }
   .hero__shot {
     margin-top: 12px;
+  }
+  /* 导航条都收起来了，也就没得换：这句提示只剩误导 */
+  .hero__hint {
+    display: none;
   }
   .split,
   .corpus,

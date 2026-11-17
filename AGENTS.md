@@ -409,6 +409,26 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
   放 `docs/assets/screenshots/`。`index.html` 里每张图都包在
   `<button class="phone" data-shot="名字">` 里 —— **灯箱就是遍历所有 `[data-shot]`**，
   按 DOM 顺序翻页，说明取同级 `<figcaption>`。新截图不加 `data-shot` 就进不了灯箱。
+  - 同一张图在首屏预览和正文章节里各有一份，灯箱**按 `img src` 去重**，
+    不去重的话「下一张」会原地踏步。
+- **深浅两套图**：有深色版的图都带 `data-dark="…-dark.png"`，`app.js` 的 `applyShotTheme()`
+  跟着主题换 `src`（先把原值存进 `dataset.light`，切回来再换回去）；深色图在
+  `requestIdleCallback` 里预取，换主题才不会闪一下空框。
+  `settings.png ↔ settings-dark.png` 是**互为明暗**的一对（不是两个不同页面），
+  所以 `settings-dark` 的 `data-dark` 指回 `settings.png`。
+- 出图两种序列：`bash tool/screenshots.sh shoot-all` 出浅色，
+  `DP_DARK=1 bash tool/screenshots.sh shoot-all` 走**同一套步骤**、产物带 `-dark`
+  （开头先切「深色」主题；收藏那步**跳过**点红心 —— 深色序列再点就是取消收藏，
+  两次的列表对不上）。`webp` 只做压缩，已是 720×1600 的直接跳过（反复过 LANCZOS 字会糊）。
+- 脚本按 testID 点，集子 id 用建库时那个（全宋词是 **`collection-ci`**，不是 quansongci）；
+  诗词库网格只渲染前十张卡片、滚不到后面的集子，要去别的集子直接走深链：
+  `adb shell am start -a android.intent.action.VIEW -d "dailypoetry://collection/ci"`
+  （路径就是 expo-router 的路由，`poem/2`、`settings` 同理，比一层层点稳）。
+- **首屏预览切换器**：`.hero__frames` 里八张 `figure.hero__frame[data-preview]` **叠在同一个
+  grid 格**上（`grid-area:1/1` + `opacity/visibility` 过渡；用 `display:none` 容器高度会跟着跳），
+  顶部导航的 `a[data-preview]` 悬停 / 聚焦 / 点击都调 `showPreview(key)`。
+  加一页 = 加一个 frame + 一个 nav 链接，key 两边必须同名（现在：`daily / reading / card /
+  favorites / library / challenge / data / tech`）。导航在 ≤1040px 收起，`.hero__hint` 跟着隐藏。
 - 版式：`.split`（图文左右交替，放 1–2 张）× `.band-head` + `.shots--row`（文字在上、
   四部手机并排，放 3–4 张）。四张挤进半栏会缩到 200px 宽、字全糊，所以那几个区块用横贯版式。
   `figure.shot` 的 `figcaption` 是给人看的一句话说明，别写成文件名。
@@ -416,6 +436,9 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
   http 端口**（NAT），但 `file:///E:/work/github/daily-poetry/docs/index.html` 能直接打开，
   headless 截图 + `--virtual-time-budget` 足够查溢出（截图窗口给得越矮，`loading="lazy"`
   的图越可能在截屏时还没画完，看到黑块不是样式坏了，把 budget 加到 20s）。
+  交互（主题循环 / 简繁 / 首屏换图 / 灯箱翻页）不用肉眼：`--dump-dom` 里能看到
+  `data-theme`、`img src`、`.hero__frame.is-on`、`#lightbox[data-open]` 这些结果值 ——
+  在页面末尾临时插一段脚本操作 DOM 再 dump 就行（验完删掉临时文件，别提交）。
 
 # 提交与推送
 

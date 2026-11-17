@@ -69,6 +69,7 @@
     mode = m;
     themeMode = effectiveTheme(m);
     root.setAttribute("data-theme", themeMode);
+    applyShotTheme(themeMode);
     if (themeToggle) {
       themeToggle.setAttribute("aria-label", THEME_ARIA[currentLang()][m]);
     }
@@ -231,16 +232,95 @@
     });
   }
 
+  /* ------------------------------------------- 截图跟主题（浅色 / 深色两套） */
+  /* 每张图都带了 data-dark（同一屏的深色版）：换主题时连截图一起换，
+     不然白天主题里配一张黑乎乎的手机、夜里配一张亮纸，都不像这个 App。 */
+  var shotImgs = Array.prototype.slice.call(
+    document.querySelectorAll("img[data-dark]"),
+  );
+  shotImgs.forEach(function (img) {
+    img.dataset.light = img.getAttribute("src");
+  });
+
+  function applyShotTheme(theme) {
+    shotImgs.forEach(function (img) {
+      var next = theme === "dark" ? img.dataset.dark : img.dataset.light;
+      if (next && img.getAttribute("src") !== next) {
+        img.setAttribute("src", next);
+      }
+    });
+  }
+
   collect();
   /* 首屏内联脚本已按系统语言定过 data-lang，这里把文本对上去 */
   var bootLang = currentLang();
   applyTheme(mode, false);
   applyLang(bootLang, false);
 
-  /* ------------------------------------------------------------ 灯箱 */
-  var shots = Array.prototype.slice.call(
-    document.querySelectorAll("[data-shot]"),
+  /* 深色那套图等页面空下来再预取，换主题时才不会闪一下空框 */
+  var darkSources = [];
+  shotImgs.forEach(function (img) {
+    if (img.dataset.dark && darkSources.indexOf(img.dataset.dark) < 0) {
+      darkSources.push(img.dataset.dark);
+    }
+  });
+  var preloadDark = function () {
+    darkSources.forEach(function (src) {
+      var probe = new Image();
+      probe.decoding = "async";
+      probe.src = src;
+    });
+  };
+  if (darkSources.length) {
+    if (window.requestIdleCallback) {
+      window.requestIdleCallback(preloadDark, { timeout: 5000 });
+    } else {
+      window.setTimeout(preloadDark, 2500);
+    }
+  }
+
+  /* ------------------------------------------------ 首屏预览：点菜单换图 */
+  var heroFrames = Array.prototype.slice.call(
+    document.querySelectorAll(".hero__frames > .hero__frame"),
   );
+  var previews = {};
+  heroFrames.forEach(function (frame) {
+    if (frame.dataset.preview) previews[frame.dataset.preview] = frame;
+  });
+
+  function showPreview(key) {
+    var target = previews[key];
+    if (!target || target.classList.contains("is-on")) return;
+    heroFrames.forEach(function (frame) {
+      frame.classList.toggle("is-on", frame === target);
+    });
+  }
+
+  Array.prototype.forEach.call(
+    document.querySelectorAll("#nav a[data-preview]"),
+    function (link) {
+      var key = link.getAttribute("data-preview");
+      /* 悬停 / 键盘聚焦就先换（按下之前看得到），点击后再换一次定住 */
+      ["mouseenter", "focus", "click"].forEach(function (ev) {
+        link.addEventListener(ev, function () {
+          showPreview(key);
+        });
+      });
+    },
+  );
+
+  /* ------------------------------------------------------------ 灯箱 */
+  /* 同一张图在首屏预览和正文章节里各出现一次，按 src 去重，翻页不会原地踏步 */
+  var seenShot = {};
+  var shots = Array.prototype.slice
+    .call(document.querySelectorAll("[data-shot]"))
+    .filter(function (btn) {
+      var img = btn.querySelector("img");
+      var src = img && (img.getAttribute("src") || "");
+      if (!src || seenShot[src]) return false;
+      seenShot[src] = true;
+      return true;
+    });
   var lb = document.getElementById("lightbox");
   var lbImg = document.getElementById("lb-img");
   var lbCap = document.getElementById("lb-cap");
