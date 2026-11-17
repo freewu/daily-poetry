@@ -450,3 +450,7 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
   正文写「为什么」而不是复述 diff。
 - 工作区里常有别处正在改的东西：**只 `git add` 本次相关的路径**，别 `git add -A`；
   同一个文件里混着两件事时用 `git add -p` 挑 hunk（`AGENTS.md` 就常这样）。
+- WSL 里的 `git push` 走 `http.proxy = 127.0.0.1:7897`（Windows 上的 Clash Verge），
+  Clash 没开 / 只监听 Windows 本机时报 `Failed to connect to 127.0.0.1 port 7897`。
+  这时**换成 Windows 的 git 推**（它才看得见那个代理）：
+  `cmd.exe /c "cd /d E:\work\github\daily-poetry && git push origin main"`。
