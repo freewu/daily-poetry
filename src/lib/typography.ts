@@ -46,7 +46,7 @@ export function familyOf(key: FontKey): string | undefined {
   return (ALL_FONTS.find((o) => o.key === key) ?? ALL_FONTS[0]).family;
 }
 
-/** 正文基准字号（未缩放） */
+/** 缩放基准字号：`scaleOfBody()` 以它当 1.0，其余文字按倍率走（**不是默认值**） */
 export const BASE_FONT_SIZE = 21;
 
 /**
@@ -56,7 +56,11 @@ export const BASE_FONT_SIZE = 21;
 export const MIN_BODY = 10;
 export const MAX_BODY = 24;
 export const BODY_STEP = 1;
-export const DEFAULT_BODY = BASE_FONT_SIZE;
+/**
+ * 默认正文字号：跟缩放基准分开，18 号比「基准 21」小一档 ——
+ * 开箱就该是能一屏多看两行的舒服档位，不是最大档。
+ */
+export const DEFAULT_BODY = 18;
 
 /** 老版四档 → 倍率（只用于读旧库里的值） */
 export const LEGACY_SIZE_SCALE: Record<SizeKey, number> = {

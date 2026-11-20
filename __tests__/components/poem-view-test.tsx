@@ -103,9 +103,9 @@ describe('简繁切换', () => {
 });
 
 describe('字体与字号', () => {
-  it('默认：正文 21 号，不指定 fontFamily', async () => {
+  it('默认：正文 18 号，不指定 fontFamily', async () => {
     await renderWithTheme(<PoemLines poem={poem} color="#000" />);
-    expect(screen.getByText(poem.content)).toHaveStyle({ fontSize: 21 });
+    expect(screen.getByText(poem.content)).toHaveStyle({ fontSize: 18 });
     expect(screen.getByText(poem.content).props.style.fontFamily).toBeUndefined();
   });
 

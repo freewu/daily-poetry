@@ -298,8 +298,9 @@ describe('<SettingsScreen />', () => {
     const db = await seed();
     await renderWithTheme(<SettingsScreen />, { db });
     await waitFor(() => expect(screen.getByTestId('font-size-slider')).toBeTruthy());
-    expect(screen.getByTestId('font-size-slider-value').props.children).toBe(21);
-    expect(previewStyle().fontSize).toBe(19);
+    expect(screen.getByTestId('font-size-slider-value').props.children).toBe(18);
+    // 预览是「19 号 × 当前倍率」：默认 18 → 19 × 18/21 = 16.3 → 16
+    expect(previewStyle().fontSize).toBe(16);
 
     // 拖动中：只有预览跟着变，库里还是空的
     await act(async () => {

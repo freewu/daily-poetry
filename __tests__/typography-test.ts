@@ -43,9 +43,9 @@ describe('字族', () => {
 });
 
 describe('字号（滑块，存 px）', () => {
-  it('范围 10–24，默认 21', () => {
-    expect([MIN_BODY, MAX_BODY, DEFAULT_BODY]).toEqual([10, 24, 21]);
-    expect(DEFAULT_BODY).toBe(BASE_FONT_SIZE);
+  it('范围 10–24，默认 18（缩放基准仍是 21，两件事分开）', () => {
+    expect([MIN_BODY, MAX_BODY, DEFAULT_BODY]).toEqual([10, 24, 18]);
+    expect(BASE_FONT_SIZE).toBe(21);
   });
 
   it('clampBody 收在范围内并取整，NaN 回默认', () => {
@@ -84,6 +84,7 @@ describe('字号（滑块，存 px）', () => {
   it('滑块下面那句话按档位变', () => {
     expect(bodyHint(11)).toContain('最多字');
     expect(bodyHint(16)).toContain('信息密度高');
+    expect(bodyHint(18)).toContain('日常阅读'); // 默认档就在这一段
     expect(bodyHint(21)).toContain('日常阅读');
     expect(bodyHint(24)).toContain('长辈');
   });
