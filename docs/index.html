@@ -366,9 +366,20 @@
                 <figcaption>正文字体 · 实时预览</figcaption>
               </figure>
             </div>
-            <p class="hero__hint">
-              点（或悬停）上面任一个菜单，这张图就换成那一页
-            </p>
+            <!--
+              截图正下方的换图菜单：每一项都是一个热点，点 / 悬停 / 键盘聚焦都换一张。
+              顶栏的导航在 1040px 以下收起，这条菜单是窄屏上唯一的入口
+            -->
+            <div class="hero__menu" role="group" aria-label="切换预览截图">
+              <button type="button" class="is-on" data-preview="daily" aria-pressed="true">今日</button>
+              <button type="button" data-preview="reading" aria-pressed="false">阅读</button>
+              <button type="button" data-preview="card" aria-pressed="false">卡片</button>
+              <button type="button" data-preview="favorites" aria-pressed="false">收藏</button>
+              <button type="button" data-preview="library" aria-pressed="false">诗词库</button>
+              <button type="button" data-preview="challenge" aria-pressed="false">挑战</button>
+              <button type="button" data-preview="data" aria-pressed="false">语料</button>
+              <button type="button" data-preview="tech" aria-pressed="false">技术</button>
+            </div>
           </div>
         </div>
       </section>

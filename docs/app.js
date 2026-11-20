@@ -287,6 +287,10 @@
   heroFrames.forEach(function (frame) {
     if (frame.dataset.preview) previews[frame.dataset.preview] = frame;
   });
+  /* 手机截图下方那条菜单：既是说明也是热点，亮着的那项就是当前这张图 */
+  var heroTabs = Array.prototype.slice.call(
+    document.querySelectorAll(".hero__menu [data-preview]"),
+  );
 
   function showPreview(key) {
     var target = previews[key];
@@ -294,10 +298,15 @@
     heroFrames.forEach(function (frame) {
       frame.classList.toggle("is-on", frame === target);
     });
+    heroTabs.forEach(function (tab) {
+      var on = tab.getAttribute("data-preview") === key;
+      tab.classList.toggle("is-on", on);
+      tab.setAttribute("aria-pressed", on ? "true" : "false");
+    });
   }
 
   Array.prototype.forEach.call(
-    document.querySelectorAll("#nav a[data-preview]"),
+    document.querySelectorAll("#nav a[data-preview], .hero__menu [data-preview]"),
     function (link) {
       var key = link.getAttribute("data-preview");
       /* 悬停 / 键盘聚焦就先换（按下之前看得到），点击后再换一次定住 */

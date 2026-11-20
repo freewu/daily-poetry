@@ -502,9 +502,12 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
     —— 白名单里的键，换库也不丢。两个序列**开头都写一遍**主题（深色序列会把库里留成 dark）。
 - **首屏预览切换器**：`.hero__frames` 里八张 `figure.hero__frame[data-preview]` **叠在同一个
   grid 格**上（`grid-area:1/1` + `opacity/visibility` 过渡；用 `display:none` 容器高度会跟着跳），
-  顶部导航的 `a[data-preview]` 悬停 / 聚焦 / 点击都调 `showPreview(key)`。
-  加一页 = 加一个 frame + 一个 nav 链接，key 两边必须同名（现在：`daily / reading / card /
-  favorites / library / challenge / data / tech`）。导航在 ≤1040px 收起，`.hero__hint` 跟着隐藏。
+  顶部导航的 `a[data-preview]` 与手机截图正下方 `.hero__menu` 里的 `button[data-preview]`
+  悬停 / 聚焦 / 点击都调 `showPreview(key)`；后者是两行四列的胶囊（`grid-template-columns: repeat(4)`，
+  桌面 `max-width: 320px`、窄屏 360px），亮着的那颗 `.is-on` = 当前这张图，`aria-pressed` 同步。
+  加一页 = 加一个 frame + 一个 nav 链接 + 一颗菜单按钮，三处 key 必须同名（现在：`daily / reading /
+  card / favorites / library / challenge / data / tech`）。导航在 ≤1040px 收起，
+  **菜单不收起** —— 窄屏换图只能走它（老版这里只是句 `.hero__hint` 提示，已经在 1040px 以下隐藏）。
 - 版式：`.split`（图文左右交替，放 1–2 张）× `.band-head` + `.shots--row`（文字在上、
   四部手机并排，放 3–4 张）。四张挤进半栏会缩到 200px 宽、字全糊，所以那几个区块用横贯版式。
   `figure.shot` 的 `figcaption` 是给人看的一句话说明，别写成文件名。

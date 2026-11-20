@@ -472,19 +472,45 @@ button {
   visibility: visible;
   transform: none;
 }
-.hero__hint {
-  margin: 0;
-  max-width: 22em;
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--faint);
-  letter-spacing: 0.04em;
-  text-align: center;
+/* 截图正下方的换图菜单（热点）：窄屏顶栏收起之后，换图就靠这一条 */
+.hero__menu {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  width: 100%;
+  max-width: 320px;
+  margin-top: 2px;
 }
-.hero__hint::before {
-  content: "↑";
-  margin-right: 0.35em;
+
+.hero__menu button {
+  appearance: none;
+  min-height: 34px;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--faint);
+  font: inherit;
+  font-size: 12.5px;
+  letter-spacing: 0.06em;
+  line-height: 1.4;
+  cursor: pointer;
+  transition:
+    color 0.2s,
+    border-color 0.2s,
+    background 0.2s;
+}
+
+.hero__menu button:hover,
+.hero__menu button:focus-visible {
+  color: var(--text);
+  border-color: var(--faint);
+}
+
+.hero__menu button.is-on {
   color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 /* 首屏右下的印章水印 */
@@ -1299,9 +1325,9 @@ table.corpus-table {
   .hero__shot {
     margin-top: 12px;
   }
-  /* 导航条都收起来了，也就没得换：这句提示只剩误导 */
-  .hero__hint {
-    display: none;
+  /* 导航条收起了，换图全靠手机下方那条菜单（它是热点，不受影响） */
+  .hero__menu {
+    max-width: 360px;
   }
   .split,
   .corpus,
