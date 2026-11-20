@@ -34,6 +34,73 @@ export function gapOf(v: string | null | undefined): DailyGap {
   return GAP_OPTS.find((o) => o.key === gapKeyOf(v))!.gap;
 }
 
+// ---------------------------------------------------------------- 每日精选（每日池的范围）
+/**
+ * 「每日精选从哪几部集子里挑」存在 meta 的这个键里（逗号分隔的集子 id）。
+ *
+ * 池子以前是写死的（建库时 `DAILY_COLLECTIONS` 那九部，1966 首），现在设置页可以勾：
+ * **所有集子都能选**（全唐诗 5.7 万首也能整部当日更池），外加一个虚拟集子
+ * 「我的收藏」（`DAILY_FAVORITES`）。一部都不勾不行 —— 池子空了首页就开天窗，
+ * 所以「至少留一个」由 `parseDailyScope()` / `toggleDailyScope()` 保证。
+ */
+export const DAILY_SCOPE_KEY = 'settings_daily_collections';
+
+/** 「我的收藏」这个虚拟集子的 id（跟挑战出题池的 `CHALLENGE_FAVORITES` 是同一个值） */
+export const DAILY_FAVORITES = 'favorites';
+
+/**
+ * 库里的串 + 能选的集子 → 选择。
+ *
+ * 只保留 `available` 里有的：换库 / 重下语料之后旧 id 可能已经不存在。
+ * 筛完一部不剩（没存过、串是脏的、集子全没了）就当没选过，退回 `fallback` ——
+ * 也就是建库时标了 `daily = 1` 的那九部（老版本「整个精选池」的行为）。
+ * 连 `fallback` 都空（小库 / 测试库没有 collections 表数据）就返回空数组：
+ * 空 = 不限集子，让 `poemForDay()` 自己退回 `daily = 1` 整个精选池。
+ */
+export function parseDailyScope(
+  raw: string | null | undefined,
+  available: string[],
+  fallback: string[] = available,
+): string[] {
+  const chosen = new Set(
+    (raw ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+  );
+  const kept = available.filter((id) => chosen.has(id));
+  if (kept.length) return kept;
+  return fallback.filter((id) => available.includes(id));
+}
+
+/**
+ * 选择 → 存进 meta 的串。按 `available` 的顺序写，同一个选择永远同一个串
+ * （缓存指纹靠它对齐，顺序不同就是两个指纹）。
+ */
+export function serializeDailyScope(ids: string[], available: string[]): string {
+  const chosen = new Set(ids);
+  return available.filter((id) => chosen.has(id)).join(',');
+}
+
+/**
+ * 勾上 / 取消一部集子。取消到一部不剩时**原样返回**：
+ * 「必须选择一个」这条规矩在这里，调用方（设置页）不用再拦一遍。
+ * `fallback` 跟 `parseDailyScope()` 一样（没选过时选什么）。
+ */
+export function toggleDailyScope(
+  ids: string[],
+  id: string,
+  available: string[],
+  fallback: string[] = available,
+): string[] {
+  const chosen = parseDailyScope(ids.join(','), available, fallback);
+  if (chosen.includes(id)) {
+    if (chosen.length <= 1) return chosen;
+    return chosen.filter((x) => x !== id);
+  }
+  return available.filter((x) => x === id || chosen.includes(x));
+}
+
 /** 无名诗的冷却身份（只用于去重，不展示） */
 const ANON = '\u0000佚名';
 

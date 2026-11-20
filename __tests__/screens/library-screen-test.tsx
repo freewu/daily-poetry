@@ -2,7 +2,14 @@ import { fireEvent, waitFor } from '@testing-library/react-native';
 
 import LibraryScreen from '@/app/(tabs)/library';
 
-import { renderWithTheme, screen, seedCollections, seedPoems, useMemoryDb } from '../helpers/test-utils';
+import {
+  asDb,
+  renderWithTheme,
+  screen,
+  seedCollections,
+  seedPoems,
+  useMemoryDb,
+} from '../helpers/test-utils';
 
 const g = globalThis as any;
 
@@ -27,6 +34,23 @@ describe('<LibraryScreen />', () => {
     expect(screen.getByText('全宋词')).toBeTruthy();
     expect(screen.getByText('共 2 首')).toBeTruthy();
     expect(screen.getByText('每日精选')).toBeTruthy();
+  });
+
+  it('没勾过时，「每日精选」小字跟着建库时那几部走', async () => {
+    await renderWithTheme(<LibraryScreen />, { db: seed() });
+    await waitFor(() => expect(screen.getByTestId('daily-tang')).toBeTruthy());
+    expect(screen.queryByTestId('daily-song')).toBeNull();
+  });
+
+  it('设置里改了勾选，「每日精选」小字跟着换（不是建库时的 daily 列）', async () => {
+    const db = seed();
+    // 全宋词建库时 daily = 0，但用户在设置里只勾了它
+    await asDb(db).runAsync(
+      "INSERT OR REPLACE INTO meta (key, value) VALUES ('settings_daily_collections','song')",
+    );
+    await renderWithTheme(<LibraryScreen />, { db });
+    await waitFor(() => expect(screen.getByTestId('daily-song')).toBeTruthy());
+    expect(screen.queryByTestId('daily-tang')).toBeNull();
   });
 
   it('点选集进列表页', async () => {

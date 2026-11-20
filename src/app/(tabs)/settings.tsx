@@ -9,15 +9,26 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   clearFavorites,
+  dailyScopeOptions,
   favoriteCount,
   getSetting,
   historyDays,
   setSetting,
+  type DailyScopeOption,
 } from '@/lib/db';
 import { FontSizeSlider } from '@/components/font-size-slider';
+import { MultiSelect } from '@/components/multi-select';
 import { PoemLines } from '@/components/poem-lines';
 import { Segment } from '@/components/segment';
-import { DEFAULT_GAP_KEY, GAP_OPTS, gapKeyOf } from '@/lib/daily';
+import {
+  DAILY_FAVORITES,
+  DAILY_SCOPE_KEY,
+  DEFAULT_GAP_KEY,
+  GAP_OPTS,
+  gapKeyOf,
+  parseDailyScope,
+  serializeDailyScope,
+} from '@/lib/daily';
 import { PUNCT_OPTS } from '@/lib/punct';
 import { SCRIPT_OPTS } from '@/lib/script';
 import { DEFAULT_RATE_KEY, isRateKey, RATE_OPTS, rateOf, SPEECH_SAMPLE } from '@/lib/tts';
@@ -81,6 +92,9 @@ export default function SettingsScreen() {
   const [push, setPush] = useState<PushPref>('classic');
   const [gap, setGap] = useState<GapKey>(DEFAULT_GAP_KEY);
   const [rate, setRate] = useState<RateKey>(DEFAULT_RATE_KEY);
+  // 「每日精选」的诗集：能选的（所有集子 + 我的收藏）+ 现在勾了哪几部（默认九部精选）
+  const [opts, setOpts] = useState<DailyScopeOption[]>([]);
+  const [scope, setScope] = useState<string[]>([]);
   const [meta, setMeta] = useState<{ dataset: string; poems: string; built: string }>({
     dataset: '',
     poems: '',
@@ -99,14 +113,24 @@ export default function SettingsScreen() {
         getSetting(db, 'settings_push'),
         getSetting(db, 'settings_tts_rate'),
         getSetting(db, 'settings_daily_gap'),
+        getSetting(db, DAILY_SCOPE_KEY),
+        dailyScopeOptions(db),
       ])
-        .then(([f, d, ds, pc, ba, sp, sr, sg]) => {
+        .then(([f, d, ds, pc, ba, sp, sr, sg, sc, os]) => {
           if (!alive) return;
           setFavCount(f);
           setDays(d);
           setPush(sp === 'occasion' ? 'occasion' : 'classic');
           setGap(gapKeyOf(sg));
           setRate(isRateKey(sr) ? sr : DEFAULT_RATE_KEY);
+          setOpts(os);
+          setScope(
+            parseDailyScope(
+              sc,
+              os.map((o) => o.id),
+              os.filter((o) => o.daily === 1).map((o) => o.id),
+            ),
+          );
           setMeta({
             dataset: ds ?? '',
             poems: pc ?? '',
@@ -138,6 +162,10 @@ export default function SettingsScreen() {
         ? '诗歌词曲全库'
         : '—';
 
+  // 勾中的集子一共多少首（都整部进池，所以这就是池子大小）
+  const scopeCount = opts.filter((o) => scope.includes(o.id)).reduce((n, o) => n + o.count, 0);
+  const scopeHint = `已选 ${scope.length}/${opts.length} 部 · 共 ${scopeCount} 首（至少保留一部）`;
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top + 8 }}>
       <View style={styles.head}>
@@ -146,6 +174,41 @@ export default function SettingsScreen() {
 
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
         <Section label="每日推送">
+          {opts.length > 1 ? (
+            <>
+              <SubLabel text="每日精选" />
+              <MultiSelect
+                testIDPrefix="scope"
+                title="每日精选"
+                options={opts.map((o) => ({
+                  key: o.id,
+                  label:
+                    o.id === DAILY_FAVORITES
+                      ? o.count
+                        ? '我的收藏'
+                        : '我的收藏（空）'
+                      : o.name,
+                  // 行尾的收录数：勾之前就能看出池子多大（我的收藏那个数就是收藏数）
+                  hint: `${o.count} 首`,
+                }))}
+                value={scope}
+                // 没有收藏时「我的收藏」是个空池子，选了只会退回整池，干脆不让点
+                disabledKeys={opts
+                  .filter((o) => o.id === DAILY_FAVORITES && !o.count)
+                  .map((o) => o.id)}
+                onChange={(ids) => {
+                  setScope(ids);
+                  setSetting(
+                    db,
+                    DAILY_SCOPE_KEY,
+                    serializeDailyScope(ids, opts.map((o) => o.id)),
+                  ).catch(() => {});
+                }}
+                hint={scopeHint}
+              />
+            </>
+          ) : null}
+          <SubLabel text="推送方式" />
           <Segment
             testIDPrefix="push"
             options={PUSH_OPTS}

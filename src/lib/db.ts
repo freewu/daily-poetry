@@ -7,7 +7,7 @@ import {
   type ChallengeRecord,
 } from './challenge';
 import { cipaiOf } from './cipai';
-import { createDailyPicker, DEFAULT_GAP, offsetFor, type DailyPicker } from './daily';
+import { createDailyPicker, DAILY_FAVORITES, DEFAULT_GAP, offsetFor, type DailyPicker } from './daily';
 import type { CollectionMeta, DailyGap, Occasion, Poem } from './types';
 
 export const DB_NAME = 'poetry.db';
@@ -73,6 +73,26 @@ export async function listCollections(db: SQLiteDatabase): Promise<CollectionMet
 
 export async function getCollection(db: SQLiteDatabase, id: string): Promise<CollectionMeta | null> {
   return db.getFirstAsync<CollectionMeta>('SELECT * FROM collections WHERE id = ?', id);
+}
+
+/**
+ * 设置页「每日精选」的可选项：**所有**集子（精选的排前面、同档按收录数从多到少）
+ * + 最后那个虚拟集子「我的收藏」。
+ */
+export interface DailyScopeOption {
+  id: string;
+  name: string;
+  count: number;
+  /** 1 = 建库时进精选池的那九部（没选过时默认就选这些） */
+  daily: number;
+}
+
+export async function dailyScopeOptions(db: SQLiteDatabase): Promise<DailyScopeOption[]> {
+  const colls = await db.getAllAsync<DailyScopeOption>(
+    'SELECT id, name, count, daily FROM collections ORDER BY daily DESC, count DESC, id',
+  );
+  const fav = await favoriteCount(db);
+  return [...colls, { id: DAILY_FAVORITES, name: '我的收藏', count: fav, daily: 0 }];
 }
 
 export async function poemsOfCollection(db: SQLiteDatabase, coll: string): Promise<Poem[]> {
@@ -142,32 +162,84 @@ export async function searchPoems(db: SQLiteDatabase, q: string, limit = 100): P
 }
 
 // ---------------------------------------------------------------- 每日一诗（确定性轮换）
-/** 挑诗器按「库实例 + 冷却天数」缓存：一次 App 生命周期里只建一次 */
-const pickers = new WeakMap<SQLiteDatabase, Map<number, DailyPicker>>();
+/**
+ * 挑诗器按「库实例 + 冷却天数 + 选集」缓存：一次 App 生命周期里只建一次。
+ * 键里必须带选集 —— 换了集子就是另一条序列，共用一份挑选器会串味。
+ */
+const pickers = new WeakMap<SQLiteDatabase, Map<string, DailyPicker>>();
 
-async function pickerFor(db: SQLiteDatabase, gap: DailyGap): Promise<DailyPicker> {
-  let byGap = pickers.get(db);
-  if (!byGap) {
-    byGap = new Map();
-    pickers.set(db, byGap);
+/**
+ * 精选池里挑诗只需要这两列。
+ *
+ * `collections` 是要纳入的集子（可以混着 `DAILY_FAVORITES`）：
+ * - 空 = 不限集子，整个精选池（`daily = 1` 那 1966 首）——老版本的行为；
+ * - 集子整部纳入（全唐诗那 5.7 万首也在内，不只 `daily = 1`）；
+ * - `DAILY_FAVORITES` 那一支走收藏表，收藏变动就换池子。
+ *
+ * 导出只为了能单测「池子里到底是哪几首」（尤其是选集与收藏重叠时的去重）。
+ */
+export async function dailyPoolRows(
+  db: SQLiteDatabase,
+  collections: string[],
+): Promise<{ id: number; author: string }[]> {
+  if (!collections.length) {
+    return db.getAllAsync<{ id: number; author: string }>(
+      'SELECT id, author FROM poems WHERE daily = 1 ORDER BY id',
+    );
   }
-  const hit = byGap.get(gap);
-  if (hit) return hit;
-  const rows = await db.getAllAsync<{ id: number; author: string }>(
-    'SELECT id, author FROM poems WHERE daily = 1 ORDER BY id',
+  const colls = collections.filter((c) => c !== DAILY_FAVORITES);
+  const withFav = colls.length !== collections.length;
+  const parts: string[] = [];
+  if (colls.length) {
+    const marks = colls.map(() => '?').join(',');
+    parts.push(`SELECT id, author FROM poems WHERE collection IN (${marks})`);
+  }
+  if (withFav) {
+    parts.push(
+      'SELECT p.id AS id, p.author AS author FROM favorites f JOIN poems p ON p.id = f.poem_id',
+    );
+  }
+  // UNION（不是 UNION ALL）：同一首既在集子里又在收藏里时只算一次，
+  // 否则它在池子里占比翻倍，作者冷却也会把它当两首。
+  return db.getAllAsync<{ id: number; author: string }>(
+    `${parts.join(' UNION ')} ORDER BY id`,
+    ...colls,
   );
+}
+
+async function pickerFor(
+  db: SQLiteDatabase,
+  gap: DailyGap,
+  collections: string[] = [],
+): Promise<DailyPicker> {
+  let byKey = pickers.get(db);
+  if (!byKey) {
+    byKey = new Map();
+    pickers.set(db, byKey);
+  }
+  const key = `${gap}|${collections.join(',')}`;
+  const hit = byKey.get(key);
+  if (hit) return hit;
+  let rows = await dailyPoolRows(db, collections);
+  // 选集里的 id 全失效了（换库 / 语料重下），或者只勾了「我的收藏」而收藏是空的：
+  // 退回整个精选池，宁可多给几首，也别让首页因为一条过期设置开天窗
+  if (!rows.length && collections.length) rows = await dailyPoolRows(db, []);
   const picker = createDailyPicker(rows, gap);
-  byGap.set(gap, picker);
+  byKey.set(key, picker);
   return picker;
 }
 
-/** 经典池里按日期取一首：同一日期永远同一首，`gap` 天内不重复同一位作者 */
+/**
+ * 经典池里按日期取一首：同一日期永远同一首，`gap` 天内不重复同一位作者。
+ * `collections` 是设置页勾的「精选诗集」（空 = 整个精选池）。
+ */
 export async function poemForDay(
   db: SQLiteDatabase,
   dateStr: string,
   gap: DailyGap = DEFAULT_GAP,
+  collections: string[] = [],
 ): Promise<Poem | null> {
-  const picker = await pickerFor(db, gap);
+  const picker = await pickerFor(db, gap, collections);
   const id = picker.idFor(dayNumber(dateStr));
   return id == null ? null : getPoem(db, id);
 }
@@ -229,13 +301,14 @@ export async function pickPoemForDate(
   dateStr: string,
   occ: Occasion | null,
   gap: DailyGap = DEFAULT_GAP,
+  collections: string[] = [],
 ): Promise<DayPick> {
   if (occ) {
     const themed = await poemForOccasion(db, dateStr, occ);
     // 查不到这个节日 / 节气的诗，就走平日的作者冷却轮换
     if (themed) return { poem: themed, occasion: true };
   }
-  return { poem: await poemForDay(db, dateStr, gap), occasion: false };
+  return { poem: await poemForDay(db, dateStr, gap, collections), occasion: false };
 }
 
 export async function rememberDay(db: SQLiteDatabase, dateStr: string, poemId: number): Promise<void> {

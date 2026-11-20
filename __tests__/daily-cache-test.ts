@@ -12,10 +12,11 @@ import {
   withPick,
   type DailyCache,
 } from '@/lib/daily-cache';
+import { DAILY_FAVORITES, DAILY_SCOPE_KEY } from '@/lib/daily';
 import { poemForDay, getSetting, setSetting, shiftDayStr, todayStr } from '@/lib/db';
 import { dayInfo, occasionFor } from '@/lib/lunar';
 
-import { asDb, seedPoems, useMemoryDb } from './helpers/memory-db';
+import { asDb, seedCollections, seedFavorites, seedPoems, useMemoryDb } from './helpers/memory-db';
 
 const POOL = [
   { id: 1, title: '静夜思', author: '李白', content: '床前明月光\n疑是地上霜' },
@@ -62,9 +63,19 @@ describe('daily-cache/纯函数', () => {
     expect(cachedIdOf(cache, '2026-11-06', 'classic|7')).toBeNull();
   });
 
-  it('pickKeyOf 把两项偏好编进同一个指纹', () => {
+  it('pickKeyOf 把偏好编进同一个指纹', () => {
     expect(pickKeyOf('classic', 7)).toBe('classic|7');
     expect(pickKeyOf('occasion', 30)).toBe('occasion|30');
+    // 换了集子就是另一个指纹（缓存必须作废）
+    expect(pickKeyOf('classic', 7, ['tangshi', 'shijing'])).toBe('classic|7|tangshi,shijing');
+    expect(pickKeyOf('occasion', 7, [])).toBe('occasion|7');
+    // 勾了「我的收藏」时，收藏数量也得进指纹（收藏变了池子就变了）
+    expect(pickKeyOf('classic', 7, [DAILY_FAVORITES], 3)).toBe(
+      `classic|7|${DAILY_FAVORITES}|fav3`,
+    );
+    expect(pickKeyOf('classic', 7, ['tangshi', DAILY_FAVORITES], 0)).toBe(
+      `classic|7|tangshi,${DAILY_FAVORITES}|fav0`,
+    );
   });
 
   it('withPick：丢掉旧指纹 / 过去的日期，最多留 CACHE_KEEP 条', () => {
@@ -185,14 +196,82 @@ describe('daily-cache/读缓存', () => {
     expect(await cacheOf(db)).toEqual({});
   });
 
-  it('dailyPrefs 读的是 settings_push / settings_daily_gap', async () => {
+  it('dailyPrefs 读的是 settings_push / settings_daily_gap / 精选诗集', async () => {
     const db = useMemoryDb();
     seedPoems(db, POOL);
-    expect(await dailyPrefs(asDb(db))).toEqual({ push: 'classic', gap: 7 });
+    expect(await dailyPrefs(asDb(db))).toEqual({ push: 'classic', gap: 7, collections: [] });
 
     await setSetting(asDb(db), 'settings_push', 'occasion');
     await setSetting(asDb(db), 'settings_daily_gap', '30');
-    expect(await dailyPrefs(asDb(db))).toEqual({ push: 'occasion', gap: 30 });
+    expect(await dailyPrefs(asDb(db))).toEqual({ push: 'occasion', gap: 30, collections: [] });
+  });
+
+  it('dailyPrefs 的选集：没选过 → 建库时那几部精选；脏值 / 旧 id 同理', async () => {
+    const db = useMemoryDb();
+    seedPoems(db, POOL);
+    seedCollections(db, [
+      { id: 'tangshi', name: '唐诗三百首', count: 320, daily: 1 },
+      { id: 'shijing', name: '诗经', count: 305, daily: 1 },
+      { id: 'ci', name: '全宋词', count: 21049, daily: 0 },
+    ]);
+
+    // 没存过 = 那两部精选（全宋词不在内，尽管它也能选）
+    expect((await dailyPrefs(asDb(db))).collections).toEqual(['tangshi', 'shijing']);
+
+    await setSetting(asDb(db), DAILY_SCOPE_KEY, 'tangshi,gone');
+    expect((await dailyPrefs(asDb(db))).collections).toEqual(['tangshi']);
+
+    await setSetting(asDb(db), DAILY_SCOPE_KEY, 'gone,also-gone');
+    expect((await dailyPrefs(asDb(db))).collections).toEqual(['tangshi', 'shijing']);
+
+    // 积极性：所有集子都能勾（包括整部全宋词）
+    await setSetting(asDb(db), DAILY_SCOPE_KEY, 'ci');
+    expect((await dailyPrefs(asDb(db))).collections).toEqual(['ci']);
+  });
+
+  it('勾了「我的收藏」时，收藏数量进指纹；没勾就不带', async () => {
+    const db = useMemoryDb();
+    seedPoems(db, POOL);
+    seedCollections(db, [{ id: 'tangshi', name: '唐诗三百首', count: 320, daily: 1 }]);
+    seedFavorites(db, [1, 2]);
+
+    await setSetting(asDb(db), DAILY_SCOPE_KEY, 'tangshi');
+    expect((await dailyPrefs(asDb(db))).favorites).toBeUndefined();
+
+    await setSetting(asDb(db), DAILY_SCOPE_KEY, DAILY_FAVORITES);
+    expect(await dailyPrefs(asDb(db))).toEqual({
+      push: 'classic',
+      gap: 7,
+      collections: [DAILY_FAVORITES],
+      favorites: 2,
+    });
+  });
+
+  it('换了精选诗集 → 缓存作废，按新池子重算', async () => {
+    const db = useMemoryDb();
+    seedPoems(db, [
+      { id: 1, collection: 'tangshi', title: '唐一', author: '李白', content: '甲' },
+      { id: 2, collection: 'shijing', title: '诗一', author: '佚名', content: '乙' },
+    ]);
+    const today = todayStr();
+
+    const first = await pickForDateCached(asDb(db), today, {
+      push: 'classic',
+      gap: 7,
+      collections: ['tangshi'],
+    });
+    expect(first.poem!.collection).toBe('tangshi');
+    expect((await cacheOf(db))[today].key).toBe('classic|7|tangshi');
+
+    const second = await pickForDateCached(asDb(db), today, {
+      push: 'classic',
+      gap: 7,
+      collections: ['shijing'],
+    });
+    expect(second.poem!.collection).toBe('shijing');
+    expect(await cacheOf(db)).toEqual({
+      [today]: { id: second.poem!.id, key: 'classic|7|shijing', themed: false },
+    });
   });
 });
 

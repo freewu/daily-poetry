@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PoemRow } from '@/components/poem-row';
+import { dailyPrefs } from '@/lib/daily-cache';
 import { listCollections, searchPoems } from '@/lib/db';
 import { localizeCollection } from '@/lib/script';
 import type { CollectionMeta, Poem } from '@/lib/types';
@@ -24,12 +25,20 @@ export default function LibraryScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const [cols, setCols] = useState<CollectionMeta[]>([]);
+  // 设置页勾的「每日精选」范围：卡片上的「每日精选」小字跟着它走，
+  // 跟建库时的 `daily` 列无关（那只是「没勾过时默认选哪几部」）
+  const [scope, setScope] = useState<string[]>([]);
   const [q, setQ] = useState('');
   const [results, setResults] = useState<Poem[] | null>(null);
 
   useFocusEffect(
     useCallback(() => {
-      listCollections(db).then(setCols).catch(() => {});
+      Promise.all([listCollections(db), dailyPrefs(db)])
+        .then(([cs, prefs]) => {
+          setCols(cs);
+          setScope(prefs.collections ?? []);
+        })
+        .catch(() => {});
     }, [db]),
   );
 
@@ -103,14 +112,14 @@ export default function LibraryScreen() {
           numColumns={2}
           columnWrapperStyle={{ gap: 12 }}
           contentContainerStyle={styles.grid}
-          renderItem={({ item }) => <CollectionCard coll={item} />}
+          renderItem={({ item }) => <CollectionCard coll={item} daily={scope.includes(item.id)} />}
         />
       )}
     </View>
   );
 }
 
-function CollectionCard({ coll: raw }: { coll: CollectionMeta }) {
+function CollectionCard({ coll: raw, daily }: { coll: CollectionMeta; daily: boolean }) {
   const { colors } = useTheme();
   const { script } = useScript();
   const coll = localizeCollection(raw, script);
@@ -130,8 +139,10 @@ function CollectionCard({ coll: raw }: { coll: CollectionMeta }) {
         <Text style={[styles.kind, { backgroundColor: colors.soft, color: colors.softText }]}>
           {coll.kind}
         </Text>
-        {coll.daily ? (
-          <Text style={[styles.daily, { color: colors.accent }]}>每日精选</Text>
+        {daily ? (
+          <Text testID={`daily-${coll.id}`} style={[styles.daily, { color: colors.accent }]}>
+            每日精选
+          </Text>
         ) : null}
       </View>
       <Text numberOfLines={1} style={[styles.name, { color: colors.text }]}>

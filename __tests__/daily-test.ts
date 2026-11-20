@@ -3,6 +3,8 @@
 
 import {
   createDailyPicker,
+  DAILY_FAVORITES,
+  DAILY_SCOPE_KEY,
   DEFAULT_GAP,
   DEFAULT_GAP_KEY,
   GAP_OPTS,
@@ -11,6 +13,9 @@ import {
   hashString,
   isGapKey,
   offsetFor,
+  parseDailyScope,
+  serializeDailyScope,
+  toggleDailyScope,
 } from '@/lib/daily';
 
 describe('GAP_OPTS', () => {
@@ -65,6 +70,70 @@ describe('hashString / offsetFor', () => {
 });
 
 const ROMAN = ['李白', '杜甫', '王维', '孟浩然', '苏轼', '李清照', '陶渊明', '白居易'];
+
+// ---------------------------------------------------------------- 精选诗集（设置里的范围）
+const AVAILABLE = ['huajianji', 'tangshi', 'shijing'];
+/** 能选的 = 所有集子 + 「我的收藏」；没选过时默认选建库时那几部精选 */
+const ALL = [...AVAILABLE, DAILY_FAVORITES];
+
+describe('精选诗集（每日池的范围）', () => {
+  it('KV 键跟着设置名字走，「我的收藏」用虚拟集子 id', () => {
+    expect(DAILY_SCOPE_KEY).toBe('settings_daily_collections');
+    expect(DAILY_FAVORITES).toBe('favorites');
+  });
+
+  it('没存过 / 脏值 / 全部失效 → 退回默认那几部精选，池子不会空', () => {
+    for (const raw of [null, undefined, '', '  ', 'nope,invalid']) {
+      expect(parseDailyScope(raw, ALL, AVAILABLE)).toEqual(AVAILABLE);
+    }
+    // 没给默认值就当「全选」
+    expect(parseDailyScope(null, ALL)).toEqual(ALL);
+    // 库里一部集子都没有时也不炸（空 = 不限集子，整池）
+    expect(parseDailyScope('tangshi', [])).toEqual([]);
+  });
+
+  it('只留能选的 id，顺序跟 available 一致', () => {
+    expect(parseDailyScope('shijing,tangshi', ALL, AVAILABLE)).toEqual(['tangshi', 'shijing']);
+    // 旧库里已经没了的 id 直接丢掉
+    expect(parseDailyScope('gone,tangshi', ALL, AVAILABLE)).toEqual(['tangshi']);
+    expect(parseDailyScope(' gone , shijing ', ALL, AVAILABLE)).toEqual(['shijing']);
+    // 「我的收藏」也是合法选项
+    expect(parseDailyScope(`${DAILY_FAVORITES},tangshi`, ALL, AVAILABLE)).toEqual([
+      'tangshi',
+      DAILY_FAVORITES,
+    ]);
+  });
+
+  it('序列化按 available 排序：同一个选择永远同一个串', () => {
+    expect(serializeDailyScope(['shijing', 'tangshi'], AVAILABLE)).toBe('tangshi,shijing');
+    expect(serializeDailyScope([], AVAILABLE)).toBe('');
+    // 与解析是一对：写进去再读回来是同一个选择
+    const ids = ['huajianji', 'shijing'];
+    expect(parseDailyScope(serializeDailyScope(ids, AVAILABLE), AVAILABLE)).toEqual(ids);
+    expect(
+      parseDailyScope(serializeDailyScope([DAILY_FAVORITES], ALL), ALL, AVAILABLE),
+    ).toEqual([DAILY_FAVORITES]);
+  });
+
+  it('toggleDailyScope：勾上 / 取消，顺序稳定', () => {
+    expect(toggleDailyScope(['tangshi'], 'shijing', AVAILABLE)).toEqual(['tangshi', 'shijing']);
+    expect(toggleDailyScope(['tangshi', 'shijing'], 'tangshi', AVAILABLE)).toEqual(['shijing']);
+    expect(toggleDailyScope(['huajianji', 'tangshi', 'shijing'], 'tangshi', AVAILABLE)).toEqual([
+      'huajianji',
+      'shijing',
+    ]);
+  });
+
+  it('必须选择一个：最后一部点不掉', () => {
+    expect(toggleDailyScope(['tangshi'], 'tangshi', AVAILABLE)).toEqual(['tangshi']);
+    // 从脏值（当没选过 → 默认九部精选）出发也一样
+    expect(toggleDailyScope(['gone'], 'gone', AVAILABLE)).toEqual(AVAILABLE);
+    // 只剩「我的收藏」时也点不掉
+    expect(toggleDailyScope([DAILY_FAVORITES], DAILY_FAVORITES, ALL, AVAILABLE)).toEqual([
+      DAILY_FAVORITES,
+    ]);
+  });
+});
 
 /** 每位作者两首，够验证「同一位作者再来时换一首」 */
 function rowsOf(authors: string[]) {

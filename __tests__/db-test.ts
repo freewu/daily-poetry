@@ -1,5 +1,7 @@
 import {
   clearFavorites,
+  dailyPoolRows,
+  dailyScopeOptions,
   dayNumber,
   favoriteCount,
   getCollection,
@@ -23,10 +25,17 @@ import {
   toggleFavorite,
   weekdayOf,
 } from '@/lib/db';
+import { DAILY_FAVORITES } from '@/lib/daily';
 import { occasionFor, dayInfo } from '@/lib/lunar';
 import type { CollectionMeta, Poem } from '@/lib/types';
 
-import { asDb, seedCollections, seedPoems, useMemoryDb } from './helpers/memory-db';
+import {
+  asDb,
+  seedCollections,
+  seedFavorites,
+  seedPoems,
+  useMemoryDb,
+} from './helpers/memory-db';
 
 describe('db/日期工具', () => {
   it('todayStr 是 YYYY-MM-DD', () => {
@@ -175,6 +184,104 @@ describe('db/每日一诗（确定性轮换）', () => {
   it('空库返回 null', async () => {
     const db = useMemoryDb();
     expect(await poemForDay(asDb(db), '2024-09-17')).toBeNull();
+  });
+
+  it('只勾一部集子时只在那部里挑', async () => {
+    const db = useMemoryDb();
+    seedPoems(db, [
+      { id: 1, collection: 'tangshi', title: '甲', content: '甲' },
+      { id: 2, collection: 'tangshi', title: '乙', content: '乙' },
+      { id: 3, collection: 'shijing', title: '丙', content: '丙' },
+      { id: 4, collection: 'shijing', title: '丁', content: '丁' },
+    ]);
+    let date = '2024-09-17';
+    const ids: number[] = [];
+    for (let i = 0; i < 20; i++) {
+      ids.push((await poemForDay(asDb(db), date, 7, ['shijing']))!.id);
+      date = shiftDayStr(date, 1);
+    }
+    // 20 天里只会出 shijing 那两首
+    expect(new Set(ids)).toEqual(new Set([3, 4]));
+    // 不传选集 = 整个精选池（含非精选之外的两个集子）
+    expect((await poemForDay(asDb(db), '2024-09-17', 7, []))!.daily).toBe(1);
+  });
+
+  it('选集里的 id 全失效（换库了）→ 退回整池，不开天窗', async () => {
+    const db = seed();
+    const p = await poemForDay(asDb(db), '2024-09-17', 7, ['gone-collection']);
+    expect(p?.daily).toBe(1);
+  });
+
+  it('整部集子纳入：daily = 0 的诗（全唐诗那种大部头）也在池子里', async () => {
+    const db = useMemoryDb();
+    seedPoems(db, [
+      { id: 1, collection: 'quantangshi', title: '甲', content: '甲', daily: 0 },
+      { id: 2, collection: 'quantangshi', title: '乙', content: '乙', daily: 0 },
+      { id: 3, collection: 'tangshi', title: '丙', content: '丙' },
+    ]);
+    let date = '2024-09-17';
+    const ids: number[] = [];
+    for (let i = 0; i < 20; i++) {
+      ids.push((await poemForDay(asDb(db), date, 7, ['quantangshi']))!.id);
+      date = shiftDayStr(date, 1);
+    }
+    expect(new Set(ids)).toEqual(new Set([1, 2]));
+  });
+
+  it('「我的收藏」也能当池子，跟集子一起选时不重复算', async () => {
+    const db = useMemoryDb();
+    seedPoems(db, [
+      { id: 1, collection: 'tangshi', title: '甲', author: '李白', content: '甲' },
+      { id: 2, collection: 'ci', title: '乙', author: '苏轼', content: '乙', daily: 0 },
+      { id: 3, collection: 'shijing', title: '丙', author: '佚名', content: '丙' },
+    ]);
+    seedFavorites(db, [1, 2]);
+
+    // 只选我的收藏：只出收藏那两首
+    let date = '2024-09-17';
+    const favIds: number[] = [];
+    for (let i = 0; i < 20; i++) {
+      favIds.push((await poemForDay(asDb(db), date, 7, [DAILY_FAVORITES]))!.id);
+      date = shiftDayStr(date, 1);
+    }
+    expect(new Set(favIds)).toEqual(new Set([1, 2]));
+
+    // 收藏 + 集子并存：1 号既在 tangshi 又在收藏里，池子只有 {1,2,3}，不会把 1 算两份
+    const pool = await dailyPoolRows(asDb(db), ['tangshi', 'shijing', DAILY_FAVORITES]);
+    expect(pool.map((r) => r.id)).toEqual([1, 2, 3]);
+    // 不传选集 = 整个精选池（只有 `daily = 1` 的那两首，2 号不在内）
+    expect((await dailyPoolRows(asDb(db), [])).map((r) => r.id)).toEqual([1, 3]);
+  });
+
+  it('只选我的收藏但收藏是空的 → 退回整个精选池（首页不开天窗）', async () => {
+    const db = seed();
+    expect((await poemForDay(asDb(db), '2024-09-17', 7, [DAILY_FAVORITES]))?.daily).toBe(1);
+  });
+
+  it('dailyScopeOptions 列所有集子（精选在前、按数量降）+ 最后一条「我的收藏」', async () => {
+    const db = useMemoryDb();
+    seedCollections(db, [
+      { id: 'small', name: '曹操诗集', count: 26, daily: 1 },
+      { id: 'big', name: '花间集', count: 447, daily: 1 },
+      { id: 'ci', name: '全宋词', count: 21049, daily: 0 },
+      { id: 'qts', name: '全唐诗', count: 57599, daily: 0 },
+    ]);
+    seedPoems(db, [
+      { id: 1, collection: 'big', title: '甲', content: '甲' },
+      { id: 2, collection: 'big', title: '乙', content: '乙' },
+    ]);
+    seedFavorites(db, [1]);
+
+    const opts = await dailyScopeOptions(asDb(db));
+    expect(opts.map((o) => o.id)).toEqual(['big', 'small', 'qts', 'ci', DAILY_FAVORITES]);
+    expect(opts.map((o) => o.daily)).toEqual([1, 1, 0, 0, 0]);
+    // 「我的收藏」的收录数就是收藏数
+    expect(opts[opts.length - 1]).toEqual({
+      id: DAILY_FAVORITES,
+      name: '我的收藏',
+      count: 1,
+      daily: 0,
+    });
   });
 });
 

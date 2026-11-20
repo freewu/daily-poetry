@@ -12,13 +12,14 @@
 // 缓存不改变结果：`poemForDay` / `poemForOccasion` 都是「日期 + 池子 + 偏好」的
 // 纯函数，算与不算必须是同一首（`__tests__/daily-cache-test.ts` 盯着这条）。
 //
-// 存的只是 id + 偏好指纹（`push|gap`），不存正文：
+// 存的只是 id + 偏好指纹（`push|gap|集子`），不存正文：
 // - 偏好变了（推送方式 / 作者间隔）指纹对不上，旧条目自动作废；
 // - 换库（`src/lib/db-bootstrap.ts` 覆盖随包库）时 `meta` 整份替换，
 //   **故意不把 `daily_picks` 放进 `KEPT_SETTINGS`** —— 旧 id 指向的是旧库的诗。
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import {
+  dailyScopeOptions,
   getPoem,
   getSetting,
   pickPoemForDate,
@@ -27,7 +28,7 @@ import {
   todayStr,
   type DayPick,
 } from './db';
-import { gapOf } from './daily';
+import { DAILY_FAVORITES, DAILY_SCOPE_KEY, gapOf, parseDailyScope } from './daily';
 import { dayInfo, occasionFor } from './lunar';
 import type { DailyGap, PushPref } from './types';
 
@@ -41,7 +42,7 @@ export const CACHE_KEEP = 8;
 export interface CachedPick {
   /** 诗 id（正文不进来，读的时候按 id 取） */
   id: number;
-  /** 偏好指纹 `push|gap`：对不上就不用这条 */
+  /** 偏好指纹 `push|gap|集子`：对不上就不用这条 */
   key: string;
   /** 是不是应景命中（对应 `DayPick.occasion`） */
   themed: boolean;
@@ -53,11 +54,24 @@ export type DailyCache = Record<string, CachedPick>;
 export interface DailyPrefs {
   push: PushPref;
   gap: DailyGap;
+  /** 设置页勾的「每日精选」（空 = 整个精选池；见 `lib/daily.ts` 的 `parseDailyScope()`） */
+  collections?: string[];
+  /**
+   * 勾了「我的收藏」时的收藏数量：收藏一变池子就变，
+   * 所以它也得进缓存指纹（否则加了收藏还要等旧缓存过期）。
+   */
+  favorites?: number;
 }
 
-/** 偏好指纹：影响挑诗的就这两项 */
-export function pickKeyOf(push: PushPref, gap: DailyGap): string {
-  return `${push}|${gap}`;
+/** 偏好指纹：影响挑诗的就这几项（换集子 / 收藏数量变了就是另一条序列） */
+export function pickKeyOf(
+  push: PushPref,
+  gap: DailyGap,
+  collections: string[] = [],
+  favorites?: number,
+): string {
+  if (!collections.length && favorites == null) return `${push}|${gap}`;
+  return `${push}|${gap}|${collections.join(',')}${favorites == null ? '' : `|fav${favorites}`}`;
 }
 
 const isDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
@@ -90,7 +104,7 @@ export function cachedIdOf(cache: DailyCache, date: string, key: string): number
 
 /**
  * 写入一条并清理：
- * - 偏好指纹对不上的旧条目全丢（用户刚改了推送方式 / 作者间隔）
+ * - 偏好指纹对不上的旧条目全丢（用户刚改了推送方式 / 作者间隔 / 每日精选）
  * - 今天的日期之前的条目全丢（翻旧日子不占缓存）
  * - 只留最新的 `CACHE_KEEP` 条（ISO 日期串的字典序就是时间序）
  */
@@ -122,13 +136,29 @@ async function writeCache(db: SQLiteDatabase, cache: DailyCache): Promise<void> 
   await setSetting(db, DAILY_CACHE_KEY, JSON.stringify(cache));
 }
 
-/** 推送偏好：设置页写的是 `settings_push` / `settings_daily_gap` */
+/**
+ * 推送偏好：设置页写的是 `settings_push` / `settings_daily_gap` / `settings_daily_collections`。
+ * 选集要跟库里真有的集子对一遍，没选过就退回建库时那九部精选（`dailyScopeOptions().daily`）。
+ */
 export async function dailyPrefs(db: SQLiteDatabase): Promise<DailyPrefs> {
-  const [sp, sg] = await Promise.all([
+  const [sp, sg, sc, opts] = await Promise.all([
     getSetting(db, 'settings_push'),
     getSetting(db, 'settings_daily_gap'),
+    getSetting(db, DAILY_SCOPE_KEY),
+    dailyScopeOptions(db),
   ]);
-  return { push: sp === 'occasion' ? 'occasion' : 'classic', gap: gapOf(sg) };
+  const collections = parseDailyScope(
+    sc,
+    opts.map((o) => o.id),
+    opts.filter((o) => o.daily === 1).map((o) => o.id),
+  );
+  const fav = opts.find((o) => o.id === DAILY_FAVORITES)?.count;
+  return {
+    push: sp === 'occasion' ? 'occasion' : 'classic',
+    gap: gapOf(sg),
+    collections,
+    favorites: collections.includes(DAILY_FAVORITES) ? fav : undefined,
+  };
 }
 
 /**
@@ -140,9 +170,9 @@ export async function dailyPrefs(db: SQLiteDatabase): Promise<DailyPrefs> {
 export async function pickForDateCached(
   db: SQLiteDatabase,
   date: string,
-  prefs: DailyPrefs = { push: 'classic', gap: gapOf(null) },
+  prefs: DailyPrefs = { push: 'classic', gap: gapOf(null), collections: [] },
 ): Promise<DayPick> {
-  const key = pickKeyOf(prefs.push, prefs.gap);
+  const key = pickKeyOf(prefs.push, prefs.gap, prefs.collections, prefs.favorites);
   const cache = await readCache(db);
   const hit = cachedIdOf(cache, date, key);
   if (hit != null) {
@@ -151,7 +181,7 @@ export async function pickForDateCached(
   }
 
   const occ = prefs.push === 'occasion' ? occasionFor(dayInfo(date)) : null;
-  const pick = await pickPoemForDate(db, date, occ, prefs.gap);
+  const pick = await pickPoemForDate(db, date, occ, prefs.gap, prefs.collections);
   const today = todayStr();
   if (pick.poem && date >= today) {
     await writeCache(db, withPick(cache, date, { id: pick.poem.id, themed: pick.occasion }, key, today));
@@ -180,7 +210,7 @@ export async function prefetchUpcomingDays(
   if (prefetched.has(db)) return 0;
   prefetched.add(db);
 
-  const key = pickKeyOf(prefs.push, prefs.gap);
+  const key = pickKeyOf(prefs.push, prefs.gap, prefs.collections, prefs.favorites);
   const today = todayStr();
   let cache = await readCache(db);
   let done = 0;
@@ -188,7 +218,7 @@ export async function prefetchUpcomingDays(
     const date = shiftDayStr(today, i);
     if (cachedIdOf(cache, date, key) != null) continue;
     const occ = prefs.push === 'occasion' ? occasionFor(dayInfo(date)) : null;
-    const pick = await pickPoemForDate(db, date, occ, prefs.gap);
+    const pick = await pickPoemForDate(db, date, occ, prefs.gap, prefs.collections);
     if (!pick.poem) continue;
     cache = withPick(cache, date, { id: pick.poem.id, themed: pick.occasion }, key, today);
     await writeCache(db, cache);

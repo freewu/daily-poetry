@@ -100,8 +100,8 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
   版本不一致时 `src/lib/db-bootstrap.ts` 会在启动时覆盖随包库，并按「题目 + 作者 + 首句」把收藏 / 足迹写回。
   覆盖会整份替换 `meta` 表，所以新增偏好设置时**必须**加进 `KEPT_SETTINGS` 白名单，
   否则换库会把用户设置重置（现有：`settings_theme / settings_push / settings_daily_gap /
-  settings_script / settings_font / settings_font_size / settings_layout / settings_punct /
-  settings_tts_rate`）。
+  settings_daily_collections / settings_script / settings_font / settings_font_size /
+  settings_layout / settings_punct / settings_tts_rate`）。
 
 # 每日推送（作者冷却 / 应景）
 
@@ -112,23 +112,54 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
   没署名的诗统一算一位「佚名」（冷却身份只在挑选器内部用，不展示）。
 - `settings_daily_gap`（`0|3|7|14|30`，默认 `7`）只影响平日轮换；档位表是 `GAP_OPTS`，
   设置页「每日推送 → 作者间隔」用 `Segment` 渲染，未命中值走 `gapKeyOf()` 退回默认。
+- **每日精选**（`settings_daily_collections`，多选）：每日池不是写死的，
+  设置页「每日推送 → 每日精选」就是那个下拉多选框（`src/components/multi-select.tsx`
+  的 `MultiSelect`：字段点开从底部升起一份清单，逐项勾选，**至少留一部**）。
+  - **诗词库里的「每日精选」小字跟着它走**（`(tabs)/library.tsx` 的 `CollectionCard`
+    收一个 `daily` prop，来自 `dailyPrefs(db).collections`），**不再看建库时的 `daily` 列** ——
+    那行小字是「这几天会从这里抽诗」的提示，用户把全宋词勾进来就该挂在它身上。
+    「我的收藏」也在选集里，但它不是一个集子卡片，所以不上诗词库（它在收藏 tab）。
+  - 能选的是**所有**集子（`dailyScopeOptions()`：精选的排前面、同档按收录数从多到少）
+    + 最后那个虚拟集子「我的收藏」（`DAILY_FAVORITES = 'favorites'`，跟挑战出题池
+    `CHALLENGE_FAVORITES` 是同一个值）。收藏为 0 时那一行是「我的收藏（空）」且点不动。
+  - 语义是**整部纳入**：选了全唐诗就是 5.7 万首全是候选（不只 `daily = 1` 的），
+    所以 `dailyPoolRows()` 不再带 `daily = 1` —— 空选集才退回「整个精选池」的老口径。
+    「我的收藏」那一支查 `favorites` 表，与集子用 `UNION`（同一首不重复算，
+    否则它在池子里占比翻倍、作者冷却也会把它当两首）。
+  - **默认值不是「全选」**，是建库时 `DAILY_COLLECTIONS` 标了 `daily = 1` 的那九部
+    （1966 首）：老设备和没存过设置的设备行为不变。`parseDailyScope(raw, available, fallback)`
+    的第三个参数就是这个 fallback，`fallback` 也空了（测试库没 collections 数据）就返回空数组
+    = 不限集子，整池。
+  - **必须选择一个**：`parseDailyScope()`（读）/ `toggleDailyScope()`（写）/ `MultiSelect`（UI）
+    三处同一套规矩 —— 取消到一部不剩时原样返回、最后一部点不掉；串是脏的 / 旧 id 全失效
+    （换库、重下语料）都退回 fallback（那九部）。
+  - 落库存的是逗号串，顺序按 `available` 写，同一个选择永远同一个串 —— 缓存指纹靠它对齐。
+  - `poemForDay()` / `pickPoemForDate()` 多了第 4/5 个参数 `collections`（空 = 整池）；
+    挑诗器缓存键是 `gap|集子`，换了集子就是另一条序列。池子读出来是空的（选集 id 全失效，
+    或只勾了「我的收藏」而收藏是空的）`pickerFor()` 就**退回整池** —— 宁可多给几首，
+    也别让首页开天窗。
+  - 应景检索**不**跟着选集走：那是「节日 / 节气当天先推应景之作」，缩到 1966 首里
+    大半节气会查无此人（见下条），所以还是扫全库。
+  - 缓存指纹从 `push|gap` 变成 `push|gap|集子`（集子为空时还是 `push|gap`）；
+    勾了「我的收藏」再多一段 `|favN`（收藏数量），否则加了收藏还要等旧缓存过期。
+  - `settings_daily_collections` 在 `KEPT_SETTINGS` 白名单里，换库不丢。
 - 应景（`poemForOccasion`）：拿节日 / 节气名（`occasion.label` + `keywords` 别名）在**全库**
   按题目检索，题目无命中再退到正文；命中集合按 `日期 + 节日 id` 的种子随机取一首
   （同一天稳定，来年换一首）。`ORDER BY daily DESC` 让精选池优先，冷门节气靠全库兜底；
   全库也没有才回退平日轮换（`pickPoemForDate` 的 `occasion: false`）。
 - 24 个节气里大半在 1963 首精选池中零命中（立夏 0/2、小满 0/1…），所以应景检索**不能再**限定
   `daily = 1`，否则等于没做。
-- 挑诗器按「库实例 + 档位」缓存在 `WeakMap` 里（一次会话只建一次，逐日推到今天约 8ms）；
+- 挑诗器按「库实例 + 档位 + 选集」缓存在 `WeakMap` 里（一次会话只建一次，逐日推到今天约 8ms）；
   测试里换 db 实例会重建，别把 20 多万次的循环写进断言。
 - **隔夜缓存**（`src/lib/daily-cache.ts`）：挑今天的诗要跑应景检索（`LIKE '%词%'` 扫全库
   5.7 万行）或从 1960 年逐日推到今天，两步都在首屏必经路径上（桌面实测 75ms / 27ms）。
   所以首页画完后（`pickForDateCached()` 返回之后）**不 await** 地调 `prefetchUpcomingDays()`
   把往后 3 天的诗算好，写进 `meta` 的 `daily_picks`：
-  `{ 'YYYY-MM-DD': { id, key: 'push|gap', themed } }` —— 只存 id，不存正文。
+  `{ 'YYYY-MM-DD': { id, key: 'push|gap|集子', themed } }` —— 只存 id，不存正文。
   下次打开 `pickForDateCached()` 先读这条 KV（约 0.03ms）再 `getPoem(id)`。
   - 缓存**不改变结果**：`poemForDay` / `poemForOccasion` 都是「日期 + 池子 + 偏好」的纯函数，
     `__tests__/daily-cache-test.ts` 对拍「缓存 id == 现算 id」。
-  - 偏好指纹 `key` 对不上（用户改了推送方式 / 作者间隔）就作废重算；
+  - 偏好指纹 `key` 对不上（用户改了推送方式 / 作者间隔 / 精选诗集）就作废重算；
     只写今天及以后的日期（往回翻的日子不占缓存）；最多留 8 条（`CACHE_KEEP`）。
   - `daily_picks` **故意不进 `KEPT_SETTINGS`**：换库后旧 id 指向的是旧库的诗。
   - `prefetchUpcomingDays()` 用 `WeakSet<db>` 做「一整个会话只跑一次」的闸，
@@ -185,7 +216,17 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
   所以不用监听 provider 的异步加载，也**不会**把阅读设置写脏。
   `ShareCard` / `PoemLines` 因此各多出 `bodySize` / `script` / `punct` 覆盖 props。
 - 分段选择器统一用 `src/components/segment.tsx` 的 `Segment`（`compact` 是卡片页那种
-  小号版），别再在页面里复制一份。
+  小号版），别再在页面里复制一份；**多选**（设置的精选诗集）用 `src/components/multi-select.tsx`
+  的 `MultiSelect`（下拉多选框）：字段上只显示摘要（「全部 15 部」/「唐诗三百首、诗经」/
+  「A、B 等 5 部」+ `k/N`），点开是 `Modal` 里的清单，行尾带收录数。
+  - 改一项就 `onChange` 一次（调用方即时落库），「完成」只是收起来 —— 没有「确定 / 取消」
+    两段，因为字段上的摘要会直接变，不做草稿态反而不会丢改动。
+  - 它自己拦「最后一项点不掉」（`accessibilityState.checked` 还在，但点了没反应）；
+    `disabledKeys` 是另一种「这颗根本不选」（收藏为空时的「我的收藏」）。
+  - testID 是 `-field` / `-option-<key>` / `-done` / `-backdrop` / `-hint`：RN 的 `Modal`
+    在 `visible=false` 时 `render()` 直接 `return null`，所以**清单没展开时里面一行都不在树里**
+    —— 测试必须先把 `-field` 点开。（摘要本身是纯函数 `summaryOf()`，单测在
+    `__tests__/components/multi-select-test.ts`。）
 - 朗读语速在 `src/lib/tts.ts`，`expo-speech` 的 `rate` 是倍率（1.0 = 系统默认，中文偏快，
   所以「标准」= 0.9）。`PoemActions` 每次朗读现读设置，改完不用重启。
 - 朗读入口的显示条件在 `src/tts.ts` 的 `useTtsSupport()`：web 同步看 `speechSynthesis`，

@@ -3,7 +3,15 @@ import { Alert, StyleSheet, type TextStyle } from 'react-native';
 
 import SettingsScreen from '@/app/(tabs)/settings';
 
-import { asDb, renderWithTheme, screen, seedPoems, useMemoryDb } from '../helpers/test-utils';
+import {
+  asDb,
+  renderWithTheme,
+  screen,
+  seedCollections,
+  seedFavorites,
+  seedPoems,
+  useMemoryDb,
+} from '../helpers/test-utils';
 
 const g = globalThis as any;
 const HAD_VOICES = g.__SPEECH__.voices;
@@ -92,6 +100,137 @@ describe('<SettingsScreen />', () => {
     );
     await renderWithTheme(<SettingsScreen />, { db: db2 });
     await waitFor(() => expect(screen.getByText('7 天内不重复同一位作者（默认）')).toBeTruthy());
+  });
+
+  it('精选诗集：下拉多选列出所有集子 + 我的收藏，默认只勾精选那几部', async () => {
+    const db = await seed();
+    seedCollections(db, [
+      { id: 'tangshi', name: '唐诗三百首', count: 320, daily: 1 },
+      { id: 'shijing', name: '诗经', count: 305, daily: 1 },
+      { id: 'huajianji', name: '花间集', count: 447, daily: 1 },
+      // 不在默认精选池里，但也能选（整部纳入）
+      { id: 'quantangshi', name: '全唐诗', count: 57599, daily: 0 },
+    ]);
+    seedFavorites(db, [1, 2, 3]);
+    await renderWithTheme(<SettingsScreen />, { db });
+    await waitFor(() => expect(screen.getByTestId('scope-field')).toBeTruthy());
+
+    // 字段收起时只有摘要：默认是建库时那三部精选（不是全选）
+    expect(screen.getByText('花间集、唐诗三百首 等 3 部')).toBeTruthy();
+    expect(screen.getByText('3/5')).toBeTruthy();
+    expect(screen.getByText('已选 3/5 部 · 共 1072 首（至少保留一部）')).toBeTruthy();
+    // 清单没展开时里面一行都不画
+    expect(screen.queryByTestId('scope-option-tangshi')).toBeNull();
+
+    // 点开：所有集子 + 我的收藏都在，全唐诗 / 我的收藏默认不勾
+    await fireEvent.press(screen.getByTestId('scope-field'));
+    expect(screen.getByTestId('scope-option-quantangshi').props.accessibilityState.checked).toBe(
+      false,
+    );
+    expect(screen.getByText('我的收藏')).toBeTruthy();
+    expect(screen.getByText('447 首')).toBeTruthy();
+    expect(screen.getByTestId('scope-option-favorites').props.accessibilityState.checked).toBe(
+      false,
+    );
+
+    // 取消一部 → 落库（按选项顺序写），摘要跟着变
+    await fireEvent.press(screen.getByTestId('scope-option-tangshi'));
+    await waitFor(async () =>
+      expect(
+        await asDb(db).getFirstAsync(
+          "SELECT value FROM meta WHERE key = 'settings_daily_collections'",
+        ),
+      ).toEqual({ value: 'huajianji,shijing' }),
+    );
+    expect(screen.getByText('已选 2/5 部 · 共 752 首（至少保留一部）')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('scope-done'));
+    // 只剩两部时摘要改成直接报名
+    expect(screen.getByText('花间集、诗经')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('scope-field'));
+
+    // 勾上大部头与我的收藏
+    await fireEvent.press(screen.getByTestId('scope-option-quantangshi'));
+    await fireEvent.press(screen.getByTestId('scope-option-favorites'));
+    await waitFor(async () =>
+      expect(
+        await asDb(db).getFirstAsync(
+          "SELECT value FROM meta WHERE key = 'settings_daily_collections'",
+        ),
+      ).toEqual({ value: 'huajianji,shijing,quantangshi,favorites' }),
+    );
+    expect(screen.getByText('已选 4/5 部 · 共 58354 首（至少保留一部）')).toBeTruthy();
+
+    // 取消剩下那两部，只剩我的收藏（它就成了最后一个，再点也点不掉）
+    await fireEvent.press(screen.getByTestId('scope-option-quantangshi'));
+    await fireEvent.press(screen.getByTestId('scope-option-shijing'));
+    await fireEvent.press(screen.getByTestId('scope-option-huajianji'));
+    await waitFor(async () =>
+      expect(
+        await asDb(db).getFirstAsync(
+          "SELECT value FROM meta WHERE key = 'settings_daily_collections'",
+        ),
+      ).toEqual({ value: 'favorites' }),
+    );
+    await fireEvent.press(screen.getByTestId('scope-option-favorites'));
+    expect(screen.getByText('已选 1/5 部 · 共 3 首（至少保留一部）')).toBeTruthy();
+    expect(
+      await asDb(db).getFirstAsync("SELECT value FROM meta WHERE key = 'settings_daily_collections'"),
+    ).toEqual({ value: 'favorites' });
+
+    // 「完成」收起清单，摘要能看出只剩我的收藏一项
+    await fireEvent.press(screen.getByTestId('scope-done'));
+    await waitFor(() => expect(screen.queryByTestId('scope-option-favorites')).toBeNull());
+    expect(screen.getByText('我的收藏')).toBeTruthy();
+    expect(screen.getByText('1/5')).toBeTruthy();
+
+    // 再打开，可以重新勾回来
+    await fireEvent.press(screen.getByTestId('scope-field'));
+    await fireEvent.press(screen.getByTestId('scope-option-tangshi'));
+    await waitFor(async () =>
+      expect(
+        await asDb(db).getFirstAsync(
+          "SELECT value FROM meta WHERE key = 'settings_daily_collections'",
+        ),
+      ).toEqual({ value: 'tangshi,favorites' }),
+    );
+    expect(screen.getByText('唐诗三百首、我的收藏')).toBeTruthy();
+  });
+
+  it('点空白处也能收起清单', async () => {
+    const db = await seed();
+    seedCollections(db, [{ id: 'tangshi', name: '唐诗三百首', count: 320, daily: 1 }]);
+    await renderWithTheme(<SettingsScreen />, { db });
+    await waitFor(() => expect(screen.getByTestId('scope-field')).toBeTruthy());
+    await fireEvent.press(screen.getByTestId('scope-field'));
+    expect(screen.getByTestId('scope-option-tangshi')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('scope-backdrop'));
+    await waitFor(() => expect(screen.queryByTestId('scope-option-tangshi')).toBeNull());
+  });
+
+  it('「我的收藏」是空的时候点不动（选了也是空池子）', async () => {
+    const db = await seed();
+    seedCollections(db, [{ id: 'tangshi', name: '唐诗三百首', count: 320, daily: 1 }]);
+    await asDb(db).runAsync('DELETE FROM favorites');
+    await renderWithTheme(<SettingsScreen />, { db });
+    await waitFor(() => expect(screen.getByTestId('scope-field')).toBeTruthy());
+    await fireEvent.press(screen.getByTestId('scope-field'));
+
+    expect(screen.getByText('我的收藏（空）')).toBeTruthy();
+    expect(screen.getByTestId('scope-option-favorites').props.accessibilityState.disabled).toBe(
+      true,
+    );
+    await fireEvent.press(screen.getByTestId('scope-option-favorites'));
+    expect(
+      await asDb(db).getFirstAsync("SELECT value FROM meta WHERE key = 'settings_daily_collections'"),
+    ).toBeNull();
+  });
+
+  it('没有集子数据（旧库 / 测试库）时不画这一段', async () => {
+    const db = await seed();
+    await asDb(db).runAsync('DELETE FROM favorites');
+    await renderWithTheme(<SettingsScreen />, { db });
+    await waitFor(() => expect(screen.getByText('经典轮换')).toBeTruthy());
+    expect(screen.queryByTestId('scope-field')).toBeNull();
   });
 
   it('切换正文字体并落库', async () => {

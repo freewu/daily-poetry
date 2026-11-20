@@ -46,6 +46,8 @@ export const KEPT_SETTINGS = [
   'settings_punct',
   'settings_tts_rate',
   'settings_daily_gap',
+  // 每日精选从哪几部集子里挑（见 lib/daily.ts 的 DAILY_SCOPE_KEY）
+  'settings_daily_collections',
   // 卡片页「记住上次」的字号 / 简繁 / 标点（见 lib/card.ts 的 CARD_*_KEY）
   'settings_card_size',
   'settings_card_script',
