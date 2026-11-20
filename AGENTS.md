@@ -488,6 +488,18 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
   诗词库网格只渲染前十张卡片、滚不到后面的集子，要去别的集子直接走深链：
   `adb shell am start -a android.intent.action.VIEW -d "dailypoetry://collection/ci"`
   （路径就是 expo-router 的路由，`poem/2`、`settings` 同理，比一层层点稳）。
+- 脚本里三条纪律（都是被坑出来的，改脚本时别退回去）：
+  - **回 tab 一律 `tab <x>`，不要裸 `tap_xy <x> 2230`**：详情 / 集子 / 设置这些压栈页
+    底下没有 tab 栏，那个坐标正好落在页面自己的按钮上（诗篇详情 y2211–2337 被操作条占满）。
+    `tab()` 先用 `tab_bar_visible()`（找 `navigation_bar_item`）判断，不在根上才 BACK 回来。
+  - **所有 adb 调用都套 `timeout`，`ui_dump_xml` 还要重试**：`uiautomator dump` 偶发
+    无限挂起（不报错、永远不回，见过 7 分钟），表现为脚本像死了一样。超时按「这次没抓到」
+    处理让上层重试，别当崩溃。`el_tap` 同理会 dump 最多 5 次再报错 —— 刚切过来的页面首帧
+    可能还没画完。
+  - **切主题不走 UI**：设置页「外观」在最底下、`我的` 那排是 sticky 头，滚到底之后
+    uiautomator 报的 bounds 是坏的（y2 < y1），点下去全靠运气。设备是 root + 自带
+    `sqlite3`，`set_theme <auto|light|dark>` 直接改 meta 的 `settings_theme` 再冷启动
+    —— 白名单里的键，换库也不丢。两个序列**开头都写一遍**主题（深色序列会把库里留成 dark）。
 - **首屏预览切换器**：`.hero__frames` 里八张 `figure.hero__frame[data-preview]` **叠在同一个
   grid 格**上（`grid-area:1/1` + `opacity/visibility` 过渡；用 `display:none` 容器高度会跟着跳），
   顶部导航的 `a[data-preview]` 悬停 / 聚焦 / 点击都调 `showPreview(key)`。
