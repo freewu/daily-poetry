@@ -1,0 +1,246 @@
+# 出包流水线：版本号（app.json 的 expo.version）一改就打包。
+#
+# 触发：
+#   - push 到 main：每次都跑，但「版本没变」时只有几秒钟的 version 任务，包不重出
+#   - push 一个 v* tag：照旧出包，再把两个包挂到同名 GitHub Release 上
+#   - Actions 页面点 Run workflow：强制出一次包
+#
+# 两个包都是「拿起来能装」的，跟本地 `just apk` / `just ipa` 同源：
+#   APK  Release 变体，JS 打进包里（拔线也能用），签名用模板自带的 debug keystore
+#   IPA  关掉签名归档，再把 .app 塞进 Payload/ 打成 zip（AltStore / Sideloadly 认这个格式）
+# 要上架的正式签名包仍走 EAS（just ipa-eas），这里不做凭证。
+#
+# 为什么 CI 要自己建库：`assets/poetry.db` 是 .gitignore 里的产物（60MB，9.5 万首），
+# 不进仓库就没法随包发；所以先拉语料（带缓存）再 `scripts/build-db.mjs`，
+# 产物当 artifact 传给 android / ios 两个任务，避免两边各抓一遍语料。
+name: release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CI: '1'
+  EXPO_NO_TELEMETRY: '1'
+
+jobs:
+  # ---------------------------------------------------------------- 版本闸门
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+      vc: ${{ steps.read.outputs.vc }}
+      bn: ${{ steps.read.outputs.bn }}
+      build: ${{ steps.read.outputs.build }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # 要拿 HEAD^ 的 app.json 跟这一版比，只取两个提交就够
+          fetch-depth: 2
+      - id: read
+        name: 读版本号，判断这次要不要出包
+        run: |
+          set -euo pipefail
+          # 传进来的是完整的 JS 表达式（a. 后面那段），缺字段就走兜底
+          v() { node -p "const a = require('./app.json').expo; String($1)"; }
+          version="$(v 'a.version || ""')"
+          vc="$(v 'a.android.versionCode || 1')"
+          bn="$(v 'a.ios.buildNumber || 1')"
+          echo "app.json → version=$version versionCode=$vc buildNumber=$bn"
+
+          build=false
+          case "$GITHUB_REF" in
+            refs/tags/v*)
+              # tag 本身就是「发这一版」，不看版本号动没动
+              build=true
+              ;;
+            *)
+              if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+                build=true
+              else
+                prev="$(git show HEAD^:app.json 2>/dev/null \
+                  | node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).expo.version" \
+                  2>/dev/null || true)"
+                echo "上一个提交的版本：${prev:-（读不到）}"
+                if [ -n "$prev" ] && [ "$prev" = "$version" ]; then
+                  echo "版本没变，跳过打包（只跑 tsc/lint 之外的检查没意义，这里直接收工）"
+                else
+                  echo "版本变了：${prev:-?} → $version"
+                  build=true
+                fi
+              fi
+              ;;
+          esac
+
+          {
+            echo "version=$version"
+            echo "vc=$vc"
+            echo "bn=$bn"
+            echo "build=$build"
+          } >> "$GITHUB_OUTPUT"
+
+  # ------------------------------------------------------------------ 建库
+  db:
+    needs: version
+    if: needs.version.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # 语料（chinese-poetry 的 sparse clone + 乐府 / 宋词三百首原文）加起来几百 MB
+      # 又基本不变：按抓取脚本的哈希缓存住，改了抓取逻辑才会重下。
+      - uses: actions/cache@v4
+        id: corpus
+        with:
+          path: .data
+          key: corpus-${{ hashFiles('scripts/fetch-corpus.sh', 'scripts/fetch-yuefu.mjs', 'scripts/fetch-songci300.mjs') }}
+      - run: npm ci
+      - name: 拉语料
+        if: steps.corpus.outputs.cache-hit != 'true'
+        run: |
+          bash scripts/fetch-corpus.sh standard
+          node scripts/fetch-yuefu.mjs
+          node scripts/fetch-songci300.mjs
+      - name: 建库（poetry.db + stats.json）
+        run: |
+          node scripts/build-db.mjs
+          node scripts/build-stats.mjs
+          ls -lh assets/poetry.db assets/stats.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: poetry-db
+          path: |
+            assets/poetry.db
+            assets/stats.json
+          # sqlite 自己已经压过，artifact 再压一遍只是白等
+          compression-level: 0
+          if-no-files-found: error
+
+  # ------------------------------------------------------------------ APK
+  android:
+    needs: [version, db]
+    if: needs.version.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17' # @react-native/gradle-plugin 用 jvmToolchain(17)
+      - uses: actions/download-artifact@v4
+        with:
+          name: poetry-db
+          path: assets
+      # Gradle 的依赖 / AAR / prefab 全在 ~/.gradle，冷启动要重下几百 MB
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: gradle-${{ runner.os }}-
+      - run: npm ci
+      - name: NDK（runner 上没预装就补上）
+        run: |
+          ndk="$(sed -n 's/^ndkVersion *= *"\(.*\)"/\1/p' node_modules/react-native/gradle/libs.versions.toml)"
+          echo "需要 NDK $ndk"
+          if [ ! -d "$ANDROID_HOME/ndk/$ndk" ]; then
+            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$ndk" > /dev/null
+          fi
+      - name: prebuild（android/ 不入库，现生成）
+        run: npx expo prebuild -p android --clean
+      - name: assembleRelease
+        run: cd android && ./gradlew assembleRelease --no-daemon
+      - name: 收进 dist/（文件名跟 just apk 一致）
+        run: |
+          mkdir -p dist
+          cp android/app/build/outputs/apk/release/app-release.apk \
+            "dist/daily-poetry-${{ needs.version.outputs.version }}-vc${{ needs.version.outputs.vc }}.apk"
+          ls -lh dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk-v${{ needs.version.outputs.version }}
+          path: dist/*.apk
+          if-no-files-found: error
+
+  # ------------------------------------------------------------------ IPA
+  ios:
+    needs: [version, db]
+    if: needs.version.outputs.build == 'true'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/download-artifact@v4
+        with:
+          name: poetry-db
+          path: assets
+      - run: npm ci
+      - name: prebuild（含 pod install）
+        run: npx expo prebuild -p ios --clean
+      - name: 归档 Release（关签名）
+        run: |
+          set -euo pipefail
+          ws="$(ls -d ios/*.xcworkspace | head -1)"
+          scheme="$(basename "$ws" .xcworkspace)"
+          echo "workspace=$ws scheme=$scheme"
+          xcodebuild -workspace "$ws" -scheme "$scheme" -configuration Release -sdk iphoneos \
+            -archivePath build/app.xcarchive -quiet \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            archive
+      - name: 塞进 Payload/ 打成未签名 .ipa
+        run: |
+          set -euo pipefail
+          app="$(ls -d build/app.xcarchive/Products/Applications/*.app | head -1)"
+          echo "app=$app"
+          mkdir -p build/Payload dist
+          rm -rf build/Payload/*.app
+          cp -R "$app" build/Payload/
+          out="$(pwd)/dist/daily-poetry-${{ needs.version.outputs.version }}-b${{ needs.version.outputs.bn }}.ipa"
+          ( cd build && zip -qry "$out" Payload )
+          ls -lh dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ipa-v${{ needs.version.outputs.version }}
+          path: dist/*.ipa
+          if-no-files-found: error
+
+  # ------------------------------------------------------- 打 tag 时发 Release
+  publish:
+    needs: [version, android, ios]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: 挂到 GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          tag="$GITHUB_REF_NAME"
+          gh release view "$tag" > /dev/null 2>&1 \
+            || gh release create "$tag" --title "$tag" --generate-notes
+          gh release upload "$tag" dist/* --clobber
+          gh release view "$tag" --json assets -q '.assets[].name'

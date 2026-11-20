@@ -37,6 +37,29 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before 
    Windows 进程**，光 `export` 没用。`tool/android.sh boot` 还会检 `.ini` 里的 `path=`
    是否还指着老地方，指错了直接把该改成什么打出来。
 
+# 出包流水线（GitHub Actions + tool/version.sh）
+
+- 改版本号只跑 `bash tool/version.sh 1.2.0`：它换掉 `app.json` 的 `expo.version`，
+  同时把 `android.versionCode` / `ios.buildNumber` 各 +1（缺字段就补 1）—— 只改前一个
+  是老事故（Play 直接拒、TestFlight 上传报重复）。脚本校验 `x.y.z`、拒同版本、
+  落盘前 `JSON.parse` 复验。
+- push 到 main 就跑 `.github/workflows/release.yml`，但**版本没变时只有几秒钟的
+  `version` 任务**（跟 `HEAD^` 的 `app.json` 比），包不重出；Actions 页面 `Run workflow`
+  强制出一次；`v*` tag 除了出包，`publish` 还会把两个包挂到同名 GitHub Release。
+- 五个 job：`version`（闸门，产出 version / versionCode / buildNumber / build）→
+  `db`（拉语料 + `build-db.mjs` + `build-stats.mjs`，产物当 artifact 传给下游）→
+  `android` / `ios`（各自 `npm ci` + `expo prebuild --clean` + 构建）→ `publish`。
+  语料按三个抓取脚本的哈希缓存，Gradle 按 `package-lock.json` 缓存。
+- 两个包都「拿起来能装」：APK 是 Release 变体（JS 打进包里、签名用模板自带 debug
+  keystore），IPA 关签名归档后把 `.app` 塞进 `Payload/` 打成 zip（AltStore / Sideloadly 认）。
+  上架的正式签名包仍走 EAS（`just ipa-eas`），CI 不碰凭证。
+- `assets/poetry.db` 是 .gitignore 里的产物，所以 CI **必须**自己建库：别把 `db` 任务
+  「优化」掉，也别指望本地 `dist/` 能拼进去。
+- 本地 `tool/android.sh apk` 在 WSL 下**客户端**偶尔卡住不退（Gradle 其实已经
+  `BUILD SUCCESSFUL`）：`kill` 掉脚本，手动
+  `cp android/app/build/outputs/apk/release/app-release.apk dist/daily-poetry-<版本>-vc<N>.apk`
+  再 `adb install -r` 即可，产物跟 CI 那个同源。
+
 # 数据与简繁
 
 - 语料在 `.data/chinese-poetry`（`just data`；`data-full` 再多取古文观止 / 幽梦影 / 论语 / 四书 / 蒙学），
